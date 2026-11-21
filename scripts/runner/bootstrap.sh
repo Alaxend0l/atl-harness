@@ -2,7 +2,7 @@
 # Build ATL and its dependencies on a Fedora runner (host or distrobox).
 # Run through `rig bootstrap`; it passes these environment variables:
 #   HARNESS_DIR  harness checkout (absolute)        MAKE_JOBS  parallel jobs
-#   ATL_SRC      ATL checkout (absolute)            ATL_GIT    ATL clone URL
+#   ATL_SRC      ATL checkout (absolute)            ATL_GIT    ATL fork clone URL
 #   STEPS        steps to run (space separated)     FORCE      1 = redo done steps
 # Each step leaves a marker in ~/src/.bootstrap/ and is skipped next time.
 # Recipe and rationale: docs/setup.md.
@@ -14,7 +14,8 @@ MARK=$SRC/.bootstrap
 mkdir -p "$SRC" "$LOGS" "$MARK"
 MAKE_JOBS=${MAKE_JOBS:-$(nproc)}
 ATL_SRC=${ATL_SRC:-$SRC/android_translation_layer}
-ATL_GIT=${ATL_GIT:-https://gitlab.com/android_translation_layer/android_translation_layer.git}
+ATL_GIT=${ATL_GIT:-git@github-atl-fork:Alaxend0l/android-translation-layer.git}
+ATL_UPSTREAM=https://gitlab.com/android_translation_layer/android_translation_layer.git
 ALL_STEPS="packages rust sources wolfssl bionic vixl art opensles atl harness"
 STEPS=${STEPS:-$ALL_STEPS}
 GITLAB=https://gitlab.com/android_translation_layer
@@ -62,7 +63,12 @@ step_sources() {
   for r in bionic_translation art_standalone libopensles-standalone atl_test_apks; do
     clone "$GITLAB/$r.git" "$SRC/$r"
   done
-  clone "$ATL_GIT" "$ATL_SRC"
+  # The fork is private: the runner needs the github-atl-fork ssh alias and a
+  # deploy key (docs/rig.md). Upstream is added fetch-only (decisions D1, D13).
+  clone "$ATL_GIT" "$ATL_SRC" --branch main
+  git -C "$ATL_SRC" remote get-url upstream >/dev/null 2>&1 \
+    || git -C "$ATL_SRC" remote add upstream "$ATL_UPSTREAM"
+  git -C "$ATL_SRC" remote set-url --push upstream DISABLED-hard-fork-never-push-upstream
 }
 
 meson_install() { # dir [meson setup args...]

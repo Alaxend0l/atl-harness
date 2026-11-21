@@ -47,6 +47,7 @@ class Runner:
     jobs: int = 2
     make_jobs: int | None = None
     atl_src: str = "src/android_translation_layer"
+    atl_git: str = "git@github-atl-fork:Alaxend0l/android-translation-layer.git"
     lima_host: str | None = None
     lima_instance: str | None = None
     notes: str = ""
@@ -507,6 +508,7 @@ def cmd_bootstrap(reg: Registry, a) -> int:
     env = {
         "HARNESS_DIR": r.home_path(r.dir),
         "ATL_SRC": r.home_path(r.atl_src),
+        "ATL_GIT": shlex.quote(r.atl_git),
         "STEPS": shlex.quote(" ".join(steps)),
         "FORCE": "1" if a.force else "0",
     }

@@ -58,14 +58,25 @@ code. `rig job stop NAME` kills the job's process group. `bootstrap`,
    ```sh
    rig add NAME --ssh ALIAS [--distrobox atl] [--lima-host MAC --lima-instance atl]
    ```
-4. `rig -r NAME doctor` to see what's missing.
-5. `rig -r NAME bootstrap --wait`: packages, Rust, wolfSSL,
+4. Give it read access to the private ATL fork (one deploy key per runner,
+   read-only, scoped to the fork; decisions D13):
+   ```sh
+   ssh ALIAS 'ssh-keygen -t ed25519 -N "" -C atl-fork-deploy@NAME -f ~/.ssh/atl-fork_ed25519'
+   ssh ALIAS 'cat ~/.ssh/atl-fork_ed25519.pub' | gh repo deploy-key add - \
+     -R Alaxend0l/android-translation-layer -t "runner NAME (read-only)"
+   ssh ALIAS 'printf "\nHost github-atl-fork\n    HostName github.com\n    User git\n    IdentityFile ~/.ssh/atl-fork_ed25519\n    IdentitiesOnly yes\n" >> ~/.ssh/config'
+   ssh ALIAS 'ssh -o StrictHostKeyChecking=accept-new -T github-atl-fork'   # "Hi Alaxend0l/android-translation-layer!"
+   ```
+   Agents that push branches need `--allow-write` on their runner's key;
+   add that only when the agent loop starts.
+5. `rig -r NAME doctor` to see what's missing.
+6. `rig -r NAME bootstrap --wait`: packages, Rust, wolfSSL,
    bionic_translation, vixl (aarch64), art_standalone, libOpenSLES, ATL,
    atlh. Takes 30–60 min, mostly ART. Each step logs to
    `~/src/logs/bootstrap-STEP.log` and is skipped once done; after a
    failure fix the cause and rerun the same command. `--from STEP`,
    `--only a,b`, `--force` to redo.
-6. `rig -r NAME doctor` again, then `rig -r NAME smoke
+7. `rig -r NAME doctor` again, then `rig -r NAME smoke
    src/atl_test_apks/org.happysanta.gd_29.apk`.
 
 ## runners.toml
@@ -81,6 +92,7 @@ distrobox = "atl"            # optional: run inside this distrobox
 jobs = 4                     # default --jobs for `atlh run`
 make_jobs = 6                # optional: compile parallelism for bootstrap
 atl_src = "src/android_translation_layer"   # ATL checkout, relative to ~
+atl_git = "git@github-atl-fork:Alaxend0l/android-translation-layer.git"  # default: the fork
 lima_host = "atl-mini"       # optional, with lima_instance: for up/down/doctor
 lima_instance = "atl"
 notes = "free text"
@@ -90,7 +102,8 @@ Unknown keys are errors, like `config.toml`.
 ## Doctor checks
 ssh · distrobox exists · Lima VM running · arch matches · page size is 4K
 (see decisions D11) · Fedora · cargo, Xvfb, ImageMagick, ATL on PATH ·
-art-standalone installed · ATL checkout · disk ≥ 20 GB · memory/cpus ·
+art-standalone installed · ATL checkout, its `origin` is the fork, and
+`upstream` can't be pushed to · disk ≥ 20 GB · memory/cpus ·
 harness checkout synced with this workstation (hash of `src/`, Cargo
 files, `config*.toml`) · atlh built · clock skew ≤ 5 s. Exit code: 0 all
 ok, 1 warnings, 2 failures. Every failure line has a fix hint.

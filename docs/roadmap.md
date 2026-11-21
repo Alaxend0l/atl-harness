@@ -30,8 +30,8 @@ End to end on the box (x86_64 Bazzite, `atl` distrobox, upstream ATL
    *Repo created (2026-11-21): `github.com/Alaxend0l/android-translation-layer`,
    private, `main` = upstream `22a96b28` + fork notice; upstream is
    fetch-only; license GPLv3. Workstation clone: `~/Develop/android-translation-layer`.
-   Open: how runners get fork code (deploy keys vs. pushing from the
-   workstation); runners still build upstream `22a96b28`.*
+   Runners pull it with per-runner read-only deploy keys (alias
+   `github-atl-fork`) and build `main`. Done.*
 4. **Flake handling.** Make `compare` (or a new `gate` command) rerun
    regressed apps N times automatically and only fail on consistent
    regressions.

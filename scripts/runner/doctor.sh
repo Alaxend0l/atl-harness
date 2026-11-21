@@ -30,9 +30,20 @@ done
 if v=$(pkg-config --modversion art-standalone 2>/dev/null); then r ok art-standalone "$v"
 else r fail art-standalone missing "$BOOT --only art"; fi
 
-if [ -d ~/src/android_translation_layer/.git ]; then
-  r ok atl-src "$(git -C ~/src/android_translation_layer log -1 --format='%h %s' 2>/dev/null | cut -c1-60)"
-else r warn atl-src "no checkout at ~/src/android_translation_layer" "$BOOT --only sources"; fi
+A=~/src/android_translation_layer
+if [ -d $A/.git ]; then
+  r ok atl-src "$(git -C $A log -1 --format='%h %s' 2>/dev/null | cut -c1-60)"
+  o=$(git -C $A remote get-url origin 2>/dev/null)
+  case "$o" in
+    *Alaxend0l/android-translation-layer*) r ok atl-origin "$o" ;;
+    *) r warn atl-origin "${o:-none} (not the fork)" "see docs/rig.md: point origin at the fork" ;;
+  esac
+  pu=$(git -C $A remote get-url --push upstream 2>/dev/null || true)
+  case "$pu" in
+    DISABLED*|"") r ok upstream-push "${pu:-no upstream remote}" ;;
+    *) r fail upstream-push "$pu" "git -C $A remote set-url --push upstream DISABLED-hard-fork-never-push-upstream" ;;
+  esac
+else r warn atl-src "no checkout at $A" "$BOOT --only sources"; fi
 
 free_gb=$(( $(df -Pk ~ | awk 'NR==2{print $4}') / 1048576 ))
 if [ "$free_gb" -ge 20 ]; then r ok disk "${free_gb} GB free"
