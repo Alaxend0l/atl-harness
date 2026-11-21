@@ -50,3 +50,7 @@ End to end on the box (x86_64 Bazzite, `atl` distrobox, upstream ATL
 - `fetch` loads the whole F-Droid index into memory (tens of MB; fine).
 - `remote.sh atlh` runs in the foreground over SSH; use tmux for long runs.
 - New Xvfb per app costs ~1 s; fine for now.
+
+## Agent tasks
+Standing work for coding agents, independent of the steps above:
+- [Runner registry, harness tooling, documentation](agent-tasks/tooling-and-docs.md)
