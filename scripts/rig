@@ -33,7 +33,29 @@ ARCH_CONFIG = {"x86_64": "config.toml", "aarch64": "config.aarch64.toml"}
 
 
 class RigError(Exception):
-    pass
+    code = 2
+
+
+class RigTimeout(RigError):
+    code = 124
+
+
+class RigStalled(RigError):
+    code = 125
+
+
+class RigUnreachable(RigError):
+    code = 126
+
+
+# Every remote command ends within a bounded time with a verdict (docs/rig.md,
+# "Bounded waits"). Defaults per command, overridable with --timeout SECONDS.
+DEFAULT_TIMEOUTS = {
+    "doctor": 180, "list": 60, "sync": 600, "pull": 1800, "sh": 3600, "atlh": 7200,
+    "build": 3600, "rebuild-atl": 3600, "smoke": 600, "rootfs": 5400, "desktop-apps": 600,
+    "bootstrap": 600, "add": 120, "up": 300, "down": 300, "job": 600,
+}
+TIMEOUT = 600  # set from the command in main()
 
 
 # ---------------------------------------------------------------- registry
@@ -197,12 +219,19 @@ def ssh_argv(host: str, command: str | None = None, tty: bool = False, batch: bo
 
 
 def run_remote(r: Runner, script: str, args: list[str] = (), cd: bool = True, tty: bool = False,
-               capture: bool = False, env: dict[str, str] | None = None, check: bool = False):
+               capture: bool = False, env: dict[str, str] | None = None, check: bool = False,
+               timeout: int | None = None):
     argv = ssh_argv(r.ssh, wrap(r, inner_script(r, script, args, cd, env)), tty=tty)
     # Non-interactive ssh must not read our stdin (it would swallow input meant
     # for whatever runs next, e.g. a shell loop).
     stdin = None if tty else subprocess.DEVNULL
-    p = subprocess.run(argv, text=True, capture_output=capture, stdin=stdin)
+    try:
+        p = subprocess.run(argv, text=True, capture_output=capture, stdin=stdin,
+                           timeout=None if tty else (timeout or TIMEOUT))
+    except subprocess.TimeoutExpired:
+        first = script.strip().splitlines()[-1][:80] if script.strip() else "?"
+        raise RigTimeout(f"TIMEOUT after {timeout or TIMEOUT}s on {r.name}: {first} "
+                         f"(raise with --timeout; long work belongs in --detach jobs)")
     if check and p.returncode != 0:
         err = (p.stderr or "").strip() if capture else ""
         raise RigError(f"{r.name}: remote command failed ({p.returncode}){': ' + err if err else ''}")
@@ -284,16 +313,21 @@ done
 """
 
 
-def job_state(r: Runner, name: str) -> tuple[str, str | None]:
-    p = run_remote(r, f"""p={JOBS_DIR}/{name}
-if [ -f $p.exit ]; then echo "exit $(cat $p.exit)"
-elif [ -f $p.pid ] && kill -0 "$(cat $p.pid)" 2>/dev/null; then echo running
-elif [ -f $p.pid ]; then echo died
-else echo missing; fi""", cd=False, capture=True)
-    out = p.stdout.strip()
-    if out.startswith("exit "):
-        return "exit", out.split()[1]
-    return out or "unreachable", None
+def job_state(r: Runner, name: str) -> tuple[str, str | None, int]:
+    """(state, exit code, log size in bytes); state "unreachable" if ssh fails."""
+    try:
+        p = run_remote(r, f"""p={JOBS_DIR}/{name}
+size=$(stat -c %s $p.log 2>/dev/null || echo 0)
+if [ -f $p.exit ]; then echo "exit $(cat $p.exit) $size"
+elif [ -f $p.pid ] && kill -0 "$(cat $p.pid)" 2>/dev/null; then echo "running - $size"
+elif [ -f $p.pid ]; then echo "died - $size"
+else echo "missing - 0"; fi""", cd=False, capture=True, timeout=30)
+    except RigTimeout:
+        return "unreachable", None, -1
+    parts = p.stdout.strip().split()
+    if p.returncode == 255 or len(parts) < 3:
+        return "unreachable", None, -1
+    return parts[0], (parts[1] if parts[0] == "exit" else None), int(parts[2])
 
 
 # ---------------------------------------------------------------- commands
@@ -517,24 +551,56 @@ def cmd_job(reg: Registry, a) -> int:
     if a.job_cmd == "stop":
         return run_remote(r, f'kill -- -"$(cat {JOBS_DIR}/{name}.pid)" && echo stopped {name}', cd=False).returncode
     if a.job_cmd == "wait":
-        return wait_job(r, name, a.interval)
+        return wait_job(r, name, a.interval, stall=a.stall, max_time=a.max_time)
     raise RigError(a.job_cmd)
 
 
-def wait_job(r: Runner, name: str, interval: int = 20) -> int:
-    last = None
+def wait_job(r: Runner, name: str, interval: int = 20, stall: int = 600, unreachable: int = 180,
+             max_time: int | None = None, heartbeat: int = 60) -> int:
+    """Wait for a job; always ends with a verdict. Exit status: the job's own, 1 if
+    it died, 125 if its log stopped growing for `stall` s, 126 if the runner was
+    unreachable for `unreachable` s, 124 after `max_time` s."""
+    start = last_change = last_beat = time.time()
+    last_state, last_size, lost_since = None, None, None
+
+    def tail():
+        try:
+            run_remote(r, f"tail -n 15 {JOBS_DIR}/{name}.log 2>/dev/null", cd=False)
+        except RigError:
+            pass
+
     while True:
-        st, code = job_state(r, name)
-        if st != last:
+        st, code, size = job_state(r, name)
+        now = time.time()
+        if st == "unreachable":
+            lost_since = lost_since or now
+            if now - lost_since > unreachable:
+                raise RigUnreachable(f"UNREACHABLE: {r.name} did not answer for {int(now - lost_since)}s "
+                                     f"(job {name} may still be running; check: rig -r {r.name} doctor)")
+        else:
+            lost_since = None
+        if st != last_state:
             print(f"[{time.strftime('%T')}] {name}: {st}{' ' + code if code else ''}", flush=True)
-            last = st
+            last_state = st
         if st == "exit":
-            run_remote(r, f"tail -n 15 {JOBS_DIR}/{name}.log", cd=False)
+            tail()
             return int(code or 1)
         if st in ("died", "missing"):
-            run_remote(r, f"tail -n 15 {JOBS_DIR}/{name}.log 2>/dev/null", cd=False)
+            tail()
             return 1
-        time.sleep(interval)  # "unreachable" retries: network blips are survivable
+        if size >= 0 and size != last_size:
+            last_size, last_change = size, now
+        elapsed = int(now - start)
+        if st == "running" and now - last_change > stall:
+            tail()
+            raise RigStalled(f"STALLED: job {name} on {r.name} wrote nothing for {int(now - last_change)}s "
+                             f"(still running; rig -r {r.name} job stop {name}, or wait with --stall N)")
+        if max_time and elapsed > max_time:
+            raise RigTimeout(f"TIMEOUT: job {name} on {r.name} not done after {elapsed}s (still running)")
+        if now - last_beat >= heartbeat:
+            print(f"[{time.strftime('%T')}] {name}: {st}, {elapsed}s, log {max(size, 0)} bytes", flush=True)
+            last_beat = now
+        time.sleep(interval)
 
 
 def cmd_bootstrap(reg: Registry, a) -> int:
@@ -562,7 +628,9 @@ def cmd_bootstrap(reg: Registry, a) -> int:
     body = env_prefix(env) + f"bash {r.home_path(r.dir)}/scripts/runner/bootstrap.sh"
     rc = start_job(r, "bootstrap", body)
     if rc == 0 and a.wait:
-        return wait_job(r, "bootstrap")
+        # step output goes to ~/src/logs/bootstrap-STEP.log, so the job log is
+        # quiet for a whole step (art_standalone: ~25 min)
+        return wait_job(r, "bootstrap", stall=3600)
     return rc
 
 
@@ -677,7 +745,7 @@ def cmd_rootfs(reg: Registry, a) -> int:
     if not a.reuse:
         do_sync(src)
         rc = start_job(src, "rootfs", f"bash scripts/runner/make-rootfs.sh ~/{tarball}")
-        if rc or wait_job(src, "rootfs"):
+        if rc or wait_job(src, "rootfs", stall=1800):
             raise RigError(f"rootfs build on {src.name} failed; see rig -r {src.name} job log rootfs")
     root = dst.home_path(dst.bwrap_root)
     # Fedora keeps some dirs owner-read-only (e.g. /usr/lib): make the trees
@@ -741,6 +809,8 @@ def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("-r", "--runner", default=argparse.SUPPRESS,
                         help="runner name (default: $ATLH_RUNNER, then `default` in runners.toml)")
+    common.add_argument("--timeout", type=int, default=argparse.SUPPRESS,
+                        help="max seconds for each remote command (exit 124 when exceeded)")
     ap = argparse.ArgumentParser(prog="rig", parents=[common], description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sp = ap.add_subparsers(dest="command", required=True, metavar="COMMAND")
@@ -797,6 +867,8 @@ def build_parser() -> argparse.ArgumentParser:
     j = jp.add_parser("wait", parents=[common], help="wait for a job, then show its log tail")
     j.add_argument("name")
     j.add_argument("--interval", type=int, default=20)
+    j.add_argument("--stall", type=int, default=600, help="fail (125) if the log doesn't grow for N s")
+    j.add_argument("--max-time", type=int, help="fail (124) if not done after N s")
     j = jp.add_parser("stop", parents=[common], help="kill a job's process group")
     j.add_argument("name")
 
@@ -862,11 +934,13 @@ def main(argv: list[str] | None = None) -> int:
     a = build_parser().parse_args(argv)
     if not hasattr(a, "runner"):
         a.runner = None
+    global TIMEOUT
+    TIMEOUT = getattr(a, "timeout", None) or DEFAULT_TIMEOUTS.get(a.command, 600)
     try:
         return COMMANDS[a.command](load_registry(), a)
     except RigError as e:
         print(f"rig: {e}", file=sys.stderr)
-        return 2
+        return e.code
     except KeyboardInterrupt:
         return 130
 

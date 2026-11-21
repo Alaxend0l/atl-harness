@@ -191,3 +191,48 @@ class Bootstrap(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BoundedWaits(unittest.TestCase):
+    """wait_job always ends with a verdict (simulated clock, no ssh)."""
+
+    def run_wait(self, states, **kw):
+        clock = [0.0]
+        seq = iter(states)
+        orig = (rig.job_state, rig.time.time, rig.time.sleep, rig.run_remote)
+        rig.job_state = lambda r, n: next(seq)
+        rig.time.time = lambda: clock[0]
+        rig.time.sleep = lambda s: clock.__setitem__(0, clock[0] + s)
+        rig.run_remote = lambda *a, **k: None
+        try:
+            return rig.wait_job(rig.Runner(name="t", ssh="x", arch="x"), "j", interval=10, heartbeat=10**9, **kw)
+        finally:
+            rig.job_state, rig.time.time, rig.time.sleep, rig.run_remote = orig
+
+    def test_exit_code_passed_through(self):
+        self.assertEqual(self.run_wait([("running", None, 1), ("exit", "3", 5)]), 3)
+
+    def test_stall(self):
+        with self.assertRaises(rig.RigStalled):
+            self.run_wait([("running", None, 7)] * 100, stall=60)
+
+    def test_progress_resets_stall(self):
+        states = [("running", None, i) for i in range(20)] + [("exit", "0", 99)]
+        self.assertEqual(self.run_wait(states, stall=15), 0)
+
+    def test_unreachable(self):
+        with self.assertRaises(rig.RigUnreachable):
+            self.run_wait([("unreachable", None, -1)] * 100, unreachable=60)
+
+    def test_blip_is_survivable(self):
+        states = [("running", None, 1), ("unreachable", None, -1), ("unreachable", None, -1),
+                  ("running", None, 2), ("exit", "0", 3)]
+        self.assertEqual(self.run_wait(states, unreachable=60), 0)
+
+    def test_max_time(self):
+        states = [("running", None, i) for i in range(100)]
+        with self.assertRaises(rig.RigTimeout):
+            self.run_wait(states, max_time=100)
+
+    def test_exit_codes(self):
+        self.assertEqual((rig.RigTimeout.code, rig.RigStalled.code, rig.RigUnreachable.code), (124, 125, 126))

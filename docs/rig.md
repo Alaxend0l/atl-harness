@@ -72,6 +72,25 @@ appends ATL's output to `~/.local/state/atl/PKG.log` for bug reports. App
 data persists in ATL's data dir. Unlike harness runs this is not isolated
 from the session; use it for trusted apps.
 
+## Bounded waits: every command ends with a verdict
+No `rig` command waits forever. Each remote command has a time limit (per
+command defaults, e.g. doctor 3 min, smoke 10 min, build 1 h, atlh 2 h;
+`--timeout N` to change), and `job wait` watches the job:
+
+| Verdict | Exit | When |
+|---|---|---|
+| job's own result | its code | job finished (`1` if it died without one) |
+| `TIMEOUT` | 124 | a command exceeded its limit, or `job wait --max-time N` passed |
+| `STALLED` | 125 | the job is running but its log hasn't grown for `--stall N` s (default 600; bootstrap 3600, rootfs 1800 because their steps log elsewhere) |
+| `UNREACHABLE` | 126 | the runner didn't answer for 3 min (short blips are ridden out) |
+
+`job wait` prints a progress line (state, elapsed, log size) every minute, so
+a long wait never looks like a hang. Status polls use their own 30 s limit,
+and ssh keepalives close dead connections. A timed-out or stalled job is
+**not** killed (it may just be slow): inspect with `rig job log NAME`, stop
+with `rig job stop NAME`. Long work belongs in `--detach` jobs, not in
+foreground commands.
+
 ## Jobs
 `rig job start NAME -- COMMAND` runs COMMAND detached on the runner (in
 the checkout), logging to `~/atlh-jobs/NAME.log` and recording the exit

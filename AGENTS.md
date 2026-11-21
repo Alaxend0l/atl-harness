@@ -26,7 +26,10 @@ Start with `README.md`, then `docs/roadmap.md` for current status.
   Use `scripts/rig` for everything remote (`docs/rig.md`); don't hand-roll
   ssh/rsync lines. Build ATL changes with `rig build --worktree
   ~/Develop/android-translation-layer` (reports parsed errors), then gate with
-  `rig atlh run` + `rig atlh compare`. See `docs/setup.md`.
+  `rig atlh run` + `rig atlh compare`. Run anything longer than a few
+  minutes as a detached job (`--detach`, then `rig job wait`); rig commands
+  always end with a verdict (exit 124 timeout, 125 stalled, 126 unreachable,
+  see docs/rig.md) instead of hanging. See `docs/setup.md`.
 - `work/` (corpus, logs, screenshots, sqlite) is git-ignored.
 
 ## Working on the code
