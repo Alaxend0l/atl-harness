@@ -72,6 +72,12 @@ appends ATL's output to `~/.local/state/atl/PKG.log` for bug reports. App
 data persists in ATL's data dir. Unlike harness runs this is not isolated
 from the session; use it for trusted apps.
 
+## Phone screenshots (no rig needed)
+`scripts/phone-shot [-H host] [-o file] [-d seconds] [--open]` captures the
+phone's live screen with Spectacle in its Plasma session over ssh and saves it
+here (default `~/Pictures/phone-shots/`). Clear errors for: Spectacle missing
+(exit 3), no session (4), phone unreachable (255), no image (5).
+
 ## Bounded waits: every command ends with a verdict
 No `rig` command waits forever. Each remote command has a time limit (per
 command defaults, e.g. doctor 3 min, smoke 10 min, build 1 h, atlh 2 h;

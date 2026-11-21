@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# phone-shot: screenshot of a Linux phone's live screen, saved on this computer.
+#
+# Usage: phone-shot [-H SSH_HOST] [-o FILE] [-d SECONDS] [--open]
+#   -H HOST   ssh destination of the phone (default: $PHONE_SSH, else atl-oneplus12)
+#   -o FILE   where to save (default: ~/Pictures/phone-shots/phone-YYYYmmdd-HHMMSS.png)
+#   -d SECS   wait before capturing (to open a menu first, say)
+#   --open    open the screenshot afterwards (xdg-open)
+#
+# Needs Spectacle on the phone (fedora-atomic-phone: desktops/plasma-mobile/packages;
+# on a running phone: sudo dnf install spectacle). Runs it in the phone's own
+# Plasma session over ssh; nothing is left behind on the phone.
+set -euo pipefail
+
+HOST=${PHONE_SSH:-atl-oneplus12}
+OUT=""
+DELAY=0
+OPEN=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -H) HOST=$2; shift 2 ;;
+    -o) OUT=$2; shift 2 ;;
+    -d) DELAY=$2; shift 2 ;;
+    --open) OPEN=1; shift ;;
+    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) echo "phone-shot: unknown option $1 (see --help)" >&2; exit 2 ;;
+  esac
+done
+case "$DELAY" in ''|*[!0-9]*) echo "phone-shot: -d needs whole seconds" >&2; exit 2 ;; esac
+if [ -z "$OUT" ]; then
+  OUT=~/Pictures/phone-shots/phone-$(date +%Y%m%d-%H%M%S).png
+fi
+mkdir -p "$(dirname "$OUT")"
+TMP=$(mktemp "${OUT}.XXXXXX.part")
+trap 'rm -f "$TMP"' EXIT
+
+# On the phone: find the Plasma session (Wayland socket, D-Bus), capture to a
+# temp file, stream it back, clean up. Exit 3 = no spectacle, 4 = no session.
+REMOTE='set -e
+uid=$(id -u); rt=/run/user/$uid
+command -v spectacle >/dev/null || exit 3
+wl=$(ls "$rt" 2>/dev/null | grep -m1 "^wayland-[0-9]*$") || exit 4
+f=$(mktemp /tmp/phone-shot.XXXXXX.png)
+trap "rm -f $f" EXIT
+sleep '"$DELAY"'
+XDG_RUNTIME_DIR=$rt WAYLAND_DISPLAY=$wl DBUS_SESSION_BUS_ADDRESS=unix:path=$rt/bus \
+  timeout 30 spectacle --background --nonotify --fullscreen --output "$f" >/dev/null 2>&1
+cat "$f"'
+
+set +e
+ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 \
+  "$HOST" "bash -c $(printf '%q' "$REMOTE")" > "$TMP"
+rc=$?
+set -e
+case "$rc" in
+  0) ;;
+  3) echo "phone-shot: Spectacle isn't installed on $HOST. Install it there: sudo dnf install spectacle" >&2; exit 3 ;;
+  4) echo "phone-shot: no Wayland session on $HOST (is the phone at the lock screen or logged out?)" >&2; exit 4 ;;
+  255) echo "phone-shot: can't reach $HOST over ssh (USB cable or network, ssh key?)" >&2; exit 255 ;;
+  *) echo "phone-shot: capture failed on $HOST (exit $rc)" >&2; exit "$rc" ;;
+esac
+# A PNG starts with \x89PNG; anything else (empty file, error text) is a failure.
+if [ "$(head -c 4 "$TMP" | od -An -tx1 | tr -d ' \n')" != "89504e47" ]; then
+  echo "phone-shot: got no image back (Spectacle may have been refused by KWin; try once on the phone's screen)" >&2
+  exit 5
+fi
+mv "$TMP" "$OUT"
+trap - EXIT
+echo "$OUT"
+if [ "$OPEN" = 1 ]; then xdg-open "$OUT" >/dev/null 2>&1 & fi
