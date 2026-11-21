@@ -1,0 +1,334 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""agent-loop: let a local opencode agent fix ATL issues unattended, safely.
+
+For each issue from the audit (highest severity first):
+  agent edits the dedicated clone (atl-fixer agent: edit src/ only, read-only
+  shell, no network/ssh)  ->  lint the diff  ->  build on the runner (one retry
+  with the parsed errors)  ->  gate on the corpus  ->  commit + push ONLY the
+  agent branch if it built, passed lint and regressed nothing; else reset.
+The agent never builds, commits, pushes or reaches other machines; this script
+does. At the end the runner's ATL is restored to the fork's origin/main.
+
+  scripts/agent-loop --hours 8                 overnight
+  scripts/agent-loop --max-tasks 2 --no-push   supervised trial
+Results: work/agent/<tag>/summary.md, log.jsonl, task-NN/ (agent output, diff).
+See docs/agent-loop.md.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shlex
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+RIG = str(REPO / "scripts" / "rig")
+DEFAULT_CLONE = Path.home() / "Develop" / "atl-agent"
+AUDIT = REPO / "docs" / "audit" / "2026-11-21-atl-audit.json"
+SKIP_FILE = REPO / "docs" / "audit" / "fixed.txt"
+HEADERS = "src/api-impl-jni/generated_headers/"
+
+# Diff lint: rejected outright / flagged for review in the summary.
+REJECT = [
+    (re.compile(r"^\+.*catch\s*\(\s*(final\s+)?(java\.lang\.)?(Throwable|Exception|RuntimeException|Error)\b"), "catch-all catch"),
+    (re.compile(r"^\+.*catch\s*\([^)]*\)\s*\{\s*\}"), "empty catch block"),
+]
+FLAG = [
+    (re.compile(r"^\+\s*return null;"), "adds `return null;`"),
+    (re.compile(r"^\+\s*return (0|false);"), "adds `return 0/false;`"),
+    (re.compile(r"^\+.*\{\s*\}\s*$"), "adds an empty body"),
+]
+
+
+def now() -> str:
+    return time.strftime("%Y-%m-%d %H:%M:%S")
+
+
+class Loop:
+    def __init__(self, a):
+        self.a = a
+        self.clone = Path(a.clone).expanduser()
+        self.tag = time.strftime("%Y%m%d-%H%M%S")
+        self.out = REPO / "work" / "agent" / self.tag
+        self.out.mkdir(parents=True, exist_ok=True)
+        self.deadline = time.time() + a.hours * 3600
+        self.results = []
+        self.baseline = None
+
+    # ------------------------------------------------------------ helpers
+    def log(self, msg: str, **data):
+        line = f"[{now()}] {msg}"
+        print(line, flush=True)
+        with open(self.out / "log.jsonl", "a") as f:
+            f.write(json.dumps({"t": now(), "msg": msg, **data}) + "\n")
+
+    def run(self, argv, timeout, cwd=None, capture=True, check=False):
+        try:
+            p = subprocess.run(argv, cwd=cwd, text=True, capture_output=capture, timeout=timeout,
+                               stdin=subprocess.DEVNULL)
+        except subprocess.TimeoutExpired:
+            return subprocess.CompletedProcess(argv, 124, "", f"TIMEOUT after {timeout}s")
+        if check and p.returncode:
+            raise RuntimeError(f"{' '.join(argv[:4])}... failed ({p.returncode}): {(p.stderr or p.stdout)[-500:]}")
+        return p
+
+    def git(self, *args, check=True):
+        return self.run(["git", "-C", str(self.clone), *args], 120, check=check)
+
+    def rig(self, *args, timeout=3600):
+        return self.run([RIG, "-r", self.a.runner, *args], timeout + 60)
+
+    def time_left(self) -> float:
+        return self.deadline - time.time()
+
+    # ------------------------------------------------------------ setup
+    def prepare(self):
+        if not (self.clone / ".git").is_dir():
+            raise SystemExit(f"no clone at {self.clone} (see docs/agent-loop.md)")
+        if not (self.clone / ".opencode" / "agents" / "atl-fixer.md").is_file():
+            raise SystemExit("atl-fixer agent missing in the clone (see docs/agent-loop.md)")
+        self.git("fetch", "-q", "origin")
+        b = self.a.branch
+        exists = self.git("rev-parse", "--verify", "-q", f"refs/remotes/origin/{b}", check=False).returncode == 0
+        self.git("checkout", "-q", "-B", b, f"origin/{b}" if exists else "origin/main")
+        self.git("reset", "-q", "--hard")
+        self.git("clean", "-qfd", "src")
+        self.log(f"clone {self.clone} on {b} at {self.git('rev-parse', '--short', 'HEAD').stdout.strip()}")
+
+    def queue(self):
+        items = json.load(open(AUDIT))["confirmed"]
+        skip = [ln.strip().lower() for ln in SKIP_FILE.read_text().splitlines()
+                if ln.strip() and not ln.startswith("#")] if SKIP_FILE.exists() else []
+        order = {"high": 0, "medium": 1, "low": 2}
+        items = [i for i in items if not any(s in i["title"].lower() for s in skip)]
+        items.sort(key=lambda i: (order.get(i["severity"], 3), i["area"]))
+        self.log(f"queue: {len(items)} audit items after skipping {len(skip)} fixed patterns")
+        return items
+
+    # ------------------------------------------------------------ steps
+    def build(self, install: bool):
+        args = ["build", "--worktree", str(self.clone)] + ([] if install else ["--no-install"])
+        p = self.rig(*args, timeout=1800)
+        return p.returncode == 0, (p.stdout or "") + (p.stderr or "")
+
+    def gate(self, run_id: str):
+        p = self.rig("atlh", "--no-sync", "--no-default-jobs", "run", "--run-id", run_id,
+                     "--jobs", str(self.a.jobs), "--force", timeout=3600)
+        if p.returncode:
+            return None, (p.stdout or "")[-1500:] + (p.stderr or "")[-500:]
+        if self.baseline is None:
+            return 0, ""
+        c = self.rig("atlh", "--no-sync", "compare", self.baseline, run_id, timeout=300)
+        return c.returncode, c.stdout
+
+    def agent(self, prompt: str, logfile: Path, minutes: int) -> int:
+        argv = ["opencode", "run", "--agent", "atl-fixer", "--auto", "--title", f"agent-loop {self.tag}", prompt]
+        p = self.run(argv, minutes * 60, cwd=self.clone)
+        logfile.write_text((p.stdout or "") + "\n--- stderr ---\n" + (p.stderr or ""))
+        return p.returncode
+
+    def lint(self, diff: str):
+        reject, flags = [], []
+        files = re.findall(r"^diff --git a/(\S+)", diff, re.M)
+        outside = [f for f in files if not f.startswith("src/")]
+        if outside:
+            reject.append(f"changes outside src/: {outside}")
+        removed = sum(1 for ln in diff.splitlines() if ln.startswith("-") and not ln.startswith("---"))
+        if removed > self.a.max_removed:
+            reject.append(f"removes {removed} lines (> {self.a.max_removed})")
+        for ln in diff.splitlines():
+            for rx, why in REJECT:
+                if rx.search(ln):
+                    reject.append(f"{why}: {ln[:120]}")
+            for rx, why in FLAG:
+                if rx.search(ln):
+                    flags.append(f"{why}: {ln[:120]}")
+        return reject, flags
+
+    def diff(self) -> str:
+        self.git("add", "-A", "--intent-to-add", "src", check=False)
+        return self.git("diff", "HEAD", "--", ".", check=False).stdout
+
+    def discard(self):
+        self.git("reset", "-q", "--hard")
+        self.git("clean", "-qfd", "src")
+
+    def prompt_for(self, it) -> str:
+        return f"""Fix this ATL issue found by an audit (it was verified against the code, but re-check it):
+
+Title: {it['title']}
+Where: {it['file']}:{it['line']}
+Category: {it['category']}
+Evidence (code as it was):
+{it['evidence']}
+
+What Android does: {it['android_behavior']}
+Impact on apps: {it['impact']}
+Suggested fix: {it['suggested_fix']}
+
+Read the file around the cited line first. Make the smallest correct change under
+src/. If it is already fixed, or needs a large redesign, change nothing and say so."""
+
+    # ------------------------------------------------------------ main loop
+    def task(self, n: int, it) -> dict:
+        d = self.out / f"task-{n:02d}"
+        d.mkdir(exist_ok=True)
+        res = {"n": n, "title": it["title"], "file": it["file"], "severity": it["severity"]}
+        self.log(f"task {n}: {it['title']}")
+        minutes = min(self.a.task_minutes, max(5, int(self.time_left() / 60) - 20))
+        rc = self.agent(self.prompt_for(it), d / "agent.log", minutes)
+        diff = self.diff()
+        (d / "diff.patch").write_text(diff)
+        if rc == 124:
+            res["result"] = "agent timed out"
+        if not diff.strip():
+            res.setdefault("result", "no change (agent declined or judged it already fixed)")
+            self.discard()
+            return res
+        reject, flags = self.lint(diff)
+        res["flags"] = flags
+        if reject:
+            res["result"] = "rejected by lint: " + "; ".join(reject)
+            self.discard()
+            return res
+        ok, out = self.build(install=False)
+        if not ok:
+            (d / "build1.log").write_text(out)
+            self.log(f"task {n}: build failed, one retry with the errors")
+            errors = "\n".join(out.splitlines()[-40:])
+            self.agent(f"Your change for \"{it['title']}\" does not compile. Fix only the build errors, "
+                       f"keep the change minimal:\n\n{errors}", d / "agent-retry.log", min(15, minutes))
+            diff = self.diff()
+            (d / "diff.patch").write_text(diff)
+            reject, flags = self.lint(diff)
+            res["flags"] = flags
+            if reject:
+                res["result"] = "rejected by lint after retry: " + "; ".join(reject)
+                self.discard()
+                return res
+            ok, out = self.build(install=False)
+            if not ok:
+                (d / "build2.log").write_text(out)
+                res["result"] = "build failed after retry"
+                self.discard()
+                return res
+        ok, out = self.build(install=True)
+        if not ok:
+            res["result"] = "install build failed"
+            (d / "build-install.log").write_text(out)
+            self.discard()
+            return res
+        run_id = f"agent-{self.tag}-{n:02d}"
+        verdict, cmp_out = self.gate(run_id)
+        (d / "gate.txt").write_text(cmp_out or "")
+        res["gate"] = (cmp_out or "").splitlines()[0] if cmp_out else ""
+        if verdict is None:
+            res["result"] = "gate run failed"
+            self.discard()
+            return res
+        if verdict != 0:
+            res["result"] = "regressions: " + " ".join(cmp_out.splitlines()[1:6])
+            self.discard()
+            return res
+        # keep it: regenerated JNI headers from the runner, commit, push the agent branch
+        self.run(["rsync", "-rlc", "-e", "ssh -o BatchMode=yes -o ConnectTimeout=8",
+                  f"{self.runner_ssh()}:src/atl-dev/{HEADERS}", str(self.clone / HEADERS)], 300)
+        self.git("add", "-A", "src")
+        msg = (f"{it['title'][:68]}\n\nAgent-loop fix for an atl-harness audit item ({it['file']}:{it['line']}).\n"
+               f"Gate on {self.a.runner}: {res['gate']} ({self.baseline} -> {run_id}).\n"
+               + (("Review flags:\n" + "\n".join(f"- {f}" for f in flags) + "\n") if flags else "")
+               + "\nAssisted-by: opencode (strata qwen3.8-flash-next-iq3_s)\n")
+        self.git("commit", "-q", "-m", msg)
+        res["commit"] = self.git("rev-parse", "--short", "HEAD").stdout.strip()
+        if self.a.push:
+            p = self.git("push", "-q", "origin", f"HEAD:refs/heads/{self.a.branch}", check=False)
+            res["pushed"] = p.returncode == 0
+        self.baseline = run_id
+        res["result"] = "committed"
+        return res
+
+    def runner_ssh(self) -> str:
+        p = self.run([RIG, "list"], 120)
+        for ln in p.stdout.splitlines():
+            parts = ln.split()
+            if self.a.runner in parts:
+                return parts[parts.index(self.a.runner) + 1]
+        raise RuntimeError("runner not found in rig list")
+
+    def summary(self):
+        kept = [r for r in self.results if r.get("result") == "committed"]
+        lines = [f"# agent-loop {self.tag}", "",
+                 f"Branch `{self.a.branch}` in `{self.clone}`; runner `{self.a.runner}`; "
+                 f"{len(self.results)} tasks, **{len(kept)} committed**.", "",
+                 "| # | Result | Issue | Gate | Commit |", "|---|---|---|---|---|"]
+        for r in self.results:
+            lines.append(f"| {r['n']} | {r.get('result','?')[:80]} | {r['title'][:70]} | {r.get('gate','')[:40]} | {r.get('commit','')} |")
+        flagged = [r for r in kept if r.get("flags")]
+        if flagged:
+            lines += ["", "## Review flags on committed changes"]
+            for r in flagged:
+                lines += [f"- task {r['n']} ({r['commit']}): " + "; ".join(r["flags"][:5])]
+        lines += ["", "Review every commit before merging (`git log -p origin/main..origin/" + self.a.branch + "`).",
+                  "Per-task agent output, diffs and gate results: task-NN/ in this directory."]
+        (self.out / "summary.md").write_text("\n".join(lines) + "\n")
+        print("\n".join(lines))
+
+    def main(self):
+        self.prepare()
+        items = self.queue()
+        self.log("baseline: build + gate of the branch as it is")
+        ok, out = self.build(install=True)
+        if not ok:
+            raise SystemExit("baseline build failed:\n" + out[-2000:])
+        base = f"agent-{self.tag}-base"
+        verdict, msg = self.gate(base)
+        if verdict is None:
+            raise SystemExit("baseline gate run failed: " + msg)
+        self.baseline = base
+        try:
+            for n, it in enumerate(items, 1):
+                if n > self.a.max_tasks or self.time_left() < self.a.task_minutes * 60 + 1200:
+                    self.log("stopping: task or time budget reached")
+                    break
+                try:
+                    r = self.task(n, it)
+                except Exception as e:  # one broken task must not end the night
+                    r = {"n": n, "title": it["title"], "result": f"loop error: {e}"}
+                    self.discard()
+                self.results.append(r)
+                self.log(f"task {n}: {r['result']}", **{k: v for k, v in r.items() if k != 'flags'})
+                self.summary()
+        finally:
+            self.log(f"restoring {self.a.runner}'s ATL to origin/main")
+            self.rig("build", "--ref", "origin/main", timeout=1800)
+            self.summary()
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--clone", default=str(DEFAULT_CLONE))
+    ap.add_argument("--branch", default="agent/overnight")
+    ap.add_argument("--runner", default="bazzite")
+    ap.add_argument("--hours", type=float, default=8)
+    ap.add_argument("--max-tasks", type=int, default=1000)
+    ap.add_argument("--task-minutes", type=int, default=30, help="time limit for the agent per task")
+    ap.add_argument("--jobs", type=int, default=4, help="gate parallelism (strata shares the box)")
+    ap.add_argument("--max-removed", type=int, default=150, help="reject diffs removing more lines")
+    ap.add_argument("--no-push", dest="push", action="store_false")
+    a = ap.parse_args()
+    if os.environ.get("AGENT_LOOP_INHIBITED") != "1" and subprocess.run(
+            ["which", "systemd-inhibit"], capture_output=True).returncode == 0:
+        os.environ["AGENT_LOOP_INHIBITED"] = "1"
+        os.execvp("systemd-inhibit", ["systemd-inhibit", "--what=sleep:idle", "--who=agent-loop",
+                                      "--why=ATL agent loop running", sys.executable, *sys.argv])
+    Loop(a).main()
+
+
+if __name__ == "__main__":
+    main()

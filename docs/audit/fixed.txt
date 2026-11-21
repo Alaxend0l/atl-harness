@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Audit items already fixed in the fork (case-insensitive substrings of the
+# finding title). scripts/agent-loop skips matching items. Add a line per fix.
+layerdrawable.isstateful
+password fields show plaintext
+edittext.gettext()/geteditabletext() return a detached copy
+onEditorAction is called with actionId 0
+enter in edittext sends a keyevent
+compoundbutton/checkbox/radiobutton.setonclicklistener is a no-op
+compoundbutton.gettext() returns the literal
+sharedpreferences change listeners never fire
+native drawrect ignores paint.style.stroke
+drawrect ignores paint.style.stroke
