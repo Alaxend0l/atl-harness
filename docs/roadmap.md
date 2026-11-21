@@ -147,6 +147,13 @@ then exits 10 via its crash handler. Blockers:
 - `WindowInsetsCompat` reflection on `View.getViewRootImpl` fails (logged,
   non-fatal).
 
+**Audit (2026-11-21): [docs/audit/2026-11-21-atl-audit.md](audit/2026-11-21-atl-audit.md)**,
+139 confirmed places where ATL differs from Android (41 high), found by a
+12-agent read-only sweep with adversarial verification; JSON next to it for
+agents. Leniently verified: re-check each when fixing; gate every fix. Fix the
+high ones in small batches, most-apps-affected first (text input, checkboxes,
+preferences, pressed/disabled states, shapes and gradients, bitmaps, dialogs).
+
 **1. Infrastructure bugs (first: they make every other result clearer)**
 - **JNI calls with a pending exception.** ATL native code calls
   `GetMethodID`/`FindClass`/`GetObjectClass` while a Java exception is
