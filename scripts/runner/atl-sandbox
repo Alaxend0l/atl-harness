@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""Run an Android app with ATL in a per-app bubblewrap sandbox.
+
+Usage:
+  atl-sandbox [options] APK [ATL ARGS...]
+  atl-sandbox --policy-for APK          print the policy derived from the manifest
+
+The app sees: a private, empty home with only its own ATL data dir; the media
+folders its Android permissions allow; the system read-only; a private /tmp,
+PID and IPC namespace; no capabilities; the display (Wayland, or X11 with
+--x11), audio (PipeWire/Pulse), the GPU; a filtered session bus (portals,
+notifications, its own MPRIS name) via xdg-dbus-proxy; the network only with
+INTERNET; cameras only with CAMERA. See docs/sandbox.md.
+
+Policy: JSON (--policy FILE, else <apk minus .apk>.policy.json next to the APK
+if present, else derived from the manifest). Keys:
+  network: bool          share the network namespace
+  media: {"music"|"pictures"|"videos"|"download": "ro"|"rw"}
+  camera: bool           /dev/video* nodes
+  audio: bool            PipeWire/Pulse sockets (playback; capture can't be separated)
+  dbus_talk: [names]     extra session-bus names the app may call
+Options:
+  --rootfs DIR   use DIR as / (rig bwrap rootfs, e.g. ~/atl-root); default: host /usr, /etc
+  --x11          X11 display ($DISPLAY) instead of Wayland
+  --policy FILE  policy file
+  --no-sandbox   run ATL directly (for A/B comparisons)
+  --dry-run      print the bwrap command
+Stdlib only; runs on the phone host and on the runners.
+"""
+from __future__ import annotations
+
+import json
+import os
+import shlex
+import signal
+import struct
+import subprocess
+import sys
+import zipfile
+from pathlib import Path
+
+ATL = "android-translation-layer"
+ATL_SDK = 26  # Build.VERSION.SDK_INT that ATL reports: permissions with maxSdkVersion below it don't apply
+
+# ---------------------------------------------------------------- manifest
+
+def manifest_permissions(apk: str) -> list[str]:
+    """uses-permission names from the APK's binary AndroidManifest.xml."""
+    with zipfile.ZipFile(apk) as z:
+        data = z.read("AndroidManifest.xml")
+    strings: list[str] = []
+    perms: list[str] = []
+    pos = 8  # after the XML chunk header
+    while pos + 8 <= len(data):
+        ctype, hsize, csize = struct.unpack_from("<HHI", data, pos)
+        if csize < 8:
+            break
+        if ctype == 0x0001:  # string pool
+            count, _styles, flags, start, _sstart = struct.unpack_from("<IIIII", data, pos + 8)
+            utf8 = bool(flags & 0x100)
+            offs = struct.unpack_from(f"<{count}I", data, pos + hsize)
+            base = pos + start
+            for o in offs:
+                p = base + o
+                if utf8:
+                    p += 2 if data[p] & 0x80 else 1      # utf16 length
+                    n = data[p]
+                    if n & 0x80:
+                        n = ((n & 0x7f) << 8) | data[p + 1]
+                        p += 2
+                    else:
+                        p += 1
+                    strings.append(data[p:p + n].decode("utf-8", "replace"))
+                else:
+                    n = struct.unpack_from("<H", data, p)[0]
+                    p += 2
+                    if n & 0x8000:
+                        n = ((n & 0x7fff) << 16) | struct.unpack_from("<H", data, p)[0]
+                        p += 2
+                    strings.append(data[p:p + 2 * n].decode("utf-16-le", "replace"))
+        elif ctype == 0x0102:  # start element
+            name_i = struct.unpack_from("<I", data, pos + 20)[0]
+            attr_start, attr_size, attr_count = struct.unpack_from("<HHH", data, pos + 24)
+            tag = strings[name_i] if name_i < len(strings) else ""
+            if tag.startswith("uses-permission"):
+                a = pos + 16 + attr_start
+                name, max_sdk = None, None
+                for i in range(attr_count):
+                    _ns, an, raw = struct.unpack_from("<III", data, a + i * attr_size)
+                    _size, _res0, vtype, vdata = struct.unpack_from("<HBBI", data, a + i * attr_size + 12)
+                    key = strings[an] if an < len(strings) else ""
+                    if key == "name" and raw < len(strings):
+                        name = strings[raw]
+                    elif key == "maxSdkVersion" and vtype in (0x10, 0x11):  # int dec/hex
+                        max_sdk = vdata
+                if name and (max_sdk is None or max_sdk >= ATL_SDK):
+                    perms.append(name)
+        pos += csize
+    return perms
+
+
+def derive_policy(perms: list[str]) -> dict:
+    p = set(perms)
+    a = "android.permission."
+    media: dict[str, str] = {}
+
+    def grant(kind: str, mode: str) -> None:
+        if media.get(kind) != "rw":
+            media[kind] = mode
+
+    if a + "READ_MEDIA_AUDIO" in p:
+        grant("music", "ro")
+    if a + "READ_MEDIA_IMAGES" in p or a + "READ_MEDIA_VISUAL_USER_SELECTED" in p:
+        grant("pictures", "ro")
+    if a + "READ_MEDIA_VIDEO" in p:
+        grant("videos", "ro")
+    if a + "READ_EXTERNAL_STORAGE" in p:
+        for k in ("music", "pictures", "videos", "download"):
+            grant(k, "ro")
+    if a + "WRITE_EXTERNAL_STORAGE" in p or a + "MANAGE_EXTERNAL_STORAGE" in p:
+        for k in ("music", "pictures", "videos", "download"):
+            grant(k, "rw")
+    return {
+        "network": a + "INTERNET" in p,
+        "media": media,
+        "camera": a + "CAMERA" in p,
+        "audio": True,
+        "dbus_talk": [],
+        "_from": "manifest permissions: " + ", ".join(sorted(x.replace(a, "") for x in p)),
+    }
+
+
+def load_policy(apk: str, path: str | None) -> dict:
+    cand = Path(path) if path else Path(apk[:-4] + ".policy.json" if apk.endswith(".apk") else apk + ".policy.json")
+    if cand.is_file():
+        pol = json.loads(cand.read_text())
+        pol.setdefault("media", {})
+        return pol
+    if path:
+        raise SystemExit(f"atl-sandbox: policy {path} not found")
+    return derive_policy(manifest_permissions(apk))
+
+# ---------------------------------------------------------------- paths
+
+def xdg_user_dirs(home: Path) -> dict[str, Path]:
+    """music/pictures/videos/download from ~/.config/user-dirs.dirs (defaults if unset)."""
+    keys = {"XDG_MUSIC_DIR": "music", "XDG_PICTURES_DIR": "pictures",
+            "XDG_VIDEOS_DIR": "videos", "XDG_DOWNLOAD_DIR": "download"}
+    out = {"music": home / "Music", "pictures": home / "Pictures",
+           "videos": home / "Videos", "download": home / "Downloads"}
+    f = home / ".config" / "user-dirs.dirs"
+    if f.is_file():
+        for line in f.read_text().splitlines():
+            k, _, v = line.partition("=")
+            if k.strip() in keys:
+                v = v.strip().strip('"').replace("$HOME", str(home))
+                if v and Path(v) != home:
+                    out[keys[k.strip()]] = Path(v)
+    return out
+
+
+def media_binds(policy: dict, home: Path) -> tuple[list[tuple[str, Path]], list[Path]]:
+    """[(ro|rw, dir)] to bind, and the dirs ATL should index (ATL_MEDIA_DIRS)."""
+    grants = {k: v for k, v in policy.get("media", {}).items() if v in ("ro", "rw")}
+    if not grants:
+        return [], []
+    env = os.environ.get("ATL_MEDIA_DIRS")
+    if env is not None:  # explicit library (the harness): all of it, with the strongest grant
+        mode = "rw" if "rw" in grants.values() else "ro"
+        dirs = [Path(d).resolve() for d in env.split(":") if d and Path(d).is_dir()]
+        return [(mode, d) for d in dirs], dirs
+    user = xdg_user_dirs(home)
+    binds = [(mode, user[kind]) for kind, mode in grants.items() if kind in user and user[kind].is_dir()]
+    return binds, [d for _, d in binds]
+
+# ---------------------------------------------------------------- bwrap
+
+PASS_ENV_PREFIXES = ("ATL_", "GDK_DISABLE", "GSK_", "MESA_", "LIBGL_", "JDWP_", "VK_", "__GLX_")
+
+
+def build_args(apk: str, atl_args: list[str], policy: dict, *, rootfs: str | None, x11: bool,
+               dbus_socket: str | None) -> tuple[list[str], dict]:
+    home = Path(os.environ.get("HOME") or Path.home())
+    uid = os.getuid()
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{uid}")
+    data_home = Path(os.environ.get("XDG_DATA_HOME") or home / ".local/share")
+    app_data = data_home / "android_translation_layer" / (Path(apk).name + "_")
+    app_data.mkdir(parents=True, exist_ok=True)
+    cache = app_data / ".atl-cache"
+    cache.mkdir(exist_ok=True)
+    apk_abs = str(Path(apk).resolve())
+
+    a: list[str] = ["bwrap", "--die-with-parent", "--new-session", "--cap-drop", "ALL",
+                    "--unshare-pid", "--unshare-uts", "--unshare-cgroup-try",
+                    "--hostname", "atl-sandbox"]
+    if not x11:
+        # X11 clients hand the server their images via MIT-SHM (SysV shared
+        # memory): a private IPC namespace makes every window blank. Wayland
+        # passes buffers as fds, so it keeps a private one.
+        a += ["--unshare-ipc"]
+    if not policy.get("network"):
+        a += ["--unshare-net"]
+    if rootfs:
+        # read-only rootfs: give the mount points below writable parents
+        a += ["--ro-bind", rootfs, "/", "--tmpfs", "/home", "--tmpfs", "/run", "--tmpfs", "/sys"]
+    else:
+        a += ["--ro-bind", "/usr", "/usr", "--ro-bind", "/etc", "/etc",
+              "--symlink", "usr/bin", "/bin", "--symlink", "usr/sbin", "/sbin",
+              "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64"]
+    if rootfs:  # host files the rootfs's /etc lacks (without a rootfs, /etc is the host's)
+        a += ["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf",
+              "--ro-bind-try", "/etc/localtime", "/etc/localtime",
+              "--ro-bind-try", "/etc/machine-id", "/etc/machine-id",
+              "--ro-bind", "/etc/passwd", "/etc/passwd", "--ro-bind", "/etc/group", "/etc/group"]
+    a += ["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/var/tmp",
+          "--dev-bind-try", "/dev/dri", "/dev/dri"]
+    if policy.get("camera"):
+        for v in sorted(Path("/dev").glob("video*")) + sorted(Path("/dev").glob("media*")):
+            a += ["--dev-bind", str(v), str(v)]
+    a += ["--ro-bind-try", "/sys/dev/char", "/sys/dev/char",
+          "--ro-bind-try", "/sys/devices", "/sys/devices"]  # GPU discovery (mesa/udev)
+
+    # home: empty, plus the app's own data and granted media
+    a += ["--tmpfs", str(home), "--bind", str(app_data), str(app_data)]
+    for d in (".config/fontconfig", ".config/gtk-4.0"):
+        a += ["--ro-bind-try", str(home / d), str(home / d)]
+    binds, media_dirs = media_binds(policy, home)
+    for mode, d in binds:
+        a += ["--bind" if mode == "rw" else "--ro-bind", str(d), str(d)]
+    a += ["--ro-bind", apk_abs, apk_abs]
+
+    # runtime dir: display, audio, filtered bus
+    rt = str(runtime)
+    a += ["--tmpfs", rt, "--chmod", "0700", rt]
+    env = {
+        "HOME": str(home), "USER": os.environ.get("USER", "user"),
+        "PATH": "/usr/local/bin:/usr/bin:/bin", "LANG": os.environ.get("LANG", "C.UTF-8"),
+        "XDG_RUNTIME_DIR": rt, "XDG_DATA_HOME": str(data_home),
+        "XDG_CONFIG_HOME": str(app_data / ".atl-config"), "XDG_CACHE_HOME": str(cache),
+        "ATL_MEDIA_DIRS": ":".join(str(d) for d in media_dirs),
+    }
+    for k, v in os.environ.items():
+        if k.startswith(PASS_ENV_PREFIXES) and k != "ATL_MEDIA_DIRS":
+            env[k] = v
+    if x11:
+        disp = os.environ.get("DISPLAY", ":0")
+        num = disp.split(":")[-1].split(".")[0]
+        a += ["--ro-bind", f"/tmp/.X11-unix/X{num}", f"/tmp/.X11-unix/X{num}"]
+        env.update(DISPLAY=disp, GDK_BACKEND="x11")
+        if os.environ.get("XAUTHORITY"):
+            a += ["--ro-bind-try", os.environ["XAUTHORITY"], os.environ["XAUTHORITY"]]
+            env["XAUTHORITY"] = os.environ["XAUTHORITY"]
+    else:
+        wl = os.environ.get("WAYLAND_DISPLAY", "wayland-0")
+        src = wl if wl.startswith("/") else f"{rt}/{wl}"
+        a += ["--ro-bind", src, f"{rt}/wayland-0"]
+        env.update(WAYLAND_DISPLAY="wayland-0", GDK_BACKEND="wayland")
+    if policy.get("audio", True):
+        a += ["--ro-bind-try", f"{rt}/pipewire-0", f"{rt}/pipewire-0",
+              "--ro-bind-try", f"{rt}/pulse/native", f"{rt}/pulse/native"]
+    if dbus_socket:
+        a += ["--ro-bind", dbus_socket, f"{rt}/bus"]
+        env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={rt}/bus"
+    else:
+        env["DBUS_SESSION_BUS_ADDRESS"] = "disabled:"
+    a += ["--clearenv"]
+    for k, v in sorted(env.items()):
+        a += ["--setenv", k, v]
+    a += ["--chdir", str(app_data), "--", ATL, apk_abs, *atl_args]
+    return a, env
+
+
+def start_dbus_proxy(policy: dict, runtime: Path) -> tuple[subprocess.Popen | None, str | None, int | None]:
+    """A filtered session bus for the app: (proxy, socket, lifeline fd), or Nones.
+    The proxy runs while the returned fd stays open (xdg-dbus-proxy --fd)."""
+    addr = os.environ.get("DBUS_SESSION_BUS_ADDRESS")
+    if not addr or addr.startswith("disabled") or not shutil_which("xdg-dbus-proxy"):
+        return None, None, None
+    for old in runtime.glob("atl-sandbox-bus-*"):  # left by launches that were killed
+        try:
+            os.kill(int(old.name.rsplit("-", 1)[1]), 0)
+        except (ProcessLookupError, ValueError):
+            old.unlink(missing_ok=True)
+        except PermissionError:
+            pass
+    sock = runtime / f"atl-sandbox-bus-{os.getpid()}"
+    r, w = os.pipe()
+    rules = ["--filter",
+             "--talk=org.freedesktop.portal.*",
+             "--talk=org.freedesktop.Notifications",
+             "--own=org.mpris.MediaPlayer2.*",
+             "--talk=org.freedesktop.portal.Desktop",
+             "--call=org.freedesktop.portal.*=*",
+             "--broadcast=org.freedesktop.portal.*=@/org/freedesktop/portal/*"]
+    rules += [f"--talk={n}" for n in policy.get("dbus_talk", [])]
+    proc = subprocess.Popen(["xdg-dbus-proxy", f"--fd={w}", addr, str(sock), *rules], pass_fds=(w,))
+    os.close(w)
+    ready = os.read(r, 1)  # the proxy writes a byte when the socket is ready
+    if not ready:
+        os.close(r)
+        proc.wait(timeout=5)
+        return None, None, None
+    return proc, str(sock), r  # closing r makes the proxy exit
+
+
+def shutil_which(name: str) -> str | None:
+    for d in os.environ.get("PATH", "/usr/bin:/bin").split(":"):
+        p = Path(d) / name
+        if p.is_file() and os.access(p, os.X_OK):
+            return str(p)
+    return None
+
+
+def main(argv: list[str]) -> int:
+    opts = {"rootfs": None, "x11": False, "policy": None, "dry": False, "nosandbox": False}
+    i = 0
+    while i < len(argv) and argv[i].startswith("--"):
+        o = argv[i]
+        if o == "--rootfs":
+            opts["rootfs"] = argv[i + 1]; i += 2; continue
+        if o == "--policy":
+            opts["policy"] = argv[i + 1]; i += 2; continue
+        if o == "--policy-for":
+            print(json.dumps(derive_policy(manifest_permissions(argv[i + 1])), indent=1))
+            return 0
+        flag = {"--x11": "x11", "--dry-run": "dry", "--no-sandbox": "nosandbox"}.get(o)
+        if not flag:
+            print(__doc__, file=sys.stderr)
+            return 2
+        opts[flag] = True
+        i += 1
+    if i >= len(argv):
+        print(__doc__, file=sys.stderr)
+        return 2
+    apk, atl_args = argv[i], argv[i + 1:]
+    if opts["nosandbox"]:
+        os.execvp(ATL, [ATL, apk, *atl_args])
+    # SIGTERM (session logout, timeouts) must still run the cleanup below
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
+    policy = load_policy(apk, opts["policy"])
+    runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
+    proxy, sock, lifeline = (None, None, None) if opts["dry"] else start_dbus_proxy(policy, runtime)
+    args, _ = build_args(apk, atl_args, policy, rootfs=opts["rootfs"], x11=opts["x11"], dbus_socket=sock)
+    if opts["dry"]:
+        print(shlex.join(args))
+        return 0
+    try:
+        child = subprocess.Popen(args)
+        try:
+            return child.wait()
+        finally:
+            if child.poll() is None:
+                child.terminate()  # bwrap passes it on; --die-with-parent covers SIGKILL
+                try:
+                    child.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+    except KeyboardInterrupt:
+        return 130
+    finally:
+        if lifeline is not None:
+            os.close(lifeline)
+        if proxy:
+            proxy.terminate()
+            try:
+                proxy.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proxy.kill()
+        if sock:
+            Path(sock).unlink(missing_ok=True)
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

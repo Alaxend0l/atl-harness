@@ -59,6 +59,10 @@ pub struct Atl {
     /// config file. Without it apps see an empty library (runs use a temp HOME).
     #[serde(default)]
     pub media_dir: Option<PathBuf>,
+    /// Run each app in the per-app bubblewrap sandbox (scripts/runner/atl-sandbox,
+    /// docs/sandbox.md): `command` minus its first element is passed to it.
+    #[serde(default)]
+    pub sandbox: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,7 +112,9 @@ impl Config {
             *t = expand_tilde(t);
         }
         if let Some(m) = cfg.atl.media_dir.as_mut() {
-            *m = base.join(expand_tilde(m));
+            // absolute: ATL (and the sandbox) don't run in the config's directory
+            let p = base.join(expand_tilde(m));
+            *m = p.canonicalize().unwrap_or(p);
         }
         if let Some(agent) = cfg.agent.as_mut() {
             agent.atl_repo = expand_tilde(&agent.atl_repo);

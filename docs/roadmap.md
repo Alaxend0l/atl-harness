@@ -32,7 +32,7 @@ End to end on the box (x86_64 Bazzite, `atl` distrobox, upstream ATL
    fetch-only; license GPLv3. Workstation clone: `~/Develop/android-translation-layer`.
    Runners pull it with per-runner read-only deploy keys (alias
    `github-atl-fork`) and build `main`. Done.*
-4. **Sandbox every app (priority: early).** Run ATL under bubblewrap per
+4. **Sandbox every app (priority: early). Done 2026-11-21** (docs/sandbox.md, D16): per-app bwrap with manifest-derived policies, on the phone and via `atlh run --sandbox`; open: internet-only networking, seccomp. Run ATL under bubblewrap per
    app: private home/data dir, no access to other apps' data or
    `_installed_apks_`, no LAN access (or none at all), only the X socket
    and GPU nodes it needs. Protects the runners, their keys and the LAN

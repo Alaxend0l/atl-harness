@@ -14,7 +14,11 @@ Start with `HANDOFF.md` (current state), then `README.md` and `docs/roadmap.md`.
   upstreaming, never add upstream as a push target. See `docs/decisions.md`
   D1.
 - Don't fake fixes in the ATL fork (catch-alls, `return null`, empty
-  bodies). The harness exists to measure real compatibility.
+  bodies). The harness exists to measure real compatibility. Where ATL truly
+  can't provide something, return what Android returns in that case and say
+  so in a comment.
+- Apps run sandboxed (`docs/sandbox.md`); don't widen a sandbox policy to
+  make an app work without recording why.
 
 ## Environment
 - A Linux **workstation** with this clone, and **runners** on the LAN
@@ -31,6 +35,38 @@ Start with `HANDOFF.md` (current state), then `README.md` and `docs/roadmap.md`.
   always end with a verdict (exit 124 timeout, 125 stalled, 126 unreachable,
   see docs/rig.md) instead of hanging. See `docs/setup.md`.
 - `work/` (corpus, logs, screenshots, sqlite) is git-ignored.
+
+## Several agents at once (Claude, opencode, the overnight loop)
+- **One git worktree per agent and task**, never a checkout another agent
+  uses: `git -C ~/Develop/android-translation-layer worktree add
+  ~/Develop/atl-<task> -b <branch> origin/main`, build it with
+  `rig build --worktree ~/Develop/atl-<task>`. `~/Develop/atl-agent` belongs
+  to the overnight loop.
+- **One agent per runner at a time**: `rig build` installs into that
+  runner's shared `/usr/local`, so another agent's build changes what your
+  run or gate tests. Say which runner you use in HANDOFF.md ("Runner use")
+  and check `rig -r NAME job list` first.
+- **Commit only your own files** (`git add <paths>`, not `git add -A`) when
+  others have uncommitted work in the same tree.
+- Merges to the fork's `main`: only after the gate (0 regressions) and the
+  task's interaction script pass; say what was run in the merge message.
+
+## Writing it down
+- Commit bodies: root cause, evidence (log lines, what ruled what out), how
+  it was verified. Trailer `Assisted-by: opencode (...)` or Claude's.
+- Update the task brief in `docs/agent-tasks/` (status, root cause,
+  follow-ups) and HANDOFF.md; credit work accurately.
+
+## ATL fork gotchas
+- `src/api-impl` is dexed with `dx`: no lambdas or method references
+  (invokedynamic), use anonymous classes.
+- New Java `native` methods: commit the JNI header in
+  `src/api-impl-jni/generated_headers/` (worktree builds may not regenerate
+  it; copy the format of an existing header).
+- Never `gtk_snapshot_transform_matrix` for Android matrices (Cairo paints
+  them pink): use `snapshot_transform_android_matrix` (fork doc/Shaders.md).
+- Debugging: `ATL_BINDER_TRACE=1`, `ATL_DUMP_NODES=DIR`,
+  `scripts/runner/jdb-app.sh`, `atlh missing-apis`.
 
 ## Working on the code
 - New files start with `SPDX-License-Identifier: AGPL-3.0-or-later` (LICENSING.md).

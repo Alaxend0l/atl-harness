@@ -104,3 +104,14 @@ is fine. AGPL's network clause only matters if the harness is ever offered as a
 service (e.g. a results dashboard); for the CLI it behaves like GPL-3.0. The
 ATL fork stays under upstream's GPL-3.0 and is not affected. Details:
 [LICENSING.md](../LICENSING.md).
+
+## D16 (2026-11-21): per-app bubblewrap sandbox, policy from manifest permissions
+Every app runs in its own bwrap sandbox (`scripts/runner/atl-sandbox`): empty
+home plus its own data dir, media folders per Android storage permission,
+read-only system, Wayland only, filtered D-Bus (xdg-dbus-proxy), network only
+with INTERNET, camera only with CAMERA. The policy is derived from the
+manifest at install and kept in an editable JSON file per app. Chosen over
+Flatpak-style portals-only storage because Android apps expect real media
+folders (MediaStore), and over a hand-written policy per app because the
+manifest already states what the app needs. Known gaps (LAN reachable with
+INTERNET, mic via PipeWire, no seccomp) are listed in docs/sandbox.md.

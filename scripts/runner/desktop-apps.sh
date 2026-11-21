@@ -6,6 +6,8 @@
 # work/index-v2.json). Everything goes under $HOME:
 #   ~/.local/bin/atl-app                      launcher wrapper
 #   ~/atl-apps/<pkg>.apk                      stable copy of each APK
+#   ~/atl-apps/<pkg>.policy.json              its sandbox policy (edit to grant/revoke)
+#   ~/.local/bin/atl-sandbox                  the per-app sandbox (docs/sandbox.md)
 #   ~/.local/share/applications/atl-<pkg>.desktop
 #   ~/.local/share/icons/atl/<pkg>.<png|webp>
 #   ~/.local/state/atl/<pkg>.log              each launch's ATL output (for bug reports)
@@ -20,28 +22,39 @@ ICONS=~/.local/share/icons/atl
 mkdir -p "$BIN" "$APPS" "$DESK" "$ICONS" ~/.local/state/atl
 
 write_wrapper() {
+  # the per-app sandbox (docs/sandbox.md); runs on the host, outside the rootfs
+  cp "$(dirname "$0")/atl-sandbox" "$BIN/atl-sandbox"
+  chmod 755 "$BIN/atl-sandbox"
   cat > "$BIN/atl-app" <<'EOF'
 #!/bin/sh
-# atl-app APK [ATL ARGS...]: run an Android app with ATL in the desktop session.
-# With ~/atl-root (rig bwrap rootfs) ATL runs inside it via bwrap, with the
-# session's Wayland, D-Bus, audio sockets and the GPU passed through.
+# atl-app APK [ATL ARGS...]: run an Android app with ATL in its per-app sandbox
+# (~/.local/bin/atl-sandbox; policy: <APK minus .apk>.policy.json, editable).
+# With ~/atl-root (rig bwrap rootfs) ATL comes from the rootfs, read-only.
+# ATL_NO_SANDBOX=1 atl-app ...: the old unsandboxed launch, for comparison.
 apk=$1; shift
 name=$(basename "$apk" .apk)
 log="$HOME/.local/state/atl/$name.log"
 mkdir -p "$HOME/.local/state/atl"
-rt=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 echo "=== $(date -Is) atl-app $apk $*" >> "$log"
-if [ -d "$HOME/atl-root" ]; then
-  exec bwrap --bind "$HOME/atl-root" / --bind "$HOME" "$HOME" --bind /tmp /tmp \
-    --proc /proc --dev /dev --dev-bind-try /dev/dri /dev/dri --dev-bind-try /dev/snd /dev/snd \
-    --tmpfs /run --bind "$rt" "$rt" \
-    --ro-bind /etc/resolv.conf /etc/resolv.conf --ro-bind /etc/passwd /etc/passwd \
-    --ro-bind /etc/group /etc/group --ro-bind-try /etc/machine-id /etc/machine-id \
-    --ro-bind-try /etc/localtime /etc/localtime \
-    --setenv PATH /usr/local/bin:/usr/bin:/bin --die-with-parent \
-    android-translation-layer "$apk" "$@" >> "$log" 2>&1
+root=""
+[ -d "$HOME/atl-root" ] && root="--rootfs $HOME/atl-root"
+if [ -n "$ATL_NO_SANDBOX" ]; then
+  echo "(ATL_NO_SANDBOX: unsandboxed)" >> "$log"
+  if [ -d "$HOME/atl-root" ]; then
+    rt=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
+    exec bwrap --bind "$HOME/atl-root" / --bind "$HOME" "$HOME" --bind /tmp /tmp \
+      --proc /proc --dev /dev --dev-bind-try /dev/dri /dev/dri --dev-bind-try /dev/snd /dev/snd \
+      --tmpfs /run --bind "$rt" "$rt" \
+      --ro-bind /etc/resolv.conf /etc/resolv.conf --ro-bind /etc/passwd /etc/passwd \
+      --ro-bind /etc/group /etc/group --ro-bind-try /etc/machine-id /etc/machine-id \
+      --ro-bind-try /etc/localtime /etc/localtime \
+      --setenv PATH /usr/local/bin:/usr/bin:/bin --die-with-parent \
+      android-translation-layer "$apk" "$@" >> "$log" 2>&1
+  fi
+  exec android-translation-layer "$apk" "$@" >> "$log" 2>&1
 fi
-exec android-translation-layer "$apk" "$@" >> "$log" 2>&1
+# shellcheck disable=SC2086
+exec python3 "$HOME/.local/bin/atl-sandbox" $root "$apk" "$@" >> "$log" 2>&1
 EOF
   chmod 755 "$BIN/atl-app"
 }
@@ -51,6 +64,8 @@ install_one() {
   apk=$(ls work/apks/"$pkg"_*.apk 2>/dev/null | sort -V | tail -n 1)
   [ -n "$apk" ] || { echo "skip $pkg: not in work/apks (rig atlh fetch --pkg $pkg)"; return 0; }
   cp "$apk" "$APPS/$pkg.apk"
+  # sandbox policy from the manifest's permissions; never overwrite an edited one
+  [ -f "$APPS/$pkg.policy.json" ] || python3 "$(dirname "$0")/atl-sandbox" --policy-for "$APPS/$pkg.apk" > "$APPS/$pkg.policy.json"
   python3 -I - "$pkg" "$APPS/$pkg.apk" "$ICONS" "$DESK" "$BIN/atl-app" <<'EOF'
 import hashlib, json, os, sys, urllib.request, zipfile
 pkg, apk, icons, desk, wrapper = sys.argv[1:]

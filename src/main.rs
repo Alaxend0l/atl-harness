@@ -73,6 +73,12 @@ enum Cmd {
         /// Ignore [atl].data_template for this run
         #[arg(long)]
         no_data_template: bool,
+        /// Run each app in the per-app sandbox (scripts/runner/atl-sandbox), overriding [atl].sandbox
+        #[arg(long, conflicts_with = "no_sandbox")]
+        sandbox: bool,
+        /// Run without the sandbox, overriding [atl].sandbox
+        #[arg(long)]
+        no_sandbox: bool,
     },
     /// Rank failure signatures for a run by impact
     Rank {
@@ -107,7 +113,7 @@ enum Cmd {
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
-    let cfg = Config::load(&cli.config)?;
+    let mut cfg = Config::load(&cli.config)?;
     let mut conn = db::connect(&cfg.paths.work_dir)?;
     match cli.cmd {
         Cmd::Fetch {
@@ -129,7 +135,12 @@ fn main() -> Result<()> {
             force,
             data_template,
             no_data_template,
+            sandbox,
+            no_sandbox,
         } => {
+            if sandbox || no_sandbox {
+                cfg.atl.sandbox = sandbox;
+            }
             let pkg = with_pkg_file(pkg, pkg_file.as_deref())?;
             let template = if no_data_template {
                 None

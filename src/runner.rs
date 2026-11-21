@@ -231,6 +231,17 @@ pub fn run_one(
         .iter()
         .map(|p| p.replace("{apk}", apk).replace("{pkg}", pkg))
         .collect();
+    let cmd: Vec<String> = if cfg.atl.sandbox {
+        // atl-sandbox APK [ATL ARGS]: it runs android-translation-layer itself
+        let mut c = vec![
+            "scripts/runner/atl-sandbox".to_string(),
+            "--x11".to_string(),
+        ];
+        c.extend(cmd.into_iter().skip(1));
+        c
+    } else {
+        cmd
+    };
     let (program, args) = cmd.split_first().context("[atl].command is empty")?;
 
     let home = tempfile::Builder::new().prefix("atlh-").tempdir()?;
