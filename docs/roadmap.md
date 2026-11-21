@@ -12,14 +12,14 @@ _Last updated 2026-11-21._
 | 4. Agent loop | Prompt generation (`workitem`) implemented; orchestrator not started |
 
 Tested so far: classifier parsing and rank/compare SQL (`cargo test`).
-`remote.sh sync` + build + `cargo test` verified on the box (x86_64
-Bazzite, inside the `atl` distrobox). **Not exercised yet:** `fetch` against
-the live F-Droid index and `run` (Xvfb/ATL/ImageMagick).
+End to end on the box (x86_64 Bazzite, `atl` distrobox, upstream ATL
+`22a96b28`): `fetch` against the live index, `run` under Xvfb, `rank`. A
+3-app smoke run gave 3 × BLANK with 6 signatures, no blind spots.
 
 ## Next steps, in order
 
 1. **Box bring-up.** Install packages and Rust, build upstream ATL, `sync`
-   and build atlh. ([setup.md](setup.md)) *Done except building ATL.*
+   and build atlh. ([setup.md](setup.md)) *Done.*
 2. **First census.** `fetch --limit 20`, `run`, then work through the
    [first-run checklist](setup.md#first-run-checklist): ATL command, Xvfb
    rendering, stub patterns, blank threshold, blind spots. Update config

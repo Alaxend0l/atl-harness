@@ -24,7 +24,9 @@ remote() {
 
 case "${1:-}" in
   sync)
-    rsync -az --delete --exclude work/ --exclude target/ --exclude .git/ \
+    # No -t: changed files get the box's mtime, so cargo rebuilds even if the
+    # workstation clock is behind the box's. --checksum skips unchanged files.
+    rsync -rlpz --checksum --delete --exclude work/ --exclude target/ --exclude .git/ \
       "$HERE/" "$ATLH_REMOTE:$DIR/" ;;
   atlh)
     shift

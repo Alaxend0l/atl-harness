@@ -144,7 +144,8 @@ fn kill_group(child: &mut Child) {
 }
 
 /// Capture the root window; return colour std-dev (0..1) as a blankness score.
-fn screenshot(display: &str, dest: &Path) -> Result<f64> {
+/// The saved PNG is the full screen; the score skips the top `crop_top` rows.
+fn screenshot(display: &str, dest: &Path, crop_top: u32) -> Result<f64> {
     let status = Command::new("import")
         .args(["-display", display, "-window", "root"])
         .arg(dest)
@@ -155,13 +156,17 @@ fn screenshot(display: &str, dest: &Path) -> Result<f64> {
     if !status.success() {
         bail!("import failed: {status}");
     }
-    let out = Command::new("identify")
-        .args(["-format", "%[fx:standard_deviation]"])
+    // `convert` works on ImageMagick 6 and 7 (7 prints a deprecation note).
+    let out = Command::new("convert")
         .arg(dest)
+        .arg("-chop")
+        .arg(format!("0x{crop_top}"))
+        .args(["-format", "%[fx:standard_deviation]", "info:"])
+        .stderr(Stdio::null())
         .output()
-        .context("running ImageMagick identify")?;
+        .context("running ImageMagick convert")?;
     if !out.status.success() {
-        bail!("identify failed: {}", out.status);
+        bail!("convert failed: {}", out.status);
     }
     Ok(String::from_utf8_lossy(&out.stdout).trim().parse()?)
 }
@@ -201,6 +206,10 @@ pub fn run_one(
 
     let home = tempfile::Builder::new().prefix("atlh-").tempdir()?;
     let h = home.path();
+    // ATL won't create its default data dir (~/.local/share/...) itself.
+    for d in [".local/share", ".config", ".cache"] {
+        std::fs::create_dir_all(h.join(d))?;
+    }
     let xvfb = Xvfb::start(&cfg.display.xvfb_args)?;
     let log = File::create(&log_path)?;
 
@@ -225,7 +234,7 @@ pub fn run_one(
     let status = wait_timeout(&mut child, Duration::from_secs(cfg.atl.settle_s))?;
     let stddev = match status {
         Some(_) => None,
-        None => screenshot(&xvfb.display, &shot_path).ok(),
+        None => screenshot(&xvfb.display, &shot_path, cfg.display.crop_top_px).ok(),
     };
     kill_group(&mut child);
     drop(xvfb);

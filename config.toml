@@ -11,15 +11,21 @@ allowed_abis = ["x86_64"]
 include_native = true
 
 [atl]
-# VERIFY: exact binary/flags of your ATL build. {apk} and {pkg} are substituted.
-command = ["android-translation-layer", "{apk}"]
+# {apk} and {pkg} are substituted. -w/-h must match the Xvfb screen below so
+# the window fills it. Without -l, ATL picks the launcher activity itself.
+command = ["android-translation-layer", "{apk}", "-w", "1080", "-h", "1920"]
 # Seconds to let the app start before screenshotting and killing it.
 settle_s = 25
 # Extra env vars for ATL (e.g. LIBGL_ALWAYS_SOFTWARE = "1").
 [atl.env]
+# GTK may pick GLX on X11, which breaks ATL's EGL code (upstream README).
+# Upstream says GDK_DEBUG=gl-egl; GTK >= 4.16 replaced that with GDK_DISABLE.
+GDK_DISABLE = "glx"
 
 [display]
 xvfb_args = ["-screen", "0", "1080x1920x24"]
+# ATL draws a 50px title bar even over a blank app; skip it when scoring.
+crop_top_px = 50
 
 [classify]
 # VERIFY: tune to what ATL actually logs for unimplemented framework methods.

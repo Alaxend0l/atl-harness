@@ -129,6 +129,7 @@ Unknown keys are rejected, so typos fail loudly.
 | `atl.settle_s` | Seconds before screenshot + kill |
 | `atl.env` | Extra environment variables for ATL |
 | `display.xvfb_args` | Extra Xvfb args (screen size/depth) |
+| `display.crop_top_px` | Rows skipped at the top of the screenshot when scoring blankness (ATL title bar); default 0 |
 | `classify.stub_patterns` | Regexes ([Rust `regex` syntax](https://docs.rs/regex)) for stub log lines |
 | `classify.blank_stddev_threshold` | Screenshot std-dev below which a screen counts as blank |
 | `agent.command` | Agent CLI; `{prompt}`, `{prompt_file}` substituted (not used yet) |

@@ -66,10 +66,39 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 SQLite is bundled into the binary, so no `libsqlite3-dev` is needed.
 
 ### ATL
-Build ATL from source following the upstream project's build instructions
-(not done yet; see [roadmap](roadmap.md)). Once the fork repository
-exists, build from the fork instead. Make sure the binary is on `PATH` or
-put its absolute path in `[atl].command` in `config.toml`.
+Upstream's `doc/Build.md` is the reference. This is what it took on Fedora 44
+(inside the `atl` distrobox, 2026-11-21). Everything installs to
+`/usr/local`; sources live in `~/src`. Once the fork repository exists, build
+ATL itself from the fork instead.
+
+```sh
+sudo dnf install java-25-openjdk-devel meson ninja-build autoconf automake libtool \
+  make gcc-c++ python3 zip unzip maven objectweb-asm valgrind-devel libicu-devel \
+  openssl-devel expat-devel xz-devel wayland-protocols-devel wayland-devel \
+  gtk4-layer-shell-devel \
+  'pkgconfig(gtk4)' 'pkgconfig(libbsd)' 'pkgconfig(libportal)' 'pkgconfig(sqlite3)' \
+  'pkgconfig(libwebp)' 'pkgconfig(liblz4)' 'pkgconfig(openxr)' 'pkgconfig(webkitgtk-6.0)' \
+  'pkgconfig(libsecret-1)' 'pkgconfig(egl)' 'pkgconfig(libelf)' 'pkgconfig(libunwind)' \
+  'pkgconfig(alsa)' 'pkgconfig(libavcodec)' 'pkgconfig(libswscale)' 'pkgconfig(gudev-1.0)' \
+  'pkgconfig(libdrm)' 'pkgconfig(libcap)' 'pkgconfig(vulkan)' 'pkgconfig(sdl2)' 'pkgconfig(sndfile)'
+
+# /usr/local is not on Fedora's default linker / pkg-config paths
+printf '/usr/local/lib64\n/usr/local/lib\n' | sudo tee /etc/ld.so.conf.d/local.conf
+echo 'export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig' \
+  | sudo tee /etc/profile.d/zz-local-pkgconfig.sh
+```
+
+Then, in order (`sudo ldconfig` after each install):
+
+| Component | Build | Notes |
+|---|---|---|
+| wolfSSL `v5.8.2-stable` | `autoreconf -i && ./configure --prefix=/usr/local CFLAGS="-O2 -Wno-error=stringop-truncation" <flags from Build.md> && make && sudo make install` | Use ATL's flag list; art_standalone's README lists flags 5.8.2 rejects. GCC 16 trips `-Werror` without the CFLAGS. |
+| bionic_translation | `meson setup builddir --prefix=/usr/local && meson compile -C builddir && sudo meson install -C builddir` | Installs no `.pc` file; that's fine. |
+| art_standalone | `make -j16 ____LIBDIR=lib64 && sudo make ____LIBDIR=lib64 install` | ~25 min on 16 cores. Java 25 works although upstream says 17. Run it in tmux. |
+| libopensles-standalone | meson, as above | Optional; needs SDL2 and libsndfile. |
+| android_translation_layer | `meson setup builddir --prefix=/usr/local -Ddownload_tool_deps=true`, compile, install | Fedora needs `download_tool_deps` (no java-getopt package). |
+
+Test APKs: `git clone https://gitlab.com/android_translation_layer/atl_test_apks`.
 
 ### Smoke test
 ```sh
@@ -87,10 +116,14 @@ assumptions need confirming. Tick them off here as you go.
       `allowed_abis = ["arm64-v8a"]`; `x86_64` → `["x86_64"]` and expect
       fewer eligible apps with native code (most ship ARM only).
       *Current box: x86_64, set in `config.toml`.*
-- [ ] **ATL command line.** Find the binary name and flags of your build and
+- [x] **ATL command line.** Find the binary name and flags of your build and
       set `[atl].command`. Check whether some apps need an explicit launch
-      activity flag.
-- [ ] **ATL renders under Xvfb.** Run one known-good app by hand:
+      activity flag. *`android-translation-layer {apk} -w 1080 -h 1920`;
+      without `-l` ATL launches the manifest's launcher activity.*
+- [x] **ATL renders under Xvfb.** *Works with software GL (Mesa warns
+      about DRI3; harmless). Needs `GDK_DISABLE=glx` (upstream's
+      `GDK_DEBUG=gl-egl` is gone in GTK 4.22). ATL always draws a 50px
+      title bar, hence `[display].crop_top_px = 50`.* Run one known-good app by hand:
       ```sh
       Xvfb :50 -screen 0 1080x1920x24 &
       DISPLAY=:50 GDK_BACKEND=x11 <atl command> some.apk

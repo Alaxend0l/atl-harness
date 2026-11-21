@@ -46,6 +46,10 @@ pub struct Atl {
 #[serde(deny_unknown_fields)]
 pub struct Display {
     pub xvfb_args: Vec<String>,
+    /// Rows to skip at the top of the screenshot when scoring blankness
+    /// (ATL's own title bar, which is drawn even when the app shows nothing).
+    #[serde(default)]
+    pub crop_top_px: u32,
 }
 
 #[derive(Debug, Deserialize)]
