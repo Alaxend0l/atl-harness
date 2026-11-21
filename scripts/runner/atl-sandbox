@@ -430,9 +430,10 @@ def build_args(apk: str, atl_args: list[str], policy: dict, *, rootfs: str | Non
         a += ["--ro-bind", src, f"{rt}/wayland-0"]
         env.update(WAYLAND_DISPLAY="wayland-0", GDK_BACKEND="wayland")
     if policy.get("audio", True):
-        # ATL's AudioTrack/SoundPool open ALSA directly: without /dev/snd (or an
-        # ALSA->PipeWire plugin in the rootfs) snd_pcm_open fails
-        a += ["--dev-bind-try", "/dev/snd", "/dev/snd"]
+        # No /dev/snd: ATL's ALSA output goes through the ALSA->PipeWire plugin
+        # (pipewire-alsa in the rootfs). Raw hw: devices would bypass the
+        # phone's speaker protection filter (fedora-atomic-phone: never play
+        # to hw: on the OnePlus 12) and compete with PipeWire for the card.
         a += ["--ro-bind-try", f"{rt}/pipewire-0", f"{rt}/pipewire-0",
               "--ro-bind-try", f"{rt}/pulse/native", f"{rt}/pulse/native"]
     if dbus_socket:

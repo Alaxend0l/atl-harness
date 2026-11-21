@@ -77,6 +77,7 @@ class Args(unittest.TestCase):
         self.assertNotIn(str(self.home / ".ssh"), bound)
         self.assertFalse(any(s.startswith(str(self.home / "Music")) for s in bound))
         self.assertEqual(env["DBUS_SESSION_BUS_ADDRESS"], "disabled:")
+        self.assertNotIn("/dev/snd", args)  # hw: bypasses the phone's speaker protection
         self.assertEqual(env["ATL_MEDIA_DIRS"], "")
 
     def test_app_data_is_the_only_writable_home_dir(self):
