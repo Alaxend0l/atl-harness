@@ -16,6 +16,17 @@ static FRAME: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?:^|\s)at\s+(?P<frame>[\w$.<>-]+)\s*\(").unwrap());
 static NUMBERS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"0x[0-9a-fA-F]+|\b\d+\b").unwrap());
 static SPACES: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").unwrap());
+static JNI_PENDING: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"JNI DETECTED ERROR IN APPLICATION: (JNI \w+ called with pending exception)")
+        .unwrap()
+});
+static JNI_OTHER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"JNI DETECTED ERROR IN APPLICATION: (.+)").unwrap());
+/// Chromium-style fatal log (Flutter engine, WebView): `[FATAL:path/file.cc(25)] message`.
+static FATAL_TAG: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\[FATAL:([^\]()]+)(?:\(\d+\))?\]\s*(.*)").unwrap());
+static ABORT_MSG: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"Abort message: '(.+?)'?\s*$").unwrap());
 
 const MISSING_API: &[&str] = &[
     "java.lang.NoSuchMethodError",
@@ -105,6 +116,24 @@ fn signature(chain: &[Block]) -> Failure {
     }
 }
 
+/// Why a process aborted, if the log says: the JNI checker's complaint (an ATL
+/// native-glue bug when an exception is pending), a `[FATAL:...]` engine
+/// message, or a bionic abort message. Used to split `signal: SIGABRT`.
+pub fn abort_reason(text: &str) -> Option<String> {
+    let first = |re: &Regex, f: &dyn Fn(&regex::Captures) -> String| {
+        text.lines().find_map(|l| re.captures(l).map(|c| f(&c)))
+    };
+    first(&JNI_PENDING, &|c| c[1].to_string())
+        .or_else(|| first(&JNI_OTHER, &|c| format!("JNI {}", c[1].trim())))
+        .or_else(|| {
+            first(&FATAL_TAG, &|c| {
+                format!("[FATAL:{}] {}", &c[1], c[2].trim())
+            })
+        })
+        .or_else(|| first(&ABORT_MSG, &|c| c[1].to_string()))
+        .map(|r| normalize(&r).chars().take(160).collect())
+}
+
 pub fn parse(text: &str, stubs: &[Regex]) -> Vec<Failure> {
     let mut chains: Vec<Vec<Block>> = Vec::new();
     let mut out = Vec::new();
@@ -190,6 +219,30 @@ java.lang.IllegalStateException: boom 0x11
             "java.lang.IllegalStateException @ android.widget.TextView.setText"
         ));
         assert_eq!(sigs().len(), 3);
+    }
+
+    #[test]
+    fn abort_reasons() {
+        let jni = "A/android-translation-layer(33994): java_vm_ext.cc:563] JNI DETECTED ERROR IN APPLICATION: JNI GetMethodID called with pending exception java.lang.NoSuchMethodError: No virtual method x\n";
+        assert_eq!(
+            abort_reason(jni).as_deref(),
+            Some("JNI GetMethodID called with pending exception")
+        );
+        let other = "x] JNI DETECTED ERROR IN APPLICATION: use of deleted local reference 0x71\n";
+        assert_eq!(
+            abort_reason(other).as_deref(),
+            Some("JNI use of deleted local reference N")
+        );
+        let flutter = " A/flutter (33430): [FATAL:flutter/shell/platform/android/library_loader.cc(25)] Check failed: result. \n";
+        assert_eq!(
+            abort_reason(flutter).as_deref(),
+            Some("[FATAL:flutter/shell/platform/android/library_loader.cc] Check failed: result.")
+        );
+        assert_eq!(
+            abort_reason("Abort message: 'bad thing 12'\n").as_deref(),
+            Some("bad thing N")
+        );
+        assert_eq!(abort_reason("nothing here\n"), None);
     }
 
     #[test]

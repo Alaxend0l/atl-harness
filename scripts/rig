@@ -169,7 +169,10 @@ def ssh_argv(host: str, command: str | None = None, tty: bool = False, batch: bo
 def run_remote(r: Runner, script: str, args: list[str] = (), cd: bool = True, tty: bool = False,
                capture: bool = False, env: dict[str, str] | None = None, check: bool = False):
     argv = ssh_argv(r.ssh, wrap(r, inner_script(r, script, args, cd, env)), tty=tty)
-    p = subprocess.run(argv, text=True, capture_output=capture)
+    # Non-interactive ssh must not read our stdin (it would swallow input meant
+    # for whatever runs next, e.g. a shell loop).
+    stdin = None if tty else subprocess.DEVNULL
+    p = subprocess.run(argv, text=True, capture_output=capture, stdin=stdin)
     if check and p.returncode != 0:
         err = (p.stderr or "").strip() if capture else ""
         raise RigError(f"{r.name}: remote command failed ({p.returncode}){': ' + err if err else ''}")

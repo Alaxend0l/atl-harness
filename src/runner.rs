@@ -248,10 +248,15 @@ pub fn run_one(
         (Some(0), _) => Outcome::Exited,
         (Some(code), _) => {
             if code < 0 {
+                let sig = signal_name(-code);
+                let reason = classify::abort_reason(&text);
                 failures.push(Failure {
                     kind: Kind::Signal,
-                    signature: format!("signal: {}", signal_name(-code)),
-                    detail: String::new(),
+                    signature: match &reason {
+                        Some(r) => format!("signal: {sig}: {r}"),
+                        None => format!("signal: {sig}"),
+                    },
+                    detail: reason.unwrap_or_default(),
                 });
             }
             Outcome::Crash
