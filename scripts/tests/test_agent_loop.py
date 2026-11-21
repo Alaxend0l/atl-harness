@@ -80,3 +80,12 @@ class Queue(unittest.TestCase):
         items = self.loop("audit").queue()
         self.assertGreater(len(items), 100)
         self.loop("audit").prompt_for(items[0])
+
+
+class Review(unittest.TestCase):
+    def test_review_prompt_carries_hint_and_diff(self):
+        loop = al.Loop.__new__(al.Loop)
+        it = {"title": "X drops Y", "file": "src/a.java", "fix_hint": "call z() first"}
+        p = loop.review_prompt(it, "+\tz();\n")
+        for part in ("X drops Y", "call z() first", "+\tz();", "OK, FIXED"):
+            self.assertIn(part, p)

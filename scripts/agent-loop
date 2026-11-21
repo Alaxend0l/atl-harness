@@ -191,6 +191,26 @@ Suggested fix: {it.get('suggested_fix') or '-'}
 Read the file around the cited line first. Make the smallest correct change under
 src/. If it is already fixed, or needs a large redesign, change nothing and say so."""
 
+    def review_prompt(self, it, diff: str) -> str:
+        hint = it.get("fix_hint") or it.get("suggested_fix") or ""
+        return f"""Review your own change for this ATL issue before it is built and tested.
+
+Issue: {it['title']}
+Where: {it['file']}
+{("Required fix: " + hint) if hint else ""}
+
+Your diff:
+{diff[:12000]}
+
+Check, one by one: does the diff do exactly what the required fix says (every
+point)? Does it match Android's documented behaviour? Any wrong variable, wrong
+index/units, missing null check that Android has, broken behaviour for other
+callers, debug prints, or a fake fix (catch-all, empty body, returning a dummy
+value to silence an error)? If something is wrong, fix it in src/ (smallest
+correct edit). If the change is wrong as a whole, revert it with your edit tool
+so the file is as before. If it is right, change nothing. End with one line:
+OK, FIXED: <what>, or REVERTED: <why>."""
+
     # ------------------------------------------------------------ main loop
     def task(self, n: int, it) -> dict:
         d = self.out / f"task-{n:02d}"
@@ -219,6 +239,26 @@ src/. If it is already fixed, or needs a large redesign, change nothing and say 
             res["result"] = "rejected by lint: " + "; ".join(reject)
             self.discard()
             return res
+        if self.a.review:
+            # a second look at its own diff against the task: catches slips (wrong
+            # variable, missed requirement), not misunderstandings; cheap
+            self.agent(self.review_prompt(it, diff), d / "agent-review.log", min(10, minutes))
+            reviewed = self.diff()
+            if reviewed != diff:
+                (d / "diff-before-review.patch").write_text(diff)
+                diff = reviewed
+                (d / "diff.patch").write_text(diff)
+                res["reviewed"] = "changed by self-review"
+                if not diff.strip():
+                    res["result"] = "reverted by self-review"
+                    self.discard()
+                    return res
+                reject, flags = self.lint(diff)
+                res["flags"] = flags
+                if reject:
+                    res["result"] = "rejected by lint after review: " + "; ".join(reject)
+                    self.discard()
+                    return res
         ok, out = self.build(install=False)
         if not ok:
             (d / "build1.log").write_text(out)
@@ -349,6 +389,8 @@ def main():
     ap.add_argument("--task-minutes", type=int, default=30, help="time limit for the agent per task")
     ap.add_argument("--jobs", type=int, default=4, help="gate parallelism (strata shares the box)")
     ap.add_argument("--max-removed", type=int, default=150, help="reject diffs removing more lines")
+    ap.add_argument("--no-review", dest="review", action="store_false",
+                    help="skip the agent's self-review of its diff before the build")
     ap.add_argument("--queue", choices=["triage", "audit"], default="triage",
                     help="triage: items triaged as local-model-sized, with fix hints (default); audit: every audit item")
     ap.add_argument("--no-push", dest="push", action="store_false")

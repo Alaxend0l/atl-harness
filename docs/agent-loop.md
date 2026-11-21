@@ -23,7 +23,7 @@ into the prompt ([docs/agent-tasks/triage.md](agent-tasks/triage.md); the
 rest is marked for Claude). `--queue audit` takes every audit item instead.
 Titles in `docs/audit/fixed.txt` are skipped either way.
 
-Per task the loop: agent edits (time limit, default 30 min) → **lint**
+Per task the loop: agent edits (time limit, default 30 min) → **self-review** (the agent re-reads its diff against the fix hint and fixes or reverts it; `--no-review` skips) → **lint**
 (rejects: changes outside `src/`, catch-all or empty `catch`, removing >150
 lines; flags for review: added `return null;`/`return 0;`, empty bodies) →
 **build** on the runner (one retry with the parsed compiler errors) →
