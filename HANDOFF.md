@@ -32,8 +32,16 @@ All gated with the corpus (52 apps on bazzite) unless noted:
 3. TextView honours `android:gravity`/`setGravity` (Calculator labels centered).
 4. Drawables: alpha through layer/ripple drawables; cached drawables no longer shared between views (Calculator digit/operator shades).
 5. Password masking, input types, `InputType`, `Replacement`/`SingleLine`/`HideReturns`TransformationMethod. **Masking not yet seen on screen** (no corpus app shows a password field at startup; harness can't type yet).
+6. EditText `getText()` returns a live Editable (edits reach the field); Enter sends the IME action + a proper key-down; CheckBox/RadioButton/Switch `setOnClickListener` works; CompoundButton `getText()`.
+7. SharedPreferences change listeners fire; selectors inside layer-list/ripple get state changes (pressed/checked/disabled looks).
+8. `Canvas.drawRect` honours stroke style.
 
-On the phone: ATL `main` at `049eedbe` (everything above) is installed. Note for
+Items 5–8 change behaviour on interaction (typing, clicking, pressing,
+preference changes), which the harness can't drive yet: gates show no
+regressions but no visible startup change. Gates now run with `--jobs 6` on
+bazzite (8 jobs + strata ran one app out of memory once).
+
+On the phone: ATL `main` at `8a511be7` (everything above) is installed; `rig -r oneplus12 doctor` shows the current commit. Note for
 fork commits: the build regenerates `src/api-impl-jni/generated_headers/*.h`
 with `javac -h`; commit the regenerated header with any new native method.
 
@@ -44,7 +52,8 @@ with `javac -h`; commit the regenerated header with any new native method.
 - Owner's wishlist app **Flow** (YouTube client): starts, then exits on missing `AppWidgetManager.getInstalledProviders()`.
 
 ## Next steps (roadmap has the full queue)
-1. **Audit fixes**: `docs/audit/2026-11-21-atl-audit.md` (139 confirmed, 41 high; leniently verified, re-check each). Done: password masking. Next suggested: EditText `getText()` returns a copy + Enter sends wrong action; CompoundButton `setOnClickListener` no-op; SharedPreferences listeners; LayerDrawable `isStateful`/`onStateChange` (pressed/disabled looks); gradient shaders + `drawRect` stroke; Bitmap pixel channel swap / `getPixel` exit.
+1. **Audit fixes**: `docs/audit/2026-11-21-atl-audit.md` (139 confirmed, 41 high; leniently verified, re-check each). Done: password masking, EditText/Enter, compound button clicks, SharedPreferences listeners, layer-list state, drawRect stroke. Next suggested: gradient shaders (`<shape><gradient>` draws solid black), Bitmap pixel channel swap / `getPixel` exiting the process, TextView `maxLines`/`ellipsize`, dialogs (`setView`, `setCancelable`), Theme cache key, locale in AssetManager.
+1b. **Input scripting** in the harness, so the fixes above that act on interaction can be verified.
 2. App widgets (`AppWidgetManager`, `AppWidgetHost`): unblocks Flow and Fossify Launcher.
 3. Visual check of password masking on the phone (an app with a password field).
 4. Harness: input scripting, stop-early settle (census is 98% fixed 25 s waits), per-app bubblewrap sandbox (roadmap step 4, owner wants it early).
