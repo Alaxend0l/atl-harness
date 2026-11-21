@@ -23,23 +23,47 @@ The sandbox limits each app to what Android would give it.
 | Audio | PipeWire and Pulse sockets | playback. Capture can't be separated at the socket level: an app could record without `RECORD_AUDIO` |
 | GPU | `/dev/dri`, read-only `/sys/devices` + `/sys/dev/char` for device discovery | |
 | Camera | `/dev/video*`, `/dev/media*` only with `CAMERA` | |
-| Network | only with `INTERNET`; otherwise no network namespace at all | Android's rule. With INTERNET it's the host's network, LAN included (see limits) |
+| Network | per policy (below); default: nothing without `INTERNET`, **internet only** (no LAN) with it | apps shouldn't reach your LAN unless you say so |
 | D-Bus | a filtered session bus (`xdg-dbus-proxy`): portals, notifications, owning `org.mpris.MediaPlayer2.*`; nothing else; no system bus, no accessibility bus | file chooser/OpenURI via portals, notifications, media controls |
+
+## Network
+`"network"` in the policy:
+| Value | The app can reach |
+|---|---|
+| `"none"` | nothing (default without `INTERNET`) |
+| `"internet"` | the internet only: no LAN, localhost, link-local, multicast, CGNAT/Tailscale (default with `INTERNET`) |
+| `["192.168.10.20:8096", "192.168.10.0/24", "100.64.0.0/10", "[fd7a:115c:a1e0::/48]"]` | the internet **plus** these addresses/networks, optionally one port each |
+| `"full"` | everything the host can reach (no filtering) |
+
+Examples: Jellyfin on a LAN server `["192.168.10.20:8096"]`; Home Assistant
+`["192.168.10.30:8123"]` (add `"224.0.0.251:5353"` for mDNS discovery);
+anything over Tailscale `["100.64.0.0/10", "[fd7a:115c:a1e0::/48]"]`.
+Hostnames aren't accepted (resolved addresses can change): use IPs.
+
+How: filtered modes give the app its own user + network namespace
+(`unshare`), load an nftables output filter there (DNS goes to pasta's
+forwarder, the allow-list, then reject private ranges), connect it with
+`pasta` (traffic leaves through the host's sockets, so VPN/Tailscale routes
+work; no inbound ports), then start the sandbox's bwrap inside as your own
+uid without capabilities. Needs `unshare`, `nft`, `pasta` (packages
+`util-linux`, `nftables`, `passt`) on the host or in the rootfs; without them
+a filtered policy refuses to start rather than falling back to full access.
+On the phone, `passt`/`nftables` come with the next `rig -r oneplus12 rootfs
+--from mini` (in scripts/runner/packages.txt).
 
 ## Policy files
 On the phone each app has `~/atl-apps/<pkg>.policy.json`, written from the
 manifest at install and never overwritten afterwards. Edit it to grant or
 revoke access:
 ```json
-{"network": false, "media": {"music": "ro"}, "camera": false, "audio": true, "dbus_talk": []}
+{"network": ["192.168.10.20:8096"], "media": {"music": "ro"}, "camera": false, "audio": true, "dbus_talk": []}
 ```
 `atl-sandbox --policy-for APP.apk` prints what the manifest asks for.
 `ATL_NO_SANDBOX=1` (env of `atl-app`) runs one launch without the sandbox,
 for comparing behaviour.
 
 ## Limits (not done yet)
-- With `INTERNET` the app reaches the LAN and localhost. Internet-only needs
-  a separate network namespace with NAT (pasta/slirp4netns) and filtering.
+- Allow-lists take IPs, not hostnames; no inbound connections to apps.
 - No seccomp filter (the PID namespace already prevents ptrace of others).
 - Microphone capture via PipeWire/Pulse (above).
 - Portals see the app as an unsandboxed host app (no app ID).

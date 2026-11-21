@@ -33,7 +33,10 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import shutil
 import signal
+import tempfile
+import time
 import struct
 import subprocess
 import sys
@@ -122,7 +125,7 @@ def derive_policy(perms: list[str]) -> dict:
         for k in ("music", "pictures", "videos", "download"):
             grant(k, "rw")
     return {
-        "network": a + "INTERNET" in p,
+        "network": "internet" if a + "INTERNET" in p else "none",
         "media": media,
         "camera": a + "CAMERA" in p,
         "audio": True,
@@ -176,11 +179,141 @@ def media_binds(policy: dict, home: Path) -> tuple[list[tuple[str, Path]], list[
 
 # ---------------------------------------------------------------- bwrap
 
+# ---------------------------------------------------------------- network
+
+PRIVATE_V4 = ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+              "100.64.0.0/10", "169.254.0.0/16", "224.0.0.0/4", "0.0.0.0/8"]
+PRIVATE_V6 = ["::1/128", "fc00::/7", "fe80::/10", "ff00::/8"]
+DNS_ADDR = "169.254.1.1"  # pasta forwards DNS sent here to the host's resolver
+
+
+def network_mode(policy: dict):
+    """'none' | 'full' | 'internet' | list of allowed LAN entries (internet + those)."""
+    n = policy.get("network", "none")
+    if n is True:  # policies from before network modes: true meant "has INTERNET"
+        return "internet"
+    if n in (False, None):
+        return "none"
+    if isinstance(n, list):
+        return [str(x) for x in n]
+    if n in ("none", "full", "internet"):
+        return n
+    raise SystemExit(f"atl-sandbox: unknown network policy {n!r} (none, internet, full, or a list)")
+
+
+def parse_allow(entry: str) -> tuple[str, str, int | None]:
+    """'192.168.1.5', '192.168.1.0/24:8096', '[fd7a::/48]:443' -> (family, net, port)."""
+    port = None
+    if entry.startswith("["):
+        net, _, rest = entry[1:].partition("]")
+        if rest.startswith(":"):
+            port = int(rest[1:])
+        fam = "ip6"
+    elif entry.count(":") == 1:
+        net, p = entry.split(":")
+        port, fam = int(p), "ip"
+    else:
+        net, fam = entry, ("ip6" if ":" in entry else "ip")
+    import ipaddress
+    ipaddress.ip_network(net, strict=False)  # validates; raises ValueError
+    if port is not None and not 0 < port < 65536:
+        raise ValueError(f"bad port in {entry!r}")
+    return fam, net, port
+
+
+def nft_rules(allow: list[str]) -> str:
+    """Output filter: DNS via pasta, the allow-list, then no LAN/localhost/link-local/multicast."""
+    lines = ["table inet atl {", "  chain out {",
+             "    type filter hook output priority 0; policy accept;",
+             f"    ip daddr {DNS_ADDR} udp dport 53 accept",
+             f"    ip daddr {DNS_ADDR} tcp dport 53 accept"]
+    for e in allow:
+        fam, net, port = parse_allow(e)
+        if port is None:
+            lines.append(f"    {fam} daddr {net} accept")
+        else:
+            lines.append(f"    {fam} daddr {net} tcp dport {port} accept")
+            lines.append(f"    {fam} daddr {net} udp dport {port} accept")
+    lines.append("    ip daddr { " + ", ".join(PRIVATE_V4) + " } reject")
+    lines.append("    ip6 daddr { " + ", ".join(PRIVATE_V6) + " } reject")
+    lines += ["  }", "}"]
+    return "\n".join(lines) + "\n"
+
+
+def resolv_target(rootfs: str | None) -> str:
+    """Where /etc/resolv.conf points inside the sandbox (it's often a symlink)."""
+    root = Path(rootfs) if rootfs else Path("/")
+    p = Path("/etc/resolv.conf")
+    for _ in range(8):
+        real = root / p.relative_to("/")
+        if not real.is_symlink():
+            return str(p)
+        t = Path(os.readlink(real))
+        p = t if t.is_absolute() else (p.parent / t)
+        p = Path(os.path.normpath(p))
+    return str(p)
+
+
+def tool(name: str, rootfs: str | None) -> list[str] | None:
+    """argv prefix for a tool: from the host, else the rootfs's binary via its own loader."""
+    w = shutil_which(name)
+    if w:
+        return [w]
+    if rootfs:
+        r = Path(rootfs)
+        for d in ("usr/bin", "usr/sbin"):
+            b = r / d / name
+            if b.is_file():
+                loaders = sorted(r.glob("usr/lib*/ld-linux*.so*"))
+                if loaders:
+                    return [str(loaders[0]), "--library-path", f"{r}/usr/lib64:{r}/usr/lib", str(b)]
+    return None
+
+
+def launch_filtered(bwrap_args: list[str], mode, tmp: Path, rootfs: str | None) -> tuple[subprocess.Popen, Path]:
+    """New user+net namespace with the nft rules, connected by pasta, running bwrap.
+    Returns (process, pasta pid file)."""
+    unshare, nft, pasta = shutil_which("unshare"), tool("nft", rootfs), tool("pasta", rootfs)
+    missing = [n for n, t in (("unshare", unshare), ("nft", nft), ("pasta", pasta)) if not t]
+    if missing:
+        raise SystemExit(f"atl-sandbox: network policy {mode!r} needs {', '.join(missing)} "
+                         "(packages nftables, passt); or set network to \"none\" or \"full\"")
+    rules = tmp / "rules.nft"
+    rules.write_text(nft_rules([] if mode == "internet" else mode))
+    go = tmp / "go"
+    os.mkfifo(go)
+    # nft argv is passed before bwrap's; split them with a marker the script understands
+    script = ('go=$1; rules=$2; shift 2; n=$1; shift; i=0; set -- "$@"; '
+              'nftcmd=""; while [ $i -lt $n ]; do nftcmd="$nftcmd \"$1\""; shift; i=$((i+1)); done; '
+              'read x < "$go"; eval "$nftcmd -f \"$rules\"" || { echo "atl-sandbox: nft failed" >&2; exit 97; }; exec "$@"')
+    proc = subprocess.Popen([unshare, "--user", "--map-root-user", "--net", "--", "sh", "-c", script, "sh",
+                             str(go), str(rules), str(len(nft)), *nft, *bwrap_args])
+    pid_file = tmp / "pasta.pid"
+    ns = f"/proc/{proc.pid}/ns"
+    for _ in range(50):  # wait for unshare to have created the namespaces
+        try:
+            if os.readlink(f"{ns}/net") != os.readlink("/proc/self/ns/net"):
+                break
+        except OSError:
+            pass
+        time.sleep(0.02)
+    r = subprocess.run([*pasta, "--config-net", "--netns", f"{ns}/net", "--userns", f"{ns}/user",
+                        "--no-map-gw", "--no-netns-quit", "--dns-forward", DNS_ADDR,
+                        "-t", "none", "-u", "none", "-T", "none", "-U", "none", "-P", str(pid_file), "-q"],
+                       timeout=30)
+    if r.returncode != 0:
+        proc.kill()
+        raise SystemExit(f"atl-sandbox: pasta failed ({r.returncode})")
+    with open(go, "w") as f:  # rules can go in, then bwrap starts
+        f.write("go\n")
+    return proc, pid_file
+
+
 PASS_ENV_PREFIXES = ("ATL_", "GDK_DISABLE", "GSK_", "MESA_", "LIBGL_", "JDWP_", "VK_", "__GLX_")
 
 
 def build_args(apk: str, atl_args: list[str], policy: dict, *, rootfs: str | None, x11: bool,
-               dbus_socket: str | None) -> tuple[list[str], dict]:
+               dbus_socket: str | None, dns_file: str | None = None) -> tuple[list[str], dict]:
     home = Path(os.environ.get("HOME") or Path.home())
     uid = os.getuid()
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{uid}")
@@ -199,8 +332,12 @@ def build_args(apk: str, atl_args: list[str], policy: dict, *, rootfs: str | Non
         # memory): a private IPC namespace makes every window blank. Wayland
         # passes buffers as fds, so it keeps a private one.
         a += ["--unshare-ipc"]
-    if not policy.get("network"):
+    mode = network_mode(policy)
+    if mode == "none":
         a += ["--unshare-net"]
+    elif mode != "full":
+        # filtered: run inside the namespaces made by launch_filtered(), as our own uid
+        a += ["--unshare-user", "--uid", str(uid), "--gid", str(os.getgid())]
     if rootfs:
         # read-only rootfs: give the mount points below writable parents
         a += ["--ro-bind", rootfs, "/", "--tmpfs", "/home", "--tmpfs", "/run", "--tmpfs", "/sys"]
@@ -213,6 +350,8 @@ def build_args(apk: str, atl_args: list[str], policy: dict, *, rootfs: str | Non
               "--ro-bind-try", "/etc/localtime", "/etc/localtime",
               "--ro-bind-try", "/etc/machine-id", "/etc/machine-id",
               "--ro-bind", "/etc/passwd", "/etc/passwd", "--ro-bind", "/etc/group", "/etc/group"]
+    if mode not in ("none", "full") and dns_file:
+        a += ["--ro-bind", dns_file, resolv_target(rootfs)]
     a += ["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/var/tmp",
           "--dev-bind-try", "/dev/dri", "/dev/dri"]
     if policy.get("camera"):
@@ -341,12 +480,25 @@ def main(argv: list[str]) -> int:
     policy = load_policy(apk, opts["policy"])
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
     proxy, sock, lifeline = (None, None, None) if opts["dry"] else start_dbus_proxy(policy, runtime)
-    args, _ = build_args(apk, atl_args, policy, rootfs=opts["rootfs"], x11=opts["x11"], dbus_socket=sock)
+    mode = network_mode(policy)
+    filtered = mode not in ("none", "full")
+    tmp = Path(tempfile.mkdtemp(prefix="atl-sandbox-"))
+    dns = tmp / "resolv.conf"
+    dns.write_text(f"nameserver {DNS_ADDR}\n")
+    args, _ = build_args(apk, atl_args, policy, rootfs=opts["rootfs"], x11=opts["x11"], dbus_socket=sock,
+                         dns_file=str(dns) if filtered else None)
     if opts["dry"]:
         print(shlex.join(args))
+        if filtered:
+            print(nft_rules([] if mode == "internet" else mode), end="")
+        shutil.rmtree(tmp, ignore_errors=True)
         return 0
+    pid_file = None
     try:
-        child = subprocess.Popen(args)
+        if filtered:
+            child, pid_file = launch_filtered(args, mode, tmp, opts["rootfs"])
+        else:
+            child = subprocess.Popen(args)
         try:
             return child.wait()
         finally:
@@ -359,6 +511,12 @@ def main(argv: list[str]) -> int:
     except KeyboardInterrupt:
         return 130
     finally:
+        if pid_file is not None and pid_file.is_file():
+            try:
+                os.kill(int(pid_file.read_text().strip()), signal.SIGTERM)
+            except (ValueError, ProcessLookupError):
+                pass
+        shutil.rmtree(tmp, ignore_errors=True)
         if lifeline is not None:
             os.close(lifeline)
         if proxy:

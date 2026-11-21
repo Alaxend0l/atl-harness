@@ -26,13 +26,13 @@ def pairs(args, flag):
 class Policy(unittest.TestCase):
     def test_no_permissions_no_access(self):
         p = sb.derive_policy([])
-        self.assertFalse(p["network"])
+        self.assertEqual(p["network"], "none")
         self.assertEqual(p["media"], {})
         self.assertFalse(p["camera"])
 
     def test_permissions_map(self):
         p = sb.derive_policy([P + "INTERNET", P + "READ_MEDIA_AUDIO", P + "CAMERA"])
-        self.assertTrue(p["network"])
+        self.assertEqual(p["network"], "internet")  # not the LAN: that needs an explicit grant
         self.assertEqual(p["media"], {"music": "ro"})
         self.assertTrue(p["camera"])
 
@@ -63,6 +63,7 @@ class Args(unittest.TestCase):
         kw.setdefault("rootfs", None)
         kw.setdefault("x11", True)
         kw.setdefault("dbus_socket", None)
+        kw.setdefault("dns_file", None)
         return sb.build_args(str(self.apk), ["-w", "1080"], policy, **kw)
 
     def test_isolation_basics(self):
@@ -83,9 +84,20 @@ class Args(unittest.TestCase):
         rw = [s for s, _ in pairs(args, "--bind")]
         self.assertEqual(rw, [str(self.home / ".local/share/android_translation_layer/app.apk_")])
 
-    def test_network_shared_only_with_internet(self):
-        args, _ = self.build(sb.derive_policy([P + "INTERNET"]))
-        self.assertNotIn("--unshare-net", args)
+    def test_network_modes(self):
+        full, _ = self.build({"network": "full"})
+        self.assertNotIn("--unshare-net", full)
+        self.assertNotIn("--unshare-user", full)
+        inet, _ = self.build(sb.derive_policy([P + "INTERNET"]), dns_file="/x/resolv.conf")
+        self.assertNotIn("--unshare-net", inet)  # the netns comes from launch_filtered()
+        self.assertIn("--unshare-user", inet)
+        self.assertIn(("/x/resolv.conf", sb.resolv_target(None)), pairs(inet, "--ro-bind"))
+        self.assertEqual(sb.network_mode({"network": True}), "internet")  # old policies
+        self.assertEqual(sb.network_mode({"network": False}), "none")
+        self.assertEqual(sb.network_mode({"network": ["192.168.1.5"]}), ["192.168.1.5"])
+        with self.assertRaises(SystemExit):
+            sb.network_mode({"network": "lan"})
+
 
     def test_media_grant_ro(self):
         args, env = self.build(sb.derive_policy([P + "READ_MEDIA_AUDIO"]))
@@ -115,6 +127,27 @@ class Args(unittest.TestCase):
         self.assertIn(("/rt/proxy", str(self.home / "rt") + "/bus"), pairs(args, "--ro-bind"))
         self.assertTrue(env["DBUS_SESSION_BUS_ADDRESS"].endswith("/bus"))
 
+
+class Rules(unittest.TestCase):
+    def test_internet_blocks_private_ranges_after_dns(self):
+        r = sb.nft_rules([])
+        self.assertLess(r.index("udp dport 53 accept"), r.index("192.168.0.0/16"))
+        for net in ("127.0.0.0/8", "10.0.0.0/8", "100.64.0.0/10", "169.254.0.0/16", "fc00::/7", "fe80::/10"):
+            self.assertIn(net, r)
+        self.assertIn("policy accept", r)
+
+    def test_allow_list_before_the_block(self):
+        r = sb.nft_rules(["192.168.10.5:8096", "100.64.0.0/10", "[fd7a:115c:a1e0::/48]:443"])
+        self.assertIn("ip daddr 192.168.10.5 tcp dport 8096 accept", r)
+        self.assertIn("ip daddr 192.168.10.5 udp dport 8096 accept", r)
+        self.assertIn("ip daddr 100.64.0.0/10 accept", r)
+        self.assertIn("ip6 daddr fd7a:115c:a1e0::/48 tcp dport 443 accept", r)
+        self.assertLess(r.index("100.64.0.0/10 accept"), r.index("reject"))
+
+    def test_bad_entries_rejected(self):
+        for bad in ("192.168.1.999", "10.0.0.0/8:0", "host.local", "1.2.3.4:99999"):
+            with self.subTest(bad), self.assertRaises(ValueError):
+                sb.parse_allow(bad)
 
 if __name__ == "__main__":
     unittest.main()
