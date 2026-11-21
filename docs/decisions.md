@@ -58,3 +58,24 @@ toolchain, ATL and the harness live in a Fedora 44 distrobox (`atl`).
 `scripts/remote.sh` enters it when `ATLH_REMOTE_BOX` is set. Corpus is
 filtered to `allowed_abis = ["x86_64"]`, which drops apps that ship ARM-only
 native code.
+
+### D11 — Mac mini M4 is a second runner, via a Lima VM, never an agent host (2026-11-21)
+For apps that ship ARM-only native code (~7% of F-Droid), an M4 Mac mini
+runs a Fedora 44 aarch64 VM under Lima (Apple Virtualization, `vz`). Asahi
+was ruled out: no M4 support, and its 16K-page kernel breaks native libs
+built for 4K pages (the VM's kernel uses 4K, like phones). The mini (16 GB) is
+too small for useful local models, so it only runs apps and takes
+screenshots; agents stay on strata. Results from x86_64 and aarch64 runners
+are not comparable and must not be gated against each other. No Apple
+Silicon chip runs 32-bit ARM, so `armeabi-v7a`-only apps stay out of reach.
+
+### D12 — Workstation tooling in Python (`scripts/rig`), registry in runners.toml (2026-11-21)
+Remote chores (sync, distrobox/VM entry, detached builds, smoke tests,
+health checks) had become long hand-typed ssh lines and broke in subtle
+ways (quoting, stale builds, jobs dying with ssh). `rig` centralises them.
+Python stdlib rather than Rust because it orchestrates ssh/rsync on the
+workstation, needs no build, and argument/TOML handling in bash is fragile;
+the harness itself stays Rust (D2). Runner-side logic stays in bash
+(`scripts/runner/`), sent inline where it must work before a sync.
+Per-runner results live in separate DBs (`work/remote/RUNNER/`), so runs
+from different architectures can't be compared by accident.

@@ -1,0 +1,44 @@
+# aarch64 runners (Mac mini Lima VM). Copy of config.toml except allowed_abis;
+# keep the two in sync until the runner registry lands (docs/agent-tasks).
+[paths]
+# Corpus, logs, screenshots and the sqlite db live here (relative to this file).
+work_dir = "work"
+
+[corpus]
+index_url = "https://f-droid.org/repo/index-v2.json"
+repo_url = "https://f-droid.org/repo"
+# ABIs this box can load. APKs without native code always qualify.
+# ARM64 box: ["arm64-v8a"]; x86_64 box: ["x86_64"].
+allowed_abis = ["arm64-v8a"]
+include_native = true
+
+[atl]
+# {apk} and {pkg} are substituted. -w/-h must match the Xvfb screen below so
+# the window fills it. Without -l, ATL picks the launcher activity itself.
+command = ["android-translation-layer", "{apk}", "-w", "1080", "-h", "1920"]
+# Seconds to let the app start before screenshotting and killing it.
+settle_s = 25
+# Extra env vars for ATL (e.g. LIBGL_ALWAYS_SOFTWARE = "1").
+[atl.env]
+# GTK may pick GLX on X11, which breaks ATL's EGL code (upstream README).
+# Upstream says GDK_DEBUG=gl-egl; GTK >= 4.16 replaced that with GDK_DISABLE.
+GDK_DISABLE = "glx"
+
+[display]
+xvfb_args = ["-screen", "0", "1080x1920x24"]
+# ATL draws a 50px title bar even over a blank app; skip it when scoring.
+crop_top_px = 50
+
+[classify]
+# VERIFY: tune to what ATL actually logs for unimplemented framework methods.
+stub_patterns = ['(?i)\bstub\b', '(?i)not implemented', '(?i)unimplemented']
+# Screenshot std-dev (0..1) below this counts as a blank screen.
+blank_stddev_threshold = 0.02
+
+[agent]
+# Run inside an ATL git worktree. {prompt} = prompt text, {prompt_file} = path.
+# VERIFY flags for your CLI version. Pick one:
+command = ["opencode", "run", "{prompt}"]
+# command = ["claude", "-p", "{prompt}"]
+atl_repo = "~/src/android_translation_layer"
+aosp_frameworks = "~/src/aosp/frameworks/base"

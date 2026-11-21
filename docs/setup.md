@@ -8,7 +8,7 @@
 | **Runner box** (Linux, on the LAN, reachable over SSH) | Builds and runs ATL; runs the harness and later the coding agent. Stores the corpus, logs and database. | Rust, Xvfb, ImageMagick, Mesa, the ATL fork built from source |
 
 You can run everything on one machine too: the harness doesn't care, and
-`scripts/remote.sh` is just a convenience for the two-machine setup.
+`scripts/rig` ([rig.md](rig.md)) is the convenience layer for multiple machines.
 
 ## Workstation
 
@@ -26,7 +26,11 @@ Host atl-box
     User <you>
 ```
 
-Then point the helper script at it, e.g. in your shell profile:
+Then register it with `scripts/rig add` ([rig.md](rig.md#adding-a-runner)),
+which also covers building everything (`rig bootstrap`). The rest of this
+file documents what bootstrap does and why.
+
+Legacy single-runner helper (deprecated), e.g. in your shell profile:
 
 ```sh
 export ATLH_REMOTE=atl-box
@@ -94,6 +98,7 @@ Then, in order (`sudo ldconfig` after each install):
 |---|---|---|
 | wolfSSL `v5.8.2-stable` | `autoreconf -i && ./configure --prefix=/usr/local CFLAGS="-O2 -Wno-error=stringop-truncation" <flags from Build.md> && make && sudo make install` | Use ATL's flag list; art_standalone's README lists flags 5.8.2 rejects. GCC 16 trips `-Werror` without the CFLAGS. |
 | bionic_translation | `meson setup builddir --prefix=/usr/local && meson compile -C builddir && sudo meson install -C builddir` | Installs no `.pc` file; that's fine. |
+| vixl 8.0.0 (aarch64 only) | tarball + Alpine's meson patch (`scripts/runner/patches/`), meson install | ART's ARM code generators include `vixl/aarch64/*.h` and link `-lvixl`; x86 builds skip that code. |
 | art_standalone | `make -j16 ____LIBDIR=lib64 && sudo make ____LIBDIR=lib64 install` | ~25 min on 16 cores. Java 25 works although upstream says 17. Run it in tmux. |
 | libopensles-standalone | meson, as above | Optional; needs SDL2 and libsndfile. |
 | android_translation_layer | `meson setup builddir --prefix=/usr/local -Ddownload_tool_deps=true`, compile, install | Fedora needs `download_tool_deps` (no java-getopt package). |
@@ -103,8 +108,36 @@ Test APKs: `git clone https://gitlab.com/android_translation_layer/atl_test_apks
 ### Smoke test
 ```sh
 # on the workstation
-scripts/remote.sh sync
-scripts/remote.sh atlh --help      # first call compiles a release build (a few minutes)
+scripts/rig doctor
+scripts/rig smoke src/atl_test_apks/org.happysanta.gd_29.apk
+```
+
+## Second runner: Mac mini (aarch64 Lima VM)
+
+See decisions D11. On the mini (Homebrew + Lima installed):
+```sh
+limactl create --name atl --vm-type vz --cpus 8 --memory 12 --disk 120 \
+  --mount-none template:fedora-44
+limactl edit --set '.ssh.localPort = 60022' atl   # stable port for ProxyJump
+limactl start atl
+# optional, so the VM comes back after a reboot (needs a logged-in user):
+limactl start-at-login atl
+```
+Add the workstation's public key to `~/.ssh/authorized_keys` inside the VM
+(`limactl shell atl`), then on the workstation:
+```
+Host atl-mini-vm
+    HostName 127.0.0.1
+    Port 60022
+    User <you>
+    ProxyJump atl-mini
+    HostKeyAlias atl-mini-vm
+```
+The VM is plain (mutable) Fedora, so no distrobox: install the packages
+and build ATL directly, same recipe as above (`make -j6` for art_standalone;
+12 GB RAM). Use `config.aarch64.toml`:
+```sh
+scripts/rig -r mini atlh ...     # runners.toml points mini at config.aarch64.toml
 ```
 
 ## First-run checklist

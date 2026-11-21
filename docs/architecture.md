@@ -14,7 +14,9 @@ file plus logs and screenshots on disk.
 | `src/runner.rs` | Runs one app: temp `$HOME`/XDG dirs, a private Xvfb (`-displayfd` picks a free display), ATL in its own process group, wait `settle_s`, screenshot via ImageMagick, kill the group, classify. Defines `Outcome` and its gate score. |
 | `src/classify.rs` | Log → `Vec<Failure>`. Parses Java exception chains and stack frames, matches stub regexes, normalises numbers/addresses so signatures group across apps. |
 | `src/report.rs` | `rank` (SQL aggregation), `compare` (regression gate), `workitem` (prompt template). |
-| `scripts/remote.sh` | Workstation → box helper: `sync`, `atlh …`, `pull`, `shell`. |
+| `scripts/rig` | Workstation tool (Python stdlib): runner registry (`runners.toml`), sync, remote `atlh`, smoke, detached jobs, doctor, bootstrap. See [rig.md](rig.md). |
+| `scripts/runner/*.sh` | Run on runners: `bootstrap.sh` (build stack), `smoke.sh` (one APK), `doctor.sh` (checks). |
+| `scripts/remote.sh` | Deprecated single-runner helper. |
 
 ## Data flow
 ```

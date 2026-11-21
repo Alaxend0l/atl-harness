@@ -20,16 +20,17 @@ against real ATL. See [docs/roadmap.md](docs/roadmap.md).
 | [docs/design.md](docs/design.md) | The full plan: stages, hard fork, reward hacking |
 | [docs/decisions.md](docs/decisions.md) | Why things are the way they are |
 | [docs/roadmap.md](docs/roadmap.md) | Status and next steps |
+| [docs/rig.md](docs/rig.md) | Runner tool: sync, run, smoke, jobs, add/bootstrap machines |
 | [AGENTS.md](AGENTS.md) | Context and rules for coding agents |
 
 ## Quick start (from the workstation)
 ```sh
-export ATLH_REMOTE=atl-box                  # ssh alias of the runner box
-export ATLH_REMOTE_BOX=atl                  # distrobox on the box (omit if none)
-scripts/remote.sh sync
-scripts/remote.sh atlh fetch --limit 20
-scripts/remote.sh atlh run --run-id first --jobs 2
-scripts/remote.sh atlh rank first
+scripts/rig list                            # runners from runners.toml
+scripts/rig doctor                          # is the default runner healthy?
+scripts/rig atlh fetch --limit 20
+scripts/rig atlh run --run-id first
+scripts/rig atlh rank first
+scripts/rig -r mini smoke some.apk          # one app on the aarch64 runner
 ```
 
 ## Development

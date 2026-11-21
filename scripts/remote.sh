@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# DEPRECATED: use scripts/rig (docs/rig.md). Kept for existing shell setups.
 # Drive the harness on the remote Linux box from your laptop.
 #   export ATLH_REMOTE=user@box           (any ssh destination / ~/.ssh/config alias)
 #   export ATLH_REMOTE_BOX=atl            (optional: run inside this distrobox)

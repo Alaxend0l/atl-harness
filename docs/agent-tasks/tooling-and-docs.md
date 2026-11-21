@@ -19,65 +19,20 @@ through it in order, one item per branch/commit. Read `AGENTS.md`,
 - Update `docs/roadmap.md` when an item is done, and `docs/decisions.md`
   when you choose between real alternatives.
 
-## 1. Runner registry (do this first)
+## 1. Runner registry: mostly done
 
-Today one runner is hard-wired through `ATLH_REMOTE`/`ATLH_REMOTE_BOX`.
-More are coming (an M4 Mac mini running an aarch64 Linux VM is next).
-Adding a machine should be: add one entry, run one command.
-
-### Design (follow it unless you find a concrete problem; then record why in decisions.md)
-- `runners.toml` at the repo root, strictly typed like `config.toml`:
-  ```toml
-  [runners.bazzite]
-  ssh = "atl-box"            # ssh destination / alias
-  distrobox = "atl"          # optional: wrap commands in `distrobox enter`
-  dir = "atl-harness"        # remote checkout, relative to ~
-  arch = "x86_64"            # uname -m; selects ABI defaults
-  config = "config.toml"     # harness config to use on this runner
-  jobs = 4                   # default --jobs
-
-  [runners.mini]
-  ssh = "atl-mini-vm"
-  arch = "aarch64"
-  config = "config.aarch64.toml"
-  jobs = 3
-  ```
-- `scripts/remote.sh` takes a runner name: `scripts/remote.sh <runner>
-  sync|atlh|pull|shell|doctor`. With `ATLH_RUNNER` set, the name can be
-  omitted. Keep `ATLH_REMOTE`-only use working for one release, with a
-  deprecation note.
-- `pull` must not mix runners: pull into `work/<runner>/`.
-- Run ids should record their runner. Add a `runner` column to `runs`
-  (migration for existing DBs), set from `--runner` or `ATLH_RUNNER`.
-  `compare` must refuse to compare runs from different runners unless
-  `--cross-runner` is passed. x86_64 vs aarch64 results are not
-  comparable.
-- Per-arch config: `config.aarch64.toml` with
-  `allowed_abis = ["arm64-v8a"]`. Avoid duplicating the whole file if a
-  small include/override mechanism is simple; if not, duplicate and say so.
-
-### `doctor`
-`scripts/remote.sh <runner> doctor` checks a runner and prints a pass/fail
-table with a fix hint per line:
-ssh reachable · distrobox exists · `uname -m` matches `arch` · cargo ·
-Xvfb · ImageMagick (`convert`) · `android-translation-layer` on PATH ·
-ART installed (`pkg-config art-standalone`) · disk free in `dir` ·
-clock skew vs workstation (warn > 5 s) · repo synced (compare a hash of
-`src/`).
-
-### `bootstrap` (stretch)
-`scripts/bootstrap-runner.sh <runner>`: idempotent setup of a fresh
-Fedora/Fedora-distrobox runner, following `docs/setup.md` (packages, Rust,
-wolfSSL, bionic_translation, art_standalone, libOpenSLES, ATL). Each step
-skips itself if already done. Log to `~/src/logs/bootstrap-<step>.log` on
-the runner. Long steps (art_standalone) run detached; the script reports
-how to watch them. Do not run `rpm-ostree` or touch the host system of an
-immutable distro.
-
-### Docs
-`docs/runners.md`: what a runner is, how to add one (checklist from ssh
-key to first green `doctor`), the per-arch caveats (16K pages on Asahi;
-no 32-bit ARM on Apple Silicon; see decisions D10).
+`scripts/rig` + `runners.toml` exist (see `docs/rig.md`, decisions D12):
+add, list, doctor, sync, atlh, sh, pull, jobs, bootstrap, rebuild-atl,
+smoke, up/down. Remaining, in order:
+- `rig census RUN --all`: start the same `atlh run` on every runner as
+  jobs, wait for all, pull. Results stay per runner.
+- `rig report --all`: side-by-side outcome counts per runner for a run id
+  (read the pulled `work/remote/*/atlh.sqlite`).
+- Store the ATL commit (`git -C <atl_src> rev-parse HEAD`) with each run
+  (new `runs` column or a `run_meta` table), so results are traceable to a
+  build. Needs a migration for existing DBs.
+- `rig doctor`: also check that `[atl].command`'s binary matches the
+  checkout's HEAD (stale install after a fork change).
 
 ## 2. Harness tools (pick by usefulness, in roughly this order)
 

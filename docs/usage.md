@@ -1,7 +1,7 @@
 # Usage
 
 All commands take `--config <path>` (default `config.toml` in the current
-directory). From the workstation prefix them with `scripts/remote.sh atlh`;
+directory). From the workstation prefix them with `scripts/rig atlh` (see [rig.md](rig.md));
 on the box use `cargo run --release -- <command>` or the built binary
 `target/release/atlh`.
 
@@ -72,7 +72,7 @@ against faking fixes. Default output: `work/workitem-<run>-<n>.md`.
 
 ## Typical loop (manual, until the agent loop exists)
 ```sh
-R=scripts/remote.sh
+R=scripts/rig
 $R sync
 $R atlh fetch --limit 100
 $R atlh run --run-id base --jobs 4
@@ -85,7 +85,8 @@ $R atlh compare base fix1
 $R pull                            # logs/screenshots/db to ./work locally
 ```
 For long runs, start them inside `tmux` on the box (`$R shell`, then
-`tmux`), since `remote.sh atlh` dies with the SSH session.
+`tmux`), since a foreground `rig atlh` dies with the SSH session. Better:
+`rig atlh --detach NAME run ...` then `rig job wait NAME`.
 
 ## The `work/` directory
 ```
@@ -96,7 +97,7 @@ work/
   runs/<run-id>/       <pkg>.log (ATL stdout+stderr), <pkg>.png (screenshot)
   workitem-*.md        generated prompts
 ```
-`work/` is git-ignored. `remote.sh pull` copies it back without the APKs or
+`work/` is git-ignored. `rig pull` copies it back (to `work/remote/RUNNER/`) without the APKs or
 index.
 
 ## Querying results directly

@@ -48,7 +48,7 @@ End to end on the box (x86_64 Bazzite, `atl` distrobox, upstream ATL
 - Only startup is tested: one screenshot after `settle_s`, no input.
 - Blank detection is a single std-dev threshold.
 - `fetch` loads the whole F-Droid index into memory (tens of MB; fine).
-- `remote.sh atlh` runs in the foreground over SSH; use tmux for long runs.
+- Long runs: `rig atlh --detach NAME ...` (jobs survive ssh drops).
 - New Xvfb per app costs ~1 s; fine for now.
 
 ## Agent tasks

@@ -1,0 +1,22 @@
+# Runner machines for scripts/rig. Hostnames/IPs live in ~/.ssh/config, not here.
+# Add one with: scripts/rig add NAME --ssh ALIAS [--distrobox BOX]
+# Keys: see docs/rig.md.
+default = "bazzite"
+
+[runners.bazzite]
+ssh = "atl-box"
+distrobox = "atl"
+arch = "x86_64"
+config = "config.toml"
+jobs = 4
+notes = "x86_64 Bazzite box, shared with strata; Fedora 44 distrobox"
+
+[runners.mini]
+ssh = "atl-mini-vm"
+arch = "aarch64"
+config = "config.aarch64.toml"
+jobs = 3
+make_jobs = 6
+lima_host = "atl-mini"
+lima_instance = "atl"
+notes = "Fedora 44 aarch64 Lima VM on the M4 Mac mini; run/screenshot target only, no agents"

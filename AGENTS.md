@@ -17,14 +17,17 @@ Start with `README.md`, then `docs/roadmap.md` for current status.
   bodies). The harness exists to measure real compatibility.
 
 ## Environment
-- Two machines: a Linux **workstation** with this clone, and a Linux
-  **runner box** on the LAN reached via `ATLH_REMOTE` (ssh alias). ATL, Xvfb
-  and the corpus live on the box. `scripts/remote.sh` syncs and runs
-  commands there. See `docs/setup.md`.
+- A Linux **workstation** with this clone, and **runners** on the LAN
+  listed in `runners.toml`: an x86_64 box (`bazzite`,
+  in a distrobox) and an aarch64 Lima VM on a Mac mini (`mini`; runs apps
+  only, never agents). ATL, Xvfb and the corpus live on the runners.
+  Use `scripts/rig` for everything remote (`docs/rig.md`); don't hand-roll
+  ssh/rsync lines. See `docs/setup.md`.
 - `work/` (corpus, logs, screenshots, sqlite) is git-ignored.
 
 ## Working on the code
-- Before committing: `cargo fmt && cargo clippy --all-targets && cargo test`.
+- Before committing: `cargo fmt && cargo clippy --all-targets && cargo test`
+  and `python3 -m unittest discover -s scripts/tests`.
 - Unit tests must not need Xvfb, ATL or network.
 - Config is strictly typed (`deny_unknown_fields`): add new keys to the
   structs in `src/config.rs` and to `config.toml` and `docs/usage.md`.
