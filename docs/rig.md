@@ -26,6 +26,7 @@ command), else `$ATLH_RUNNER`, else `default` in `runners.toml`.
 | Just check it compiles | `rig build --no-install` · on every runner: `rig build --all` |
 | Other components | `rig build art` · `bionic` · `opensles` · `harness` (`--clean` to start over) |
 | Start/stop a Lima VM runner | `rig up` · `rig down` |
+| Put apps on a runner's home screen (real session, not Xvfb) | `rig -r oneplus12 desktop-apps install --pkg org.fossify.notes …` · `remove` |
 | (Re)install a bwrap rootfs runner | `rig -r oneplus12 rootfs --from mini` |
 
 Details:
@@ -59,6 +60,17 @@ there incrementally: the edit-compile-test loop without commit/push/pull.
 After an install, `~/src/logs/atl-installed.txt` records what is installed
 (`<sha>[-dirty]` or `local:<git describe>`); `rig doctor` shows it. Use
 `rig smoke`/`rig atlh run` right after to test the build.
+
+## Apps on a runner's own screen
+`rig desktop-apps install --pkg PKG…` (APKs from the runner's corpus) adds a
+"Name (ATL)" launcher per app to `~/.local/share/applications` with the
+icon from the APK or, for release builds with shrunk resources, F-Droid's
+published icon (sha256-checked). Launchers run `~/.local/bin/atl-app`,
+which starts ATL in the rig rootfs (if any) inside the desktop session:
+Wayland, session D-Bus, audio sockets and GPU passed through. Each launch
+appends ATL's output to `~/.local/state/atl/PKG.log` for bug reports. App
+data persists in ATL's data dir. Unlike harness runs this is not isolated
+from the session; use it for trusted apps.
 
 ## Jobs
 `rig job start NAME -- COMMAND` runs COMMAND detached on the runner (in

@@ -697,6 +697,25 @@ du -sh {root}; cat {root}/etc/atl-rootfs-release"""
     return 0
 
 
+def read_pkg_list(path: str) -> list[str]:
+    return [ln.split("#")[0].strip() for ln in Path(path).read_text().splitlines()
+            if ln.split("#")[0].strip()]
+
+
+def cmd_desktop_apps(reg: Registry, a) -> int:
+    r = pick_runner(reg, a.runner)
+    pkgs = list(a.pkg or [])
+    if a.pkg_file:
+        pkgs += read_pkg_list(a.pkg_file)
+    if not pkgs:
+        raise RigError("no packages: --pkg PKG... or --pkg-file FILE")
+    do_sync(r, quiet=True)
+    rc = run_remote(r, 'bash scripts/runner/desktop-apps.sh "$@"', args=[a.action, *pkgs]).returncode
+    # Refresh the desktop's app menu cache (KDE/Plasma; harmless elsewhere), on the host session.
+    host_cmd(r, "command -v kbuildsycoca6 >/dev/null && kbuildsycoca6 >/dev/null 2>&1 || true")
+    return rc
+
+
 def lima_cmd(r: Runner, sub: str) -> str:
     # The Lima host may run fish/zsh: keep it to `env ... limactl ...`.
     return f"env PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin limactl {sub}"
@@ -815,6 +834,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--from", dest="source", required=True, help="runner to build on (bootstrapped, same arch)")
     p.add_argument("--reuse", action="store_true", help="send the source's existing tarball, don't rebuild")
 
+    p = sub("desktop-apps", "put apps on the runner's desktop/home screen, running under ATL",
+            epilog="Launchers in ~/.local/share/applications (\"Name (ATL)\"); logs per launch in "
+                   "~/.local/state/atl/PKG.log. APKs must be in the corpus (rig atlh fetch --pkg ...).")
+    p.add_argument("action", choices=["install", "remove"])
+    p.add_argument("--pkg", nargs="+")
+    p.add_argument("--pkg-file")
+
     sub("up", "start the runner's Lima VM")
     sub("down", "stop the runner's Lima VM")
     return ap
@@ -823,7 +849,7 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = {
     "list": cmd_list, "add": cmd_add, "doctor": cmd_doctor, "sync": cmd_sync, "atlh": cmd_atlh,
     "sh": cmd_sh, "pull": cmd_pull, "job": cmd_job, "bootstrap": cmd_bootstrap,
-    "rebuild-atl": cmd_rebuild_atl, "build": cmd_build, "smoke": cmd_smoke, "rootfs": cmd_rootfs, "up": cmd_up_down, "down": cmd_up_down,
+    "rebuild-atl": cmd_rebuild_atl, "build": cmd_build, "smoke": cmd_smoke, "rootfs": cmd_rootfs, "desktop-apps": cmd_desktop_apps, "up": cmd_up_down, "down": cmd_up_down,
 }
 
 
