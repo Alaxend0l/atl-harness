@@ -24,7 +24,9 @@ Start with `README.md`, then `docs/roadmap.md` for current status.
   fedora-atomic-phone safety rules). Mini and phone run apps only, never
   agents. ATL, Xvfb and the corpus live on the runners.
   Use `scripts/rig` for everything remote (`docs/rig.md`); don't hand-roll
-  ssh/rsync lines. See `docs/setup.md`.
+  ssh/rsync lines. Build ATL changes with `rig build --worktree
+  ~/Develop/android-translation-layer` (reports parsed errors), then gate with
+  `rig atlh run` + `rig atlh compare`. See `docs/setup.md`.
 - `work/` (corpus, logs, screenshots, sqlite) is git-ignored.
 
 ## Working on the code

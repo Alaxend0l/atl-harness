@@ -45,6 +45,8 @@ if [ -d $A/.git ]; then
     *) r fail upstream-push "$pu" "git -C $A remote set-url --push upstream DISABLED-hard-fork-never-push-upstream" ;;
   esac
 else r warn atl-src "no checkout at $A" "$BOOT --only sources"; fi
+if [ -f ~/src/logs/atl-installed.txt ]; then r ok atl-installed "$(cut -d' ' -f2- ~/src/logs/atl-installed.txt)"
+else r warn atl-installed "unknown (built before rig build)" "rig build"; fi
 
 free_gb=$(( $(df -Pk ~ | awk 'NR==2{print $4}') / 1048576 ))
 if [ "$free_gb" -ge 20 ]; then r ok disk "${free_gb} GB free"

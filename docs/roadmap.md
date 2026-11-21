@@ -138,10 +138,10 @@ JNI pending `NullPointerException` from `PropertyValuesHolder.setAnimatedValue`
 Music client, Jetpack Compose; use the `flow-foss-*` APKs, sha256 from the
 release's checksums.txt). Smoke on oneplus12 (v3.0.5): reaches `onResume`,
 then exits 10 via its crash handler. Blockers:
-- **ATL picks the wrong launch activity**: it takes the first `MAIN`
-  activity (`TvActivity`, `LEANBACK_LAUNCHER`) instead of the
-  `CATEGORY_LAUNCHER` one (`MainActivity`). Affects every app that also
-  targets Android TV.
+- Launch activity is chosen correctly (activity-alias `IconFlowRed` →
+  `MainActivity`); an earlier note here blamed ATL, but that was a
+  smoke-script bug (it reported the first intent filter logged, not the
+  last), fixed.
 - `AppWidgetManager.getInstalledProviders()` missing (same widget area as
   Fossify Launcher's `AppWidgetHost`: one implementation helps both).
 - `WindowInsetsCompat` reflection on `View.getViewRootImpl` fails (logged,

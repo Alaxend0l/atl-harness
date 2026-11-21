@@ -56,6 +56,8 @@ echo "alive_after_settle=$alive"
 echo "exit_code=$code"
 echo "seconds=$(( $(date +%s) - start ))"
 echo "screen_stddev=$stddev"
-echo "activity=$(grep -aom1 'ActivityIntentInfo{[^}]*}' "$OUT/run.log" || true)"
+# ATL logs each intent filter it scans and stops at the one it launches: the
+# last one logged is the chosen activity (or activity-alias).
+echo "activity=$(grep -ao 'ActivityIntentInfo{[^}]*}' "$OUT/run.log" | tail -n 1 || true)"
 echo "reached_onResume=$(grep -aq -- '- onResume -' "$OUT/run.log" && echo yes || echo no)"
 echo "exceptions=$(grep -acE '^[[:space:]]*(Caused by: )?[a-zA-Z_$.]+(Exception|Error)\b' "$OUT/run.log" || true)"

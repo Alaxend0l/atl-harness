@@ -563,22 +563,74 @@ def cmd_bootstrap(reg: Registry, a) -> int:
     return rc
 
 
-def cmd_rebuild_atl(reg: Registry, a) -> int:
-    r = pick_runner(reg, a.runner)
-    src = r.home_path(r.atl_src)
-    script = f"""set -euo pipefail
-cd {src}
-{"git fetch --all --quiet && git checkout --quiet " + shlex.quote(a.ref) if a.ref else ":"}
-{"git pull --ff-only --quiet" if a.pull else ":"}
-echo "building $(git log -1 --format='%h %s')"
-meson compile -C builddir
-sudo meson install -C builddir > /dev/null
-sudo ldconfig
-echo "installed $(command -v android-translation-layer) from $(git rev-parse --short HEAD)"
-"""
+BUILD_TARGETS = ["atl", "art", "bionic", "opensles", "harness"]
+DEV_TREE = "src/atl-dev"  # where `rig build --worktree` syncs local ATL edits
+
+
+def local_rev(path: str) -> str:
+    """`git describe` of a local tree, e.g. 299a8af7-dirty (synced trees carry no .git)."""
+    p = subprocess.run(["git", "-C", str(Path(path).expanduser()), "describe", "--always", "--dirty"],
+                       capture_output=True, text=True)
+    return f"local:{p.stdout.strip()}" if p.returncode == 0 else "local:no-git"
+
+
+def sync_worktree(r: Runner, path: str) -> str:
+    """rsync a local ATL working tree (uncommitted edits included) to the
+    runner's dev tree; its builddir stays, so builds are incremental."""
+    src = Path(path).expanduser().resolve()
+    if not (src / "meson.build").is_file():
+        raise RigError(f"{src} doesn't look like an ATL checkout (no meson.build)")
+    argv = ["rsync", "-rlpz", "--checksum", "--delete", "--exclude", "/builddir/", "--exclude", ".git/",
+            "-e", "ssh -o BatchMode=yes", f"{src}/", f"{r.ssh}:{DEV_TREE}/"]
+    if subprocess.run(argv).returncode:
+        raise RigError(f"{r.name}: syncing {src} failed")
+    return r.home_path(DEV_TREE)
+
+
+def build_on(r: Runner, a, quiet_sync: bool = True) -> int:
+    do_sync(r, quiet=quiet_sync)
+    atl_src = r.home_path(r.atl_src)
+    prep = ":"
+    if a.target == "atl":
+        if a.worktree:
+            atl_src = sync_worktree(r, a.worktree)
+            print(f"{r.name}: synced {a.worktree} -> ~/{DEV_TREE}")
+        else:
+            steps = []
+            if a.ref:
+                steps.append(f"git -C {atl_src} fetch --all --quiet && git -C {atl_src} checkout --quiet {shlex.quote(a.ref)}")
+            if a.pull:
+                steps.append(f"git -C {atl_src} pull --ff-only --quiet")
+            steps.append(f"echo \"{r.name}: building $(git -C {atl_src} log -1 --format='%h %s')\"")
+            prep = " && ".join(steps)
+    env = {"ATL_SRC": atl_src, "HARNESS_DIR": r.home_path(r.dir),
+           "ATL_LOCAL_REV": shlex.quote(local_rev(a.worktree)) if a.target == "atl" and a.worktree else "''",
+           "INSTALL": "0" if a.no_install else "1", "CLEAN": "1" if a.clean else "0"}
+    if r.make_jobs:
+        env["MAKE_JOBS"] = str(r.make_jobs)
+    body = f"{prep} && bash {r.home_path(r.dir)}/scripts/runner/build.sh {shlex.quote(a.target)}"
     if a.detach:
-        return start_job(r, "rebuild-atl", script, workdir=src)
-    return run_remote(r, script, cd=False).returncode
+        return start_job(r, f"build-{a.target}", env_prefix(env) + body)
+    return run_remote(r, body, cd=False, env=env).returncode
+
+
+def cmd_build(reg: Registry, a) -> int:
+    targets = list(reg.runners.values()) if a.all else [pick_runner(reg, a.runner)]
+    if a.all and a.detach:
+        raise RigError("--all runs builds one after another; drop --detach")
+    results = {}
+    for r in targets:
+        if a.all:
+            print(f"######## {r.name}")
+        results[r.name] = build_on(r, a)
+    if a.all:
+        print("\n" + "\n".join(f"{'OK  ' if rc == 0 else 'FAIL'} {n}" for n, rc in results.items()))
+    return max(results.values(), default=0)
+
+
+def cmd_rebuild_atl(reg: Registry, a) -> int:
+    a.target, a.worktree, a.no_install, a.clean, a.all = "atl", None, False, False, False
+    return cmd_build(reg, a)
 
 
 def cmd_smoke(reg: Registry, a) -> int:
@@ -733,7 +785,19 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--force", action="store_true", help="redo steps already done")
     p.add_argument("--wait", action="store_true", help="wait for the job to finish")
 
-    p = sub("rebuild-atl", "recompile and reinstall ATL from the runner's checkout")
+    p = sub("build", "build a component on the runner, log it, and summarise errors",
+            epilog="Logs: ~/src/logs/build-TARGET-*.log on the runner. Fast ATL edit loop: "
+                   "rig build --worktree ~/Develop/android-translation-layer (no commit needed).")
+    p.add_argument("target", nargs="?", default="atl", choices=BUILD_TARGETS)
+    p.add_argument("--worktree", metavar="PATH", help="sync this local ATL tree (uncommitted edits too) and build it")
+    p.add_argument("--ref", help="git checkout this ref in the runner's ATL checkout first")
+    p.add_argument("--pull", action="store_true", help="git pull --ff-only first")
+    p.add_argument("--no-install", action="store_true", help="compile only (check for errors)")
+    p.add_argument("--clean", action="store_true", help="wipe the build dir first")
+    p.add_argument("--detach", action="store_true", help="run as job build-TARGET")
+    p.add_argument("--all", action="store_true", help="build on every runner, one after another")
+
+    p = sub("rebuild-atl", "shortcut for `rig build atl` from the runner's checkout")
     p.add_argument("--ref", help="git checkout this ref first (branch/tag/commit)")
     p.add_argument("--pull", action="store_true", help="git pull --ff-only first")
     p.add_argument("--detach", action="store_true", help="run as job `rebuild-atl`")
@@ -759,7 +823,7 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = {
     "list": cmd_list, "add": cmd_add, "doctor": cmd_doctor, "sync": cmd_sync, "atlh": cmd_atlh,
     "sh": cmd_sh, "pull": cmd_pull, "job": cmd_job, "bootstrap": cmd_bootstrap,
-    "rebuild-atl": cmd_rebuild_atl, "smoke": cmd_smoke, "rootfs": cmd_rootfs, "up": cmd_up_down, "down": cmd_up_down,
+    "rebuild-atl": cmd_rebuild_atl, "build": cmd_build, "smoke": cmd_smoke, "rootfs": cmd_rootfs, "up": cmd_up_down, "down": cmd_up_down,
 }
 
 

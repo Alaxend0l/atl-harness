@@ -53,6 +53,13 @@ opencode run -c "continue"            # resume the last session
 use it in a throwaway worktree (`--worktree`) or for read-only tasks; never
 for anything that touches `~/.ssh`, runners' system files or git pushes.
 
+Building and testing ATL changes (errors come back parsed, with file:line):
+```sh
+scripts/rig build --worktree ~/Develop/android-translation-layer
+scripts/rig atlh run --run-id try1 --pkg-file corpora/fossify.txt
+scripts/rig atlh compare fossify-base2 try1
+```
+
 Work items come from the harness:
 ```sh
 scripts/rig atlh workitem census1 -n 1          # writes work/workitem-census1-1.md on the runner

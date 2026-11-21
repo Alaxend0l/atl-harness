@@ -15,7 +15,7 @@ file plus logs and screenshots on disk.
 | `src/classify.rs` | Log → `Vec<Failure>`. Parses Java exception chains and stack frames, matches stub regexes, normalises numbers/addresses so signatures group across apps. |
 | `src/report.rs` | `rank` (SQL aggregation), `compare` (regression gate), `workitem` (prompt template). |
 | `scripts/rig` | Workstation tool (Python stdlib): runner registry (`runners.toml`), sync, remote `atlh`, smoke, detached jobs, doctor, bootstrap. See [rig.md](rig.md). |
-| `scripts/runner/*.sh` | Run on runners: `bootstrap.sh` (build stack), `smoke.sh` (one APK), `doctor.sh` (checks). |
+| `scripts/runner/*` | Run on runners: `bootstrap.sh` (build stack), `build.sh` + `builderrors.py` (component builds with error summaries), `make-rootfs.sh`, `smoke.sh` (one APK), `doctor.sh` (checks). |
 | `scripts/remote.sh` | Deprecated single-runner helper. |
 
 ## Data flow

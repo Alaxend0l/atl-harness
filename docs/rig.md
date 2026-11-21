@@ -21,7 +21,10 @@ command), else `$ATLH_RUNNER`, else `default` in `runners.toml`.
 | Copy results back | `rig pull` (all, no APKs) · `rig pull --run base` |
 | Try one APK by hand | `rig smoke path/to/app.apk` · `rig smoke src/atl_test_apks/x.apk -- -l a/b/Main` |
 | Shell in the runner's environment | `rig sh` · `rig sh 'ls work/runs'` · `rig sh --home` |
-| Rebuild ATL after changing it | `rig rebuild-atl` · `rig rebuild-atl --ref my-branch` · `--pull` |
+| Try local ATL edits (no commit) | `rig build --worktree ~/Develop/android-translation-layer` (~2–7 s incremental) |
+| Build ATL from the runner's checkout | `rig build` · `rig build --ref origin/my-branch` · `--pull` (`rebuild-atl` = same) |
+| Just check it compiles | `rig build --no-install` · on every runner: `rig build --all` |
+| Other components | `rig build art` · `bionic` · `opensles` · `harness` (`--clean` to start over) |
 | Start/stop a Lima VM runner | `rig up` · `rig down` |
 | (Re)install a bwrap rootfs runner | `rig -r oneplus12 rootfs --from mini` |
 
@@ -39,6 +42,23 @@ Details:
   reached `onResume`, and the blankness score (title bar cropped).
 - `rig pull` writes to `work/remote/RUNNER/`, so runners never overwrite
   each other's databases.
+
+## Builds
+`rig build [TARGET]` runs `scripts/runner/build.sh` on the runner: meson
+setup only when needed, compile, install (unless `--no-install`), with the
+full log in `~/src/logs/build-TARGET-<time>.log` (`-latest.log` links to
+the newest). It ends with `BUILD OK atl in 5s (109 warnings)` or `BUILD
+FAILED` plus a deduplicated error list from `scripts/runner/builderrors.py`
+(gcc/clang, javac, linker, meson, pkg-config/dnf, cargo, dex, ninja/make),
+each with file:line and the offending source lines; `-latest.json` has the
+same as JSON for agents. Exit status is the build's.
+
+`--worktree PATH` rsyncs a local ATL tree (uncommitted edits included,
+`.git` and `builddir` excluded) to `~/src/atl-dev` on the runner and builds
+there incrementally: the edit-compile-test loop without commit/push/pull.
+After an install, `~/src/logs/atl-installed.txt` records what is installed
+(`<sha>[-dirty]` or `local:<git describe>`); `rig doctor` shows it. Use
+`rig smoke`/`rig atlh run` right after to test the build.
 
 ## Jobs
 `rig job start NAME -- COMMAND` runs COMMAND detached on the runner (in
