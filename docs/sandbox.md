@@ -24,7 +24,7 @@ The sandbox limits each app to what Android would give it.
 | GPU | `/dev/dri`, read-only `/sys/devices` + `/sys/dev/char` for device discovery | |
 | Camera | `/dev/video*`, `/dev/media*` only with `CAMERA` | |
 | Network | per policy (below); default: nothing without `INTERNET`, **internet only** (no LAN) with it | apps shouldn't reach your LAN unless you say so |
-| D-Bus | a filtered session bus (`xdg-dbus-proxy`): portals, notifications, owning `org.mpris.MediaPlayer2.*`; nothing else; no system bus, no accessibility bus | file chooser/OpenURI via portals, notifications, media controls |
+| D-Bus | a filtered session bus (`xdg-dbus-proxy`): portals, notifications, owning `org.mpris.MediaPlayer2.*` and **its own package name** (+ `.*`, like a Flatpak app ID: GApplication registration, UnifiedPush); nothing else; no system bus, no accessibility bus | file chooser/OpenURI via portals, notifications, media controls |
 
 ## Network
 `"network"` in the policy:

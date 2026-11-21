@@ -50,10 +50,20 @@ ATL_SDK = 26  # Build.VERSION.SDK_INT that ATL reports: permissions with maxSdkV
 
 def manifest_permissions(apk: str) -> list[str]:
     """uses-permission names from the APK's binary AndroidManifest.xml."""
+    return manifest_info(apk)[1]
+
+
+def manifest_package(apk: str) -> str | None:
+    return manifest_info(apk)[0]
+
+
+def manifest_info(apk: str) -> tuple[str | None, list[str]]:
+    """(package name, uses-permission names) from the binary AndroidManifest.xml."""
     with zipfile.ZipFile(apk) as z:
         data = z.read("AndroidManifest.xml")
     strings: list[str] = []
     perms: list[str] = []
+    package = None
     pos = 8  # after the XML chunk header
     while pos + 8 <= len(data):
         ctype, hsize, csize = struct.unpack_from("<HHI", data, pos)
@@ -86,6 +96,12 @@ def manifest_permissions(apk: str) -> list[str]:
             name_i = struct.unpack_from("<I", data, pos + 20)[0]
             attr_start, attr_size, attr_count = struct.unpack_from("<HHH", data, pos + 24)
             tag = strings[name_i] if name_i < len(strings) else ""
+            if tag == "manifest" and package is None:
+                a = pos + 16 + attr_start
+                for i in range(attr_count):
+                    _ns, an, raw = struct.unpack_from("<III", data, a + i * attr_size)
+                    if an < len(strings) and strings[an] == "package" and raw < len(strings):
+                        package = strings[raw]
             if tag.startswith("uses-permission"):
                 a = pos + 16 + attr_start
                 name, max_sdk = None, None
@@ -100,7 +116,7 @@ def manifest_permissions(apk: str) -> list[str]:
                 if name and (max_sdk is None or max_sdk >= ATL_SDK):
                     perms.append(name)
         pos += csize
-    return perms
+    return package, perms
 
 
 def derive_policy(perms: list[str]) -> dict:
@@ -410,7 +426,7 @@ def build_args(apk: str, atl_args: list[str], policy: dict, *, rootfs: str | Non
     return a, env
 
 
-def start_dbus_proxy(policy: dict, runtime: Path) -> tuple[subprocess.Popen | None, str | None, int | None]:
+def start_dbus_proxy(policy: dict, runtime: Path, package: str | None = None) -> tuple[subprocess.Popen | None, str | None, int | None]:
     """A filtered session bus for the app: (proxy, socket, lifeline fd), or Nones.
     The proxy runs while the returned fd stays open (xdg-dbus-proxy --fd)."""
     addr = os.environ.get("DBUS_SESSION_BUS_ADDRESS")
@@ -432,6 +448,8 @@ def start_dbus_proxy(policy: dict, runtime: Path) -> tuple[subprocess.Popen | No
              "--talk=org.freedesktop.portal.Desktop",
              "--call=org.freedesktop.portal.*=*",
              "--broadcast=org.freedesktop.portal.*=@/org/freedesktop/portal/*"]
+    if package:  # its own name, like a Flatpak app ID: GApplication, UnifiedPush Connector1
+        rules += [f"--own={package}", f"--own={package}.*"]
     rules += [f"--talk={n}" for n in policy.get("dbus_talk", [])]
     proc = subprocess.Popen(["xdg-dbus-proxy", f"--fd={w}", addr, str(sock), *rules], pass_fds=(w,))
     os.close(w)
@@ -479,7 +497,11 @@ def main(argv: list[str]) -> int:
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(143))
     policy = load_policy(apk, opts["policy"])
     runtime = Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
-    proxy, sock, lifeline = (None, None, None) if opts["dry"] else start_dbus_proxy(policy, runtime)
+    try:
+        package = manifest_package(apk)
+    except (OSError, KeyError, zipfile.BadZipFile, struct.error):
+        package = None
+    proxy, sock, lifeline = (None, None, None) if opts["dry"] else start_dbus_proxy(policy, runtime, package)
     mode = network_mode(policy)
     filtered = mode not in ("none", "full")
     tmp = Path(tempfile.mkdtemp(prefix="atl-sandbox-"))
