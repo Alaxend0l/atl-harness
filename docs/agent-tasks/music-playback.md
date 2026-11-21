@@ -4,6 +4,28 @@
 Owner priority. For an interactive opencode session (it can run shell commands);
 the overnight loop can't do this one (needs running and debugging).
 
+> **Status: RESOLVED 2026-11-21** (fork `main` >= `9a2cd6c4`). Root cause was
+> *not* on the session side: `UserHandle.getCallingUserId()` returned a
+> hardcoded `1000`, so `generateApplicationInfo()` mangled the ApplicationInfo
+> copy's uid to `getUid(1000, -1)` = 99999999 while `Binder.getCallingUid()` /
+> `Process.myUid()` report -1. media3's legacy `isTrustedForMediaControl`
+> compares those, failed, and `AcceptedResultBuilder` granted only
+> `DEFAULT_UNTRUSTED_PLAYER_COMMANDS` — exactly the `MCImplBase` warnings
+> (read commands were never rejected; write commands 20/1/2/13 were).
+> Fix: return `getUserId(Binder.getCallingUid())`. Then a chain of missing
+> media3 `AudioTrack` init APIs (each crashed the ExoPlayer thread):
+> `ActivityManager.isRunningInTestHarness`, `AudioTrack.Builder.setSessionId`,
+> `getSessionId`/`getChannelCount`/`getUnderrunCount`/`getEncoding`/
+> `getBufferSizeInFrames`/`getLatency`, `AudioRouting` + add/remove
+> `OnRoutingChangedListener`. Interaction script passes on mini and in the
+> bazzite gate (`ALIVE+ok`, "Alpha Song 1" on the player screen, zero
+> `MCImplBase` lines, native ALSA writes attempted). Gate
+> `fossify-base2 -> fossify-uidfix2`: 4 improved, 0 regressed.
+> Remaining (follow-ups, out of scope here): `AudioTrack.stop()/flush()` are
+> stubs (harness now flags `stub: STUB: AudioTrack.flush()`), `getTimestamp`
+> returns false, `AnimationUtils.loadInterpolator` null, and mini's Lima VM
+> audio fails at `snd_pcm_hw_params` (device config, not Java).
+
 ## Symptom
 With the media library (fork main >= 04bbd8ce) Fossify Music lists albums and
 tracks. Tapping a track opens the player screen with nothing loaded (00:00,

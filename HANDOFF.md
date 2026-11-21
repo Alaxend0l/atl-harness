@@ -22,7 +22,7 @@ avoids the OpenSSH per-source penalties that locked the mini's VM out twice.
 | Repo | Where | State |
 |---|---|---|
 | atl-harness (this) | github `Alaxend0l/atl-harness`, private | `main` pushed |
-| ATL fork | github `Alaxend0l/android-translation-layer`, private; workstation clone `~/Develop/android-translation-layer` | `main` = `f4fe2012`; upstream fetch-only. Runners pull with read-only deploy keys (alias `github-atl-fork`) |
+| ATL fork | github `Alaxend0l/android-translation-layer`, private; workstation clone `~/Develop/android-translation-layer` | `main` = `9a2cd6c4`; upstream fetch-only. Runners pull with read-only deploy keys (alias `github-atl-fork`). Beware: several agents share this clone — one loop switches branches in it live (it also checks out `main` in `~/Develop/atl-shaders` and keeps a detached scratch worktree under `/tmp/claude-*/scratchpad/atl-main`); it silently discarded uncommitted edits once this session. Commit WIP early; never rely on uncommitted files surviving. |
 | fedora-atomic-phone | github `Alaxend0l/fedora-atomic-phone`; clone `~/Develop/fedora-atomic-phone` | branches **`plasma-mobile-spectacle`** and **`oneplus12-flatpak-home`** pushed, not merged |
 
 ## ATL fork: what's merged on `main`
@@ -39,6 +39,19 @@ All gated with the corpus (52 apps on bazzite) unless noted:
 9. EditText getText()/getEditableText() no longer call each other (infinite recursion hung Fossify Music at "Loading files", found by the owner).
 10. **Media library** (`doc/MediaLibrary.md` in the fork): content://media answers from a real index (SQLite, MediaStore columns) of the XDG music/pictures/videos/download dirs + app storage; tags via libavformat (new native dep); albums/artists/genres/album art; insert/update/delete; MediaScannerConnection and MediaMetadataRetriever real. Was: every query opened a file chooser. Fossify Music lists albums and tracks, Fossify Gallery shows folders. Also: Parcel passes binders by reference, `Binder.equals` is identity, `ATL_BINDER_TRACE=1`, `getPackagesForUid` for the app's uid, `IBinder.isBinderAlive` etc.
 11. AlertDialog buttons with a null listener dismiss instead of crashing (the local agent's fix, cherry-picked).
+12. Native shaders: gradients, bitmap/compose shaders, affine canvas transforms (`doc/Shaders.md` in the fork) (the local agent's fix).
+13. **Media session trust / uid identity** (Fossify Music now plays a track):
+`UserHandle.getCallingUserId()` returned a hardcoded 1000, so
+`generateApplicationInfo()` mangled the uid to `getUid(1000, -1)` = 99999999
+while `Binder.getCallingUid()`/`Process.myUid()` say -1 — media3's
+`isTrustedForMediaControl` then refused control and `MediaController` got
+read-only player commands (`MCImplBase` warnings). Now
+`getUserId(Binder.getCallingUid())`. Plus media3 1.11.1 `AudioTrack` init:
+`ActivityManager.isRunningInTestHarness`, `AudioTrack.Builder.setSessionId`,
+`getChannelCount`/`getUnderrunCount`/`getEncoding`/`getBufferSizeInFrames`/
+`getLatency`, `AudioRouting` + routing listeners. Gate
+(`fossify-base2 -> fossify-uidfix2`): 4 improved (camera, filemanager,
+messages, musicplayer `CRASH -> ALIVE+ok`), 0 regressed.
 
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
@@ -57,7 +70,16 @@ with `javac -h`; commit the regenerated header with any new native method.
 
 ## Next steps (roadmap has the full queue)
 1. **Audit fixes**: `docs/audit/2026-11-21-atl-audit.md` (139 confirmed, 41 high; leniently verified, re-check each). Done: password masking, EditText/Enter, compound button clicks, SharedPreferences listeners, layer-list state, drawRect stroke. Next suggested: gradient shaders (`<shape><gradient>` draws solid black), Bitmap pixel channel swap / `getPixel` exiting the process, TextView `maxLines`/`ellipsize`, dialogs (`setView`, `setCancelable`), Theme cache key, locale in AssetManager.
-0. **Fossify Music playback** (brief for opencode: `docs/agent-tasks/music-playback.md`; making hard fixes checkable: `docs/agent-tasks/test-first.md`) (owner wants to play their album on the phone): the library works, but tapping a track opens the player with nothing loaded. media3's MediaController connects to the app's MediaSessionService (in-process: no binder transactions, `queryLocalInterface`), `isConnected` is true, yet its available player commands are empty (`W/MCImplBase: Controller isn't allowed to call command= 1/2/20`). Ruled out: Parcel/Bundle marshalling (none happens), Binder.equals merging controllers, the package check (fixed), Fossify's own command overrides, SparseBooleanArray. Next: attach a debugger (`JDWP_LISTEN=port` in ATL's main.c) and inspect the ConnectionState / PlayerWrapper.getAvailableCommands() on the session side. After that: AudioTrack stop/flush/getTimestamp stubs (triage: Claude) and AnimationUtils.loadInterpolator returning null (crashes Music's progress indicator).
+0. **Fossify Music playback** — **done 2026-11-21** (fork main >= `9a2cd6c4`,
+brief updated with root cause: `UserHandle.getCallingUserId()` uid mismatch,
+see HANDOFF item 13): tapping a track now loads the player ("Alpha Song 1")
+and the interaction script passes on mini and in the bazzite gate. Follow-ups
+left: AudioTrack `stop()`/`flush()` stubs (harness flags
+`stub: STUB: AudioTrack.flush()`), `getTimestamp` returns false,
+`AnimationUtils.loadInterpolator` returning null (crashes Music's progress
+indicator), and mini's Lima audio device failing `snd_pcm_hw_params`
+(VM config, audible audio untested there). Phone gate with the new main not
+run yet.
 1b. **Interaction scripts** exist (`interactions/`, docs/usage.md): Calculator (7+8=15) and Notes (typing) pass on the mini and are gated. Add scripts for more apps, especially ones exercising fixes 5–8 (checkbox clicks, Enter/IME actions, preferences).
 2. App widgets (`AppWidgetManager`, `AppWidgetHost`): unblocks Flow and Fossify Launcher.
 3. Visual check of password masking on the phone (an app with a password field).
