@@ -68,6 +68,15 @@ with `javac -h`; commit the regenerated header with any new native method.
 - Flatpak data moved to /home with `move-flatpak-to-home.sh`: root 97% → 52% full (3.7 GB free).
 - License chosen: atl-harness is AGPL-3.0-or-later (decisions D15, LICENSING.md).
 
+## Overnight agent (opencode + strata)
+`scripts/agent-loop` ([docs/agent-loop.md](docs/agent-loop.md)): the local
+model fixes audit items in `~/Develop/atl-agent` on branch `agent/overnight`;
+the agent can only edit `src/` there (permissions tested), the script builds,
+gates, and commits/pushes only that branch when nothing regressed. Run on the
+workstation: `scripts/agent-loop --hours 8`; review
+`work/agent/<time>/summary.md` and the branch in the morning; add merged fixes
+to `docs/audit/fixed.txt`.
+
 ## Tools added today (all in docs/rig.md)
 `rig` (runners, sync, atlh, jobs, bootstrap, rootfs, build, smoke, desktop-apps, doctor), `rig build --worktree` (2–7 s edit→installed, parsed errors), bounded waits (exit 124 timeout / 125 stalled / 126 unreachable; every subprocess has a time limit), `atlh missing-apis`, `scripts/phone-shot`, `corpora/*.txt`, microG data templates.
 
