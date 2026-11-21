@@ -39,7 +39,7 @@ All gated with the corpus (52 apps on bazzite) unless noted:
 9. EditText getText()/getEditableText() no longer call each other (infinite recursion hung Fossify Music at "Loading files", found by the owner).
 10. **Media library** (`doc/MediaLibrary.md` in the fork): content://media answers from a real index (SQLite, MediaStore columns) of the XDG music/pictures/videos/download dirs + app storage; tags via libavformat (new native dep); albums/artists/genres/album art; insert/update/delete; MediaScannerConnection and MediaMetadataRetriever real. Was: every query opened a file chooser. Fossify Music lists albums and tracks, Fossify Gallery shows folders. Also: Parcel passes binders by reference, `Binder.equals` is identity, `ATL_BINDER_TRACE=1`, `getPackagesForUid` for the app's uid, `IBinder.isBinderAlive` etc.
 11. AlertDialog buttons with a null listener dismiss instead of crashing (the local agent's fix, cherry-picked).
-12. Native shaders: gradients, bitmap/compose shaders, affine canvas transforms (`doc/Shaders.md` in the fork) (the local agent's fix).
+12. Native shaders: gradients, bitmap/compose shaders, affine canvas transforms (`doc/Shaders.md` in the fork; Claude): `<shape><gradient>` renders (was solid black), Cairo-rendered bitmaps no longer turn pink under transforms. Note: Fossify Music/Gallery covers that are still pink are Fossify's *error placeholder* (Glide fails to load the art silently; not rendering), open.
 13. **Media session trust / uid identity** (Fossify Music now plays a track):
 `UserHandle.getCallingUserId()` returned a hardcoded 1000, so
 `generateApplicationInfo()` mangled the uid to `getUid(1000, -1)` = 99999999
@@ -100,6 +100,16 @@ a photo). `interactions/org.fossify.musicplayer.txt` checks albums, tracks and
 - Spectacle installed on the phone; `scripts/phone-shot` verified (3/3 captures).
 - Flatpak data moved to /home with `move-flatpak-to-home.sh`: root 97% → 52% full (3.7 GB free).
 - License chosen: atl-harness is AGPL-3.0-or-later (decisions D15, LICENSING.md).
+
+## Per-app sandbox (2026-11-21)
+Every app on the phone runs in its own bwrap sandbox (`docs/sandbox.md`,
+policies in `~/atl-apps/<pkg>.policy.json`, `ATL_NO_SANDBOX=1` to compare).
+Harness: `atlh run --sandbox`. Pending: full 52-app A/B gate on bazzite
+(`run --sandbox` vs a plain run of the same build) once no other agent uses
+bazzite; then consider `sandbox = true` in config.toml.
+
+## Runner use (several agents: see AGENTS.md)
+Say here which runner you're using for builds/gates, and clear it when done.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
