@@ -4,6 +4,7 @@ mod classify;
 mod config;
 mod corpus;
 mod db;
+mod missing;
 mod report;
 mod runner;
 
@@ -79,6 +80,19 @@ enum Cmd {
     },
     /// Regression gate: exits 1 if any app got worse from BASE to NEW
     Compare { base: String, new: String },
+    /// Missing framework APIs (methods, fields, classes) ranked by apps affected
+    MissingApis {
+        /// Run ids to include (default: all runs)
+        runs: Vec<String>,
+        #[arg(long, default_value_t = 40)]
+        top: usize,
+        /// Also list missing members of app/library classes
+        #[arg(long)]
+        include_app_classes: bool,
+        /// Machine-readable output
+        #[arg(long)]
+        json: bool,
+    },
     /// Write an agent prompt for the Nth ranked signature
     Workitem {
         run_id: String,
@@ -145,6 +159,12 @@ fn main() -> Result<()> {
             run(&cfg, &mut conn, &run_id, &opts)?;
         }
         Cmd::Rank { run_id, top } => report::rank(&conn, &run_id, top)?,
+        Cmd::MissingApis {
+            runs,
+            top,
+            include_app_classes,
+            json,
+        } => missing::report(&conn, &runs, include_app_classes, json, top)?,
         Cmd::Compare { base, new } => {
             if report::compare(&conn, &base, &new)? > 0 {
                 std::process::exit(1);

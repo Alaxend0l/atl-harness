@@ -25,6 +25,8 @@ static JNI_OTHER: LazyLock<Regex> =
 /// Chromium-style fatal log (Flutter engine, WebView): `[FATAL:path/file.cc(25)] message`.
 static FATAL_TAG: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\[FATAL:([^\]()]+)(?:\(\d+\))?\]\s*(.*)").unwrap());
+static SWALLOWED: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"W/ATL: swallowed exception in (\w+)").unwrap());
 static ABORT_MSG: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"Abort message: '(.+?)'?\s*$").unwrap());
 
@@ -44,6 +46,9 @@ pub enum Kind {
     Exception,
     Stub,
     Signal,
+    /// ATL logged and cleared an exception from a callback (fork: doc/Exceptions.md);
+    /// Android would have ended the app.
+    Swallowed,
 }
 
 impl Kind {
@@ -53,6 +58,7 @@ impl Kind {
             Kind::Exception => "exception",
             Kind::Stub => "stub",
             Kind::Signal => "signal",
+            Kind::Swallowed => "swallowed",
         }
     }
 }
@@ -147,6 +153,14 @@ pub fn parse(text: &str, stubs: &[Regex]) -> Vec<Failure> {
     let mut chains: Vec<Vec<Block>> = Vec::new();
     let mut out = Vec::new();
     for line in text.lines() {
+        if let Some(m) = SWALLOWED.captures(line) {
+            out.push(Failure {
+                kind: Kind::Swallowed,
+                signature: format!("swallowed in {}", &m[1]),
+                detail: line.trim().to_string(),
+            });
+            continue;
+        }
         if stubs.iter().any(|p| p.is_match(line)) {
             out.push(Failure {
                 kind: Kind::Stub,
@@ -252,6 +266,18 @@ java.lang.IllegalStateException: boom 0x11
             Some("bad thing N")
         );
         assert_eq!(abort_reason("nothing here\n"), None);
+    }
+
+    #[test]
+    fn swallowed_exceptions() {
+        let log = "W/ATL: swallowed exception in wrapper_widget_draw (logged, cleared, continuing; Android would end the app):\njava.lang.NullPointerException: boom\n\tat android.view.View.draw(View.java:1)\n";
+        let f = parse(log, &[]);
+        assert!(f.iter().any(
+            |f| f.kind == Kind::Swallowed && f.signature == "swallowed in wrapper_widget_draw"
+        ));
+        assert!(f
+            .iter()
+            .any(|f| f.signature == "java.lang.NullPointerException @ android.view.View.draw"));
     }
 
     #[test]

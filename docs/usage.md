@@ -88,6 +88,18 @@ regressions; **exits 1 if anything regressed**, so it can gate scripts.
 Startup is flaky: rerun regressed apps (`run --run-id NEW --force --pkg …`)
 before believing a regression.
 
+### `missing-apis` — what to implement next
+```
+atlh missing-apis [RUN...] [--top 40] [--include-app-classes] [--json]
+```
+Aggregates every missing framework method, field and class
+(NoSuchMethodError, NoSuchFieldError, ClassNotFoundException,
+NoClassDefFoundError) across the given runs (default: all), decodes ART's
+descriptors (`android.view.Window.setExitTransition(Transition)`), and ranks
+them by the number of distinct apps hit, with a per-class summary. Members of
+app/library classes are hidden unless `--include-app-classes`. Only errors
+that reach the log are counted; apps that catch them silently don't show up.
+
 ### `workitem` — agent prompt
 ```
 atlh workitem RUN_ID [-n 1] [--out FILE]

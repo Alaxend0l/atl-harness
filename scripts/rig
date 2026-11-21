@@ -185,7 +185,10 @@ def wrap(r: Runner, inner: str) -> str:
 def ssh_argv(host: str, command: str | None = None, tty: bool = False, batch: bool = True) -> list[str]:
     argv = ["ssh"]
     if batch:
-        argv += ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8"]
+        argv += ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8",
+                 # detect dead connections so interrupted commands don't leave sessions
+                 # piling up on the runner (a Lima VM's sshd stopped accepting at ~64)
+                 "-o", "ServerAliveInterval=20", "-o", "ServerAliveCountMax=3"]
     argv.append("-t" if tty else "-T")
     argv.append(host)
     if command is not None:
