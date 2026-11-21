@@ -75,25 +75,70 @@ no `NoSuchMethodError` from android.appwidget in `atlh missing-apis`, gate
 Test: an interaction script on an app that shows its own widget preview or
 uses RemoteViews for notifications (also used by notification layouts).
 
-## Stage 3: widgets across apps and on the Linux desktop (Claude: design)
+## Stage 3: widgets across apps and on the Linux desktop (designed 2026-11-21)
 Providers and hosts are different apps in **different sandboxes**
-(docs/sandbox.md), so this needs a small trusted service. Direction:
-- `atl-widgets`, a session service **outside** the sandboxes, owns the
-  registry (`~/.local/share/atl-widgets/`: placed widgets, their provider,
-  host, size, latest RemoteViews as Parcel bytes).
-- Apps talk to it over D-Bus (one more name allowed by the sandbox's
-  xdg-dbus-proxy: `org.atl.Widgets`); calls are checked against the caller's
-  package (from the sandbox, not from the message).
-- Rendering needs the provider's **resources** but must not run its code in
-  the host: the host gets read-only access to the provider's APK resources
-  (Android does the same with createPackageContext + restricted inflation).
-  In sandbox terms: the service hands the host an fd of the provider APK.
-- Updates: `APPWIDGET_UPDATE` (periodic / on placement) needs the provider app
-  to run without an activity: ATL needs a "run this BroadcastReceiver and
-  exit" mode (`android-translation-layer --receiver ...`), started by the
-  service in the provider's sandbox.
-- A plain GTK host (`atl-widget-window PKG/RECEIVER`) can show any widget as
-  its own window on Plasma Mobile before launchers do.
-Open questions for the design session: click PendingIntents crossing
-sandboxes (service relays them), collection widgets (RemoteViewsService in
-the provider's process), memory (one ATL process per updating provider).
+(docs/sandbox.md). Design, built from patterns ATL already uses (UnifiedPush
+`Connector1` in `android_content_Context.c`, MPRIS in
+`android_app_NotificationManager.c`: gdbus-codegen XML + skeleton + own name):
+
+**Pieces**
+1. `atl-widgets`: a small trusted session service **outside** the sandboxes
+   (C + GDBus, in the fork as `src/atl-widgets/`, built by meson; started by
+   D-Bus activation). Owns `org.atl.Widgets1`. State in
+   `~/.local/share/atl-widgets/state.json` (placed widgets: id, provider
+   package + receiver, host package, size, options) plus the latest
+   RemoteViews per id as Parcel bytes (`<id>.rv`).
+2. Provider side (in ATL, each app): `AppWidgetManager.updateAppWidget(ids, rv)`
+   marshals `rv` to a Parcel (stage 2) and calls
+   `org.atl.Widgets1.Update(ids, bytes)`. The app exports
+   `org.atl.WidgetProvider1` on **its own package name** (the sandbox
+   already allows owning it): `Update(ids)`, `Deleted(ids)`, `Enabled()`,
+   `Disabled()`, `OptionsChanged(id, a{sv})`, `Click(id, viewId)`; each
+   becomes the AOSP broadcast to the app's AppWidgetProvider receiver.
+3. Waking a provider that isn't running: D-Bus activation.
+   `rig desktop-apps` writes `~/.local/share/dbus-1/services/<pkg>.service`
+   (`Exec=…/atl-app …/<pkg>.apk --service`). ATL needs a **service mode**
+   (`--service`): start the app (Application.onCreate, receivers) without
+   an activity window, exit after ~30 s idle (GApplication service mode +
+   `g_application_hold/release`). Also useful for UnifiedPush and alarms.
+4. Hosts: a launcher in ATL (Fossify Launcher) uses `AppWidgetHost`;
+   ATL's implementation talks to `org.atl.Widgets1`: `Allocate()`,
+   `Bind(id, provider)`, `Get(id) -> (bytes, apk fd)`, signal
+   `Updated(id)`, `Click(id, viewId)`, `Delete(id)`.
+   A desktop host (`atl-widget-window PKG/RECEIVER`, ATL started with a
+   built-in host activity showing one AppWidgetHostView) shows any widget
+   as its own window on Plasma Mobile.
+
+**Security rules**
+- Identity: the service never trusts names in messages. A caller's package is
+  the well-known name it owns (`GetNameOwner(pkg) == sender`, which only the
+  app's own sandbox can own). Providers may only update their own widgets;
+  only the host that bound an id may read, resize or delete it.
+- Rendering without running provider code: `Get` passes the provider's APK
+  as a **file descriptor** (GDBus `h`, fd passing works through
+  xdg-dbus-proxy). The host's ATL opens a resources-only package context from
+  `/proc/self/fd/N` (AssetManager over the fd, no class loader) and inflates
+  with a LayoutInflater filter that only allows `@RemoteView` classes, as
+  Android does. No provider code ever runs in the host.
+- Clicks: the host sends `Click(id, viewId)` to the service, which relays
+  it to the provider (activating it if needed); the provider fires its own
+  PendingIntent. PendingIntents never cross sandboxes.
+- Sandbox policy: every app may `--talk=org.atl.Widgets1`; only
+  `atl-widgets` may call `org.atl.WidgetProvider1` (the proxy's
+  `--call` rules restrict the provider side to calls from the service).
+
+**Order of work** (after stages 1 and 2):
+3a. ATL `--service` mode (no window, idle exit) + service files from
+    `desktop-apps`; check: UnifiedPush or a widget provider wakes from D-Bus.
+3b. `atl-widgets` service with the state file and identity checks; unit-test
+    the state logic without D-Bus.
+3c. Provider side in ATL (export WidgetProvider1, `updateAppWidget` → service).
+3d. Host side in ATL (`AppWidgetHost` over the service; resources-only
+    package context from an fd; restricted inflater).
+3e. `atl-widget-window` desktop host + launcher entry.
+Collections (`RemoteViewsService`, ListView widgets) come last: the host asks
+the service, which binds the provider's RemoteViewsService in the
+provider's process and relays item RemoteViews.
+
+Each step is gated and has its own check; 3b and 3d are security-sensitive:
+get them reviewed before merging.
