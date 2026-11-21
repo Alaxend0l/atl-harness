@@ -124,15 +124,21 @@ pub fn fetch(
         .into_iter()
         .filter(|(pkg, _)| !have.contains(pkg))
         .filter_map(|(pkg, p)| {
+            // Filter by ABI before picking the newest: apps with per-ABI
+            // splits publish one version per ABI, and the newest one is
+            // often a split this box can't load.
             let v = p
                 .versions
                 .into_values()
+                .filter(|v| {
+                    let abis = &v.manifest.nativecode;
+                    v.file.is_some()
+                        && (abis.is_empty()
+                            || (c.include_native
+                                && abis.iter().any(|a| allowed.contains(a.as_str()))))
+                })
                 .max_by_key(|v| v.manifest.version_code)?;
-            v.file.as_ref()?;
-            let abis = &v.manifest.nativecode;
-            let ok = abis.is_empty()
-                || (c.include_native && abis.iter().any(|a| allowed.contains(a.as_str())));
-            ok.then_some((pkg, v))
+            Some((pkg, v))
         })
         .collect();
     pool.sort_by(|a, b| a.0.cmp(&b.0));

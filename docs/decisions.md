@@ -49,3 +49,12 @@ screen is harder to game. Stage 2 (reference oracle) tightens this further.
 ### D9 — Private repo, license TBD (2026-11-21)
 `atl-harness` starts private with no license. Decide before making it
 public. Note the ATL fork's license is inherited from upstream regardless.
+
+### D10 — Runner box is x86_64 Bazzite; harness runs in a distrobox (2026-11-21)
+The runner box (shared with the local strata LLM server) is x86_64 and runs
+Bazzite, an immutable Fedora system. Rather than layering ATL's many build
+dependencies onto the host with `rpm-ostree` (reboots, messy host), the
+toolchain, ATL and the harness live in a Fedora 44 distrobox (`atl`).
+`scripts/remote.sh` enters it when `ATLH_REMOTE_BOX` is set. Corpus is
+filtered to `allowed_abis = ["x86_64"]`, which drops apps that ship ARM-only
+native code.

@@ -30,8 +30,10 @@ Then point the helper script at it, e.g. in your shell profile:
 
 ```sh
 export ATLH_REMOTE=atl-box
+export ATLH_REMOTE_BOX=atl             # distrobox to run in; omit if none
 # export ATLH_REMOTE_DIR=atl-harness   # remote dir, relative to ~ (default)
 ```
+(fish: `set -Ux ATLH_REMOTE atl-box` etc.)
 
 `scripts/remote.sh sync` copies your working tree (including uncommitted
 changes, excluding `work/`, `target/`, `.git/`) to the box. If you'd rather
@@ -39,9 +41,22 @@ keep the box on git, clone the repo there instead and `git pull`; both work.
 
 ## Runner box
 
+The current box runs Bazzite, an immutable Fedora system, so everything
+lives in a Fedora 44 distrobox named `atl` (see decisions D10). The
+distrobox shares `$HOME` with the host, so `~/atl-harness`, `~/.cargo` and
+the ATL checkout are visible from both, but build and run inside the box.
+
+```sh
+distrobox create --name atl --image registry.fedoraproject.org/fedora-toolbox:44
+distrobox enter atl
+sudo dnf install gcc xorg-x11-server-Xvfb ImageMagick mesa-dri-drivers glx-utils rsync tmux git
+```
+
+On a regular distro, skip the distrobox and install directly:
+
 ### System packages
 - Debian/Ubuntu: `sudo apt install build-essential xvfb imagemagick mesa-utils rsync tmux`
-- Fedora: `sudo dnf install gcc xorg-x11-server-Xvfb ImageMagick mesa-dri-drivers rsync tmux`
+- Fedora: `sudo dnf install gcc xorg-x11-server-Xvfb ImageMagick mesa-dri-drivers glx-utils rsync tmux`
 - Arch: `sudo pacman -S base-devel xorg-server-xvfb imagemagick mesa rsync tmux`
 
 ### Rust
@@ -68,9 +83,10 @@ scripts/remote.sh atlh --help      # first call compiles a release build (a few 
 Everything here was written before ATL was run on the box, so these
 assumptions need confirming. Tick them off here as you go.
 
-- [ ] **CPU architecture.** `uname -m` on the box. `aarch64` → keep
-      `allowed_abis = ["arm64-v8a"]`; `x86_64` → set `["x86_64"]` and expect
+- [x] **CPU architecture.** `uname -m` on the box. `aarch64` →
+      `allowed_abis = ["arm64-v8a"]`; `x86_64` → `["x86_64"]` and expect
       fewer eligible apps with native code (most ship ARM only).
+      *Current box: x86_64, set in `config.toml`.*
 - [ ] **ATL command line.** Find the binary name and flags of your build and
       set `[atl].command`. Check whether some apps need an explicit launch
       activity flag.

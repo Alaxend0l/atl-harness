@@ -7,7 +7,7 @@ index_url = "https://f-droid.org/repo/index-v2.json"
 repo_url = "https://f-droid.org/repo"
 # ABIs this box can load. APKs without native code always qualify.
 # ARM64 box: ["arm64-v8a"]; x86_64 box: ["x86_64"].
-allowed_abis = ["arm64-v8a"]
+allowed_abis = ["x86_64"]
 include_native = true
 
 [atl]

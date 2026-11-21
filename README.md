@@ -25,6 +25,7 @@ against real ATL. See [docs/roadmap.md](docs/roadmap.md).
 ## Quick start (from the workstation)
 ```sh
 export ATLH_REMOTE=atl-box                  # ssh alias of the runner box
+export ATLH_REMOTE_BOX=atl                  # distrobox on the box (omit if none)
 scripts/remote.sh sync
 scripts/remote.sh atlh fetch --limit 20
 scripts/remote.sh atlh run --run-id first --jobs 2
