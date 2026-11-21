@@ -72,7 +72,7 @@ code. `rig job stop NAME` kills the job's process group. `bootstrap`,
 5. `rig -r NAME doctor` to see what's missing.
 6. `rig -r NAME bootstrap --wait`: packages, Rust, wolfSSL,
    bionic_translation, vixl (aarch64), art_standalone, libOpenSLES, ATL,
-   atlh. Takes 30–60 min, mostly ART. Each step logs to
+   atlh, microG data template. Takes 30–60 min, mostly ART. Each step logs to
    `~/src/logs/bootstrap-STEP.log` and is skipped once done; after a
    failure fix the cause and rerun the same command. `--from STEP`,
    `--only a,b`, `--force` to redo.

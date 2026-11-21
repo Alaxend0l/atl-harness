@@ -17,6 +17,8 @@ command = ["android-translation-layer", "{apk}", "-w", "1080", "-h", "1920"]
 # Seconds to let the app start before screenshotting and killing it.
 settle_s = 25
 # Extra env vars for ATL (e.g. LIBGL_ALWAYS_SOFTWARE = "1").
+# Optional: seed each app's ATL data dir, e.g. with microG (docs/usage.md).
+# data_template = "~/src/atl-data/microg"
 [atl.env]
 # GTK may pick GLX on X11, which breaks ATL's EGL code (upstream README).
 # Upstream says GDK_DEBUG=gl-egl; GTK >= 4.16 replaced that with GDK_DISABLE.

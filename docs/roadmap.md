@@ -56,6 +56,14 @@ End to end on the box (x86_64 Bazzite, `atl` distrobox, upstream ATL
 - Long runs: `rig atlh --detach NAME ...` (jobs survive ssh drops).
 - New Xvfb per app costs ~1 s; fine for now.
 
+## Known ATL bugs found by the harness (fork work queue)
+- **microG native libs not found**: `main.c` data dir `<apk file>_` vs
+  `ATLLoadedAppManager` `<package>_/lib` (see usage.md, data template).
+- **JNI glue ignores pending exceptions**: ATL native code calls
+  `GetMethodID`/`FindClass`/`GetObjectClass` with an exception pending, so a
+  missing API becomes a CheckJNI abort (8/20 apps in census1 on aarch64,
+  signature `signal: SIGABRT: JNI ... called with pending exception`).
+
 ## Agent tasks
 Standing work for coding agents, independent of the steps above:
 - [Runner registry, harness tooling, documentation](agent-tasks/tooling-and-docs.md)

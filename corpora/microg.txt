@@ -1,0 +1,22 @@
+# F-Droid apps that talk to Google Play Services without bundling its
+# proprietary libraries (found via index permissions, 2026-11-21).
+# Use with: atlh fetch --pkg-file corpora/microg.txt
+#           atlh run --pkg-file corpora/microg.txt --data-template ~/src/atl-data/microg
+
+# Push via GCM/FCM (com.google.android.c2dm.permission.RECEIVE)
+org.joinmastodon.android
+org.joinmastodon.android.moshinda
+net.seqular.network
+cc.occm.app
+indi.dmzz_yyhyy.lightnovelreader
+
+# com.google.android.gms / gsf permissions (mostly optional location, maps, push)
+org.tasks
+net.vonforst.evmap
+io.homeassistant.companion.android.minimal
+net.wigle.wigleandroid
+org.runnerup.free
+io.github.fvasco.pinpoi
+com.kgurgul.cpuinfo
+cc.narumi.chaldea.fdroid
+com.oF2pks.kalturadeviceinfos

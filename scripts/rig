@@ -13,6 +13,7 @@ import hashlib
 import os
 import re
 import shlex
+import signal
 import subprocess
 import sys
 import time
@@ -25,7 +26,8 @@ RUNNERS_FILE = REPO / "runners.toml"
 RUNNER_SCRIPTS = REPO / "scripts" / "runner"
 JOBS_DIR = "$HOME/atlh-jobs"
 SYNC_EXCLUDES = ["work/", "target/", ".git/", "__pycache__/"]
-BOOTSTRAP_STEPS = ["packages", "rust", "sources", "wolfssl", "bionic", "vixl", "art", "opensles", "atl", "harness"]
+BOOTSTRAP_STEPS = ["packages", "rust", "sources", "wolfssl", "bionic", "vixl", "art", "opensles", "atl",
+                   "harness", "microg"]
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 ARCH_CONFIG = {"x86_64": "config.toml", "aarch64": "config.aarch64.toml"}
 
@@ -688,6 +690,7 @@ COMMANDS = {
 
 def main(argv: list[str] | None = None) -> int:
     sys.stdout.reconfigure(line_buffering=True)  # keep order with child process output
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)  # `rig ... | head` exits quietly
     a = build_parser().parse_args(argv)
     if not hasattr(a, "runner"):
         a.runner = None

@@ -40,6 +40,10 @@ pub struct Atl {
     pub settle_s: u64,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
+    /// Seed each run's ATL data dir (`$XDG_DATA_HOME/android_translation_layer`)
+    /// from this directory, e.g. a microG install made with `--install-internal`.
+    #[serde(default)]
+    pub data_template: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -79,6 +83,9 @@ impl Config {
         let work = base.join(&cfg.paths.work_dir);
         fs::create_dir_all(&work).with_context(|| format!("creating {}", work.display()))?;
         cfg.paths.work_dir = work.canonicalize()?;
+        if let Some(t) = cfg.atl.data_template.as_mut() {
+            *t = expand_tilde(t);
+        }
         if let Some(agent) = cfg.agent.as_mut() {
             agent.atl_repo = expand_tilde(&agent.atl_repo);
             agent.aosp_frameworks = expand_tilde(&agent.aosp_frameworks);
@@ -87,7 +94,7 @@ impl Config {
     }
 }
 
-fn expand_tilde(p: &Path) -> PathBuf {
+pub fn expand_tilde(p: &Path) -> PathBuf {
     match (p.strip_prefix("~"), std::env::var_os("HOME")) {
         (Ok(rest), Some(home)) => PathBuf::from(home).join(rest),
         _ => p.to_path_buf(),

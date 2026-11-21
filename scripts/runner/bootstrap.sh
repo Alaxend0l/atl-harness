@@ -16,7 +16,7 @@ MAKE_JOBS=${MAKE_JOBS:-$(nproc)}
 ATL_SRC=${ATL_SRC:-$SRC/android_translation_layer}
 ATL_GIT=${ATL_GIT:-git@github-atl-fork:Alaxend0l/android-translation-layer.git}
 ATL_UPSTREAM=https://gitlab.com/android_translation_layer/android_translation_layer.git
-ALL_STEPS="packages rust sources wolfssl bionic vixl art opensles atl harness"
+ALL_STEPS="packages rust sources wolfssl bionic vixl art opensles atl harness microg"
 STEPS=${STEPS:-$ALL_STEPS}
 GITLAB=https://gitlab.com/android_translation_layer
 
@@ -132,6 +132,51 @@ step_opensles() { meson_install "$SRC/libopensles-standalone"; }
 step_atl() {
   meson_install "$ATL_SRC" -Ddownload_tool_deps=true
   command -v android-translation-layer
+}
+
+# microG GmsCore from microG's F-Droid repo, installed into an ATL data dir
+# template (~/src/atl-data/microg) with ATL's own --install-internal. Runs use
+# it with `atlh run --data-template ~/src/atl-data/microg` (docs/usage.md).
+MICROG_REPO=https://microg.org/fdroid/repo
+step_microg() {
+  local dir=$SRC/microg tpl=$SRC/atl-data/microg name sha ver
+  mkdir -p "$dir" "$SRC/atl-data"
+  cd "$dir"
+  curl -fsSL -o index-v2.json "$MICROG_REPO/index-v2.json"
+  read -r name sha ver < <(python3 -I -c '
+import json
+p = json.load(open("index-v2.json"))["packages"]["com.google.android.gms"]
+v = max(p["versions"].values(), key=lambda v: v["manifest"]["versionCode"])
+print(v["file"]["name"].lstrip("/"), v["file"]["sha256"], v["manifest"]["versionName"])')
+  [ -f "$name" ] || curl -fsSL -o "$name.part" "$MICROG_REPO/$name"
+  [ -f "$name.part" ] && mv "$name.part" "$name"
+  echo "$sha  $name" | sha256sum -c -
+  # ATL names the installed copy after the package, so the file name matters.
+  cp "$name" com.google.android.gms.apk
+
+  # Globals, not locals: the EXIT trap runs after this function has returned.
+  local disp
+  MG_T=$(mktemp -d)
+  local t=$MG_T
+  mkdir -p "$t/data" "$t/xdg" "$t/cache"
+  Xvfb -displayfd 4 -screen 0 1080x1920x24 -nolisten tcp 4>"$t/display" 2>/dev/null &
+  MG_XP=$!
+  trap 'kill "$MG_XP" 2>/dev/null || true; rm -rf "$MG_T"' EXIT
+  for _ in $(seq 100); do [ -s "$t/display" ] && break; sleep 0.1; done
+  disp=":$(head -1 "$t/display")"
+  env -u WAYLAND_DISPLAY ANDROID_APP_DATA_DIR="$t/data" HOME="$t" XDG_DATA_HOME="$t/xdg" \
+    XDG_CACHE_HOME="$t/cache" DISPLAY="$disp" GDK_BACKEND=x11 GDK_DISABLE=glx \
+    timeout 300 android-translation-layer --install-internal "$dir/com.google.android.gms.apk"
+  test -f "$t/data/_installed_apks_/com.google.android.gms.apk"
+  # Read-only APK and native libs: runs hard-link instead of copying ~180 MB.
+  find "$t/data/_installed_apks_" "$t/data"/*_/lib -type f -exec chmod a-w {} +
+  echo "microG GmsCore $ver ($name, sha256 $sha)" > "$t/data/MICROG_VERSION"
+  rm -rf "$tpl.new"
+  cp -a "$t/data" "$tpl.new"
+  rm -rf "$tpl"
+  mv "$tpl.new" "$tpl"
+  du -sh "$tpl"
+  cat "$tpl/MICROG_VERSION"
 }
 
 step_harness() {

@@ -171,6 +171,27 @@ fn screenshot(display: &str, dest: &Path, crop_top: u32) -> Result<f64> {
     Ok(String::from_utf8_lossy(&out.stdout).trim().parse()?)
 }
 
+/// Copy a directory tree. Read-only files are hard-linked when possible (the
+/// microG template is ~180 MB of APK and .so files ATL only reads); writable
+/// files are always copied so one run can't change the template for the next.
+pub fn seed_tree(src: &Path, dst: &Path) -> Result<()> {
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let (from, to) = (entry.path(), dst.join(entry.file_name()));
+        let ft = entry.file_type()?;
+        if ft.is_dir() {
+            seed_tree(&from, &to)?;
+        } else if ft.is_symlink() {
+            std::os::unix::fs::symlink(fs::read_link(&from)?, &to)?;
+        } else if !(entry.metadata()?.permissions().readonly() && fs::hard_link(&from, &to).is_ok())
+        {
+            fs::copy(&from, &to)?;
+        }
+    }
+    Ok(())
+}
+
 fn signal_name(sig: i32) -> String {
     let name = match sig {
         libc::SIGSEGV => "SIGSEGV",
@@ -192,6 +213,7 @@ pub fn run_one(
     pkg: &str,
     apk: &str,
     out_dir: &Path,
+    template: Option<&Path>,
 ) -> Result<RunResult> {
     fs::create_dir_all(out_dir)?;
     let log_path = out_dir.join(format!("{pkg}.log"));
@@ -209,6 +231,10 @@ pub fn run_one(
     // ATL won't create its default data dir (~/.local/share/...) itself.
     for d in [".local/share", ".config", ".cache"] {
         std::fs::create_dir_all(h.join(d))?;
+    }
+    if let Some(t) = template {
+        seed_tree(t, &h.join(".local/share/android_translation_layer"))
+            .with_context(|| format!("seeding data dir from {}", t.display()))?;
     }
     let xvfb = Xvfb::start(&cfg.display.xvfb_args)?;
     let log = File::create(&log_path)?;
@@ -275,4 +301,50 @@ pub fn run_one(
         screenshot_path: shot_path.exists().then_some(shot_path),
         failures,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::seed_tree;
+    use std::fs;
+    use std::os::unix::fs::MetadataExt;
+
+    #[test]
+    fn seed_tree_links_readonly_copies_writable() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (src, dst) = (tmp.path().join("t"), tmp.path().join("d"));
+        fs::create_dir_all(src.join("_installed_apks_")).unwrap();
+        fs::create_dir_all(src.join("app_/shared_prefs")).unwrap();
+        let ro = src.join("_installed_apks_/x.apk");
+        fs::write(&ro, "apk").unwrap();
+        let mut perm = fs::metadata(&ro).unwrap().permissions();
+        perm.set_readonly(true);
+        fs::set_permissions(&ro, perm).unwrap();
+        fs::write(src.join("app_/shared_prefs/p.xml"), "prefs").unwrap();
+        std::os::unix::fs::symlink("x.apk", src.join("_installed_apks_/link.apk")).unwrap();
+
+        seed_tree(&src, &dst).unwrap();
+
+        let ino = |p: &std::path::Path| fs::metadata(p).unwrap().ino();
+        assert_eq!(
+            ino(&ro),
+            ino(&dst.join("_installed_apks_/x.apk")),
+            "read-only file hard-linked"
+        );
+        let prefs = dst.join("app_/shared_prefs/p.xml");
+        assert_ne!(
+            ino(&src.join("app_/shared_prefs/p.xml")),
+            ino(&prefs),
+            "writable file copied"
+        );
+        fs::write(&prefs, "changed").unwrap();
+        assert_eq!(
+            fs::read_to_string(src.join("app_/shared_prefs/p.xml")).unwrap(),
+            "prefs"
+        );
+        assert_eq!(
+            fs::read_link(dst.join("_installed_apks_/link.apk")).unwrap(),
+            std::path::Path::new("x.apk")
+        );
+    }
 }

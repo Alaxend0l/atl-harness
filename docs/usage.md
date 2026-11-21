@@ -9,7 +9,7 @@ on the box use `cargo run --release -- <command>` or the built binary
 
 ### `fetch` — build the corpus
 ```
-atlh fetch [--limit 50] [--seed 1] [--refresh-index]
+atlh fetch [--limit 50] [--seed 1] [--refresh-index] [--pkg PKG...] [--pkg-file FILE]
 ```
 Downloads F-Droid's `index-v2.json` (cached in `work/`), picks the latest
 version of each app, keeps apps with no native code or with native code for
@@ -17,9 +17,15 @@ an ABI in `allowed_abis`, shuffles deterministically with `--seed`, and
 downloads up to `--limit` APKs that are not already in the corpus (sha256
 verified). Run it again to grow the corpus; existing apps are kept.
 
+With `--pkg`/`--pkg-file` it fetches exactly those packages instead (no
+limit, no shuffle) and lists any it can't get (not in the index, or no APK
+for this runner's ABIs). Package files hold one package per line, `#`
+comments allowed; hand-picked lists live in `corpora/`.
+
 ### `run` — run apps under ATL
 ```
-atlh run [--run-id ID] [--jobs 2] [--limit 0] [--pkg PKG...] [--force]
+atlh run [--run-id ID] [--jobs 2] [--limit 0] [--pkg PKG...] [--pkg-file FILE] [--force]
+         [--data-template DIR | --no-data-template]
 ```
 Runs every corpus app (or just `--pkg …`) and records one row per app under
 `--run-id`. Use the ATL commit as the id so runs map to code:
@@ -29,6 +35,26 @@ Runs every corpus app (or just `--pkg …`) and records one row per app under
 Runs are resumable: apps already recorded in that run are skipped unless
 `--force`. Each job uses its own Xvfb display, so `--jobs` is bounded by CPU
 and RAM, not displays. Start with 2 and raise it while watching load.
+
+**Data template (microG).** Each app starts with an empty ATL data dir.
+`--data-template DIR` (or `[atl].data_template`) seeds it from `DIR` first;
+read-only files are hard-linked when on the same filesystem, the rest is
+copied, so runs never change the template. `rig bootstrap --only microg`
+builds `~/src/atl-data/microg`: microG GmsCore from microG's F-Droid repo
+(sha256-checked) installed with ATL's `--install-internal`. With it, ATL
+loads real microG in-process instead of its built-in GMS stub (`ATLGStub`).
+Compare both on the same apps:
+```sh
+atlh run --run-id mg-gstub  --pkg-file corpora/microg.txt --no-data-template
+atlh run --run-id mg-microg --pkg-file corpora/microg.txt --data-template ~/src/atl-data/microg
+atlh compare mg-gstub mg-microg
+```
+First result (2026-11-21): no difference on either runner; none of the 14
+apps in `corpora/microg.txt` reaches Play Services code before crashing or
+settling. Known ATL bug affecting microG: `main.c` names data dirs after the
+APK file (`com.google.android.gms.apk_/lib`) but `ATLLoadedAppManager`
+looks for native libs in `<package>_/lib`, so in-process microG loads
+without its native libraries.
 
 Per app: fresh temp `$HOME`, fresh Xvfb, launch ATL, wait `settle_s`; if it's
 still running, take a screenshot; then kill the whole process group.
@@ -129,6 +155,7 @@ Unknown keys are rejected, so typos fail loudly.
 | `atl.command` | ATL invocation; `{apk}`, `{pkg}` substituted |
 | `atl.settle_s` | Seconds before screenshot + kill |
 | `atl.env` | Extra environment variables for ATL |
+| `atl.data_template` | Optional dir copied into each app's ATL data dir (e.g. `~/src/atl-data/microg`); `run --data-template`/`--no-data-template` override |
 | `display.xvfb_args` | Extra Xvfb args (screen size/depth) |
 | `display.crop_top_px` | Rows skipped at the top of the screenshot when scoring blankness (ATL title bar); default 0 |
 | `classify.stub_patterns` | Regexes ([Rust `regex` syntax](https://docs.rs/regex)) for stub log lines |

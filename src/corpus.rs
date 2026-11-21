@@ -101,6 +101,7 @@ pub fn fetch(
     limit: usize,
     seed: u64,
     refresh: bool,
+    only: &[String],
 ) -> Result<usize> {
     let c = &cfg.corpus;
     let work = &cfg.paths.work_dir;
@@ -119,9 +120,11 @@ pub fn fetch(
         .collect::<Result<_, _>>()?;
     let allowed: HashSet<&str> = c.allowed_abis.iter().map(String::as_str).collect();
 
+    let wanted: HashSet<&str> = only.iter().map(String::as_str).collect();
     let mut pool: Vec<(String, Version)> = index
         .packages
         .into_iter()
+        .filter(|(pkg, _)| wanted.is_empty() || wanted.contains(pkg.as_str()))
         .filter(|(pkg, _)| !have.contains(pkg))
         .filter_map(|(pkg, p)| {
             // Filter by ABI before picking the newest: apps with per-ABI
@@ -142,8 +145,29 @@ pub fn fetch(
         })
         .collect();
     pool.sort_by(|a, b| a.0.cmp(&b.0));
-    pool.shuffle(&mut ChaCha8Rng::seed_from_u64(seed));
-    println!("{} eligible apps not yet in corpus", pool.len());
+    let limit = if wanted.is_empty() {
+        pool.shuffle(&mut ChaCha8Rng::seed_from_u64(seed));
+        println!("{} eligible apps not yet in corpus", pool.len());
+        limit
+    } else {
+        let found: HashSet<&str> = pool.iter().map(|(p, _)| p.as_str()).collect();
+        let mut skipped: Vec<&str> = wanted
+            .iter()
+            .filter(|p| !found.contains(**p) && !have.contains(**p))
+            .copied()
+            .collect();
+        skipped.sort_unstable();
+        for p in skipped {
+            println!("  not fetched {p}: not in index, or no APK for this runner's ABIs");
+        }
+        println!(
+            "{} of {} requested apps to fetch ({} already in corpus)",
+            pool.len(),
+            wanted.len(),
+            wanted.iter().filter(|p| have.contains(**p)).count()
+        );
+        pool.len()
+    };
 
     let apk_dir = work.join("apks");
     fs::create_dir_all(&apk_dir)?;
