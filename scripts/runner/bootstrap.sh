@@ -177,6 +177,8 @@ step_harness() {
   . ~/.cargo/env
   cd "$HARNESS_DIR"
   cargo build --release
+  # the fixed media library runs use ([atl] media_dir)
+  scripts/runner/make-test-media.sh work/test-media
 }
 
 for s in $STEPS; do

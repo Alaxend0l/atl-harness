@@ -54,6 +54,11 @@ pub struct Atl {
     /// from this directory, e.g. a microG install made with `--install-internal`.
     #[serde(default)]
     pub data_template: Option<PathBuf>,
+    /// Media library for every app (ATL's MediaStore, `ATL_MEDIA_DIRS`): a
+    /// fixed test library (scripts/runner/make-test-media.sh), relative to the
+    /// config file. Without it apps see an empty library (runs use a temp HOME).
+    #[serde(default)]
+    pub media_dir: Option<PathBuf>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -101,6 +106,9 @@ impl Config {
         }
         if let Some(t) = cfg.atl.data_template.as_mut() {
             *t = expand_tilde(t);
+        }
+        if let Some(m) = cfg.atl.media_dir.as_mut() {
+            *m = base.join(expand_tilde(m));
         }
         if let Some(agent) = cfg.agent.as_mut() {
             agent.atl_repo = expand_tilde(&agent.atl_repo);

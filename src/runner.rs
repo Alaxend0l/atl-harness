@@ -256,6 +256,10 @@ pub fn run_one(
         .env("XDG_CACHE_HOME", h.join(".cache"))
         .env("DISPLAY", &xvfb.display)
         .env("GDK_BACKEND", "x11")
+        .env(
+            "ATL_MEDIA_DIRS",
+            cfg.atl.media_dir.as_deref().unwrap_or(Path::new("")),
+        )
         .envs(&cfg.atl.env)
         .stdin(Stdio::null())
         .stdout(log.try_clone()?)

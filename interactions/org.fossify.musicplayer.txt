@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Fossify Music Player: the media library lists albums and tracks, and a track plays.
+# Needs the harness test library ([atl] media_dir, scripts/runner/make-test-media.sh). 1080x1920 screen.
+tap 754 1880      # Albums tab
+wait 2
+shot albums
+expect-text "First Album"
+expect-text "Second"
+tap 968 1880      # Tracks tab
+wait 2
+shot tracks
+expect-text "Alpha Song 1"
+expect-text "Beta Tune 2"
+tap 300 150       # first track
+wait 4
+shot playing
+expect-changed
+expect-text "Alpha Song 1"   # the player shows the playing track

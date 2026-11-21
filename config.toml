@@ -20,6 +20,9 @@ settle_s = 25
 # Extra env vars for ATL (e.g. LIBGL_ALWAYS_SOFTWARE = "1").
 # Optional: seed each app's ATL data dir, e.g. with microG (docs/usage.md).
 # data_template = "~/src/atl-data/microg"
+# Media library every app sees (ATL's MediaStore): the fixed test library made
+# by scripts/runner/make-test-media.sh (rig bootstrap runs it).
+media_dir = "work/test-media"
 [atl.env]
 # GTK may pick GLX on X11, which breaks ATL's EGL code (upstream README).
 # Upstream says GDK_DEBUG=gl-egl; GTK >= 4.16 replaced that with GDK_DISABLE.

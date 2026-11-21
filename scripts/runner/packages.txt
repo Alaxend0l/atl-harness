@@ -45,6 +45,7 @@ pkgconfig(libelf)
 pkgconfig(libunwind)
 pkgconfig(alsa)
 pkgconfig(libavcodec)
+pkgconfig(libavformat)
 pkgconfig(libswscale)
 pkgconfig(gudev-1.0)
 pkgconfig(libdrm)
@@ -57,3 +58,4 @@ dbus-tools
 xdotool
 tesseract
 tesseract-langpack-eng
+ffmpeg-free

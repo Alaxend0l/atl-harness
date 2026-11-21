@@ -192,6 +192,7 @@ Unknown keys are rejected, so typos fail loudly.
 | `atl.settle_s` | Seconds before screenshot + kill |
 | `atl.env` | Extra environment variables for ATL |
 | `interact.dir` | Optional: directory of per-app interaction scripts (`<pkg>.txt`), relative to the config file |
+| `atl.media_dir` | Optional: media library every app sees (ATL's MediaStore via `ATL_MEDIA_DIRS`), relative to the config file. `work/test-media` is the fixed test library from `scripts/runner/make-test-media.sh` (run by `rig bootstrap`; needs ffmpeg). Unset: apps see an empty library |
 | `atl.data_template` | Optional dir copied into each app's ATL data dir (e.g. `~/src/atl-data/microg`); `run --data-template`/`--no-data-template` override |
 | `display.xvfb_args` | Extra Xvfb args (screen size/depth) |
 | `display.crop_border_px` | Pixels skipped on every edge (ATL's window frame) when scoring; default 0 |
