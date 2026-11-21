@@ -14,6 +14,9 @@ line numbers drift as code changes: re-read the code before editing.
 | # | Task | Brief | Who | Runner | Notes |
 |---|---|---|---|---|---|
 | 1 | **Phone audio** (Music is silent) | `audiotrack.md` ("Also found on the phone") | opencode | phone (owner listens) | first confirm the rootfs has `pipewire-alsa` (`ls ~/atl-root/usr/lib64/alsa-lib`); then the open-failure segfault, then the blocking/position bugs |
+| 1b | **Music "erratic, sometimes restarting"** (owner, phone) | below | opencode | phone | evidence: one session's log has `onDestroy` 7 times (activity recreated again and again: check what makes ATL destroy/recreate it: configuration changes on window resize? `android:configChanges` handling in ATL's Activity), plus `NullPointerException ... Drawable.mutate()` on a null drawable. Log: `~/.local/state/atl/org.fossify.musicplayer.log` |
+| 1c | **Gramophone** start chain (installed on the phone) | `atlh missing-apis` | opencode | mini | fork branch `fix/media-playlists` fixed Playlists, Typeface, RippleDrawable radius; next: `StorageVolume.getUuid`, androidx `WeightTypeface` reflection (`nativeCreateFromTypeface`) |
+| 1d | **Flow** (installed on the phone) | `app-widgets.md` stage 1 | opencode | mini | crashes on `AppWidgetManager.getInstalledProviders()`; its policy is internet-only (filtered network works on the phone) |
 | 2 | Crashes from `AnimationUtils.loadInterpolator` (File Manager, Music progress bar) | `interpolators.md` | opencode | mini | Group A (Java only) first |
 | 3 | Text 1.33x too big everywhere; Paint measurement | `text-and-fonts.md` steps 1-5 | opencode | mini + screenshots | step 1 changes every app's look: compare screenshots before/after |
 | 4 | Pink album covers (Glide fails silently) | HANDOFF item 12 | opencode | mini | find why `content://media/external/audio/albumart/<id>` fails in Glide |
