@@ -75,3 +75,11 @@ for comparing behaviour.
 never visible, rootfs read-only, D-Bus only through the proxy, ...).
 `atlh run --sandbox` vs a normal run + `atlh compare` shows what the sandbox
 breaks.
+
+## Rollout
+A/B on bazzite (x86_64) with the full corpus, ATL main 9a2cd6c4:
+`run --run-id plain1 --no-sandbox` vs `run --run-id sbx1 --sandbox` —
+`atlh compare plain1 sbx1`: 52 apps in both runs, 0 improved, 0 regressed
+(same outcomes and same interaction results). So `[atl] sandbox = true` is
+now the default in `config.toml` and `config.aarch64.toml`; `--no-sandbox`
+still overrides per run for comparisons.
