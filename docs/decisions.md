@@ -87,3 +87,12 @@ in by `git merge upstream/master`. The `upstream` remote's push URL is set to
 an invalid value so nothing can be pushed there by accident (D1). `FORK.md`
 and a README banner mark it as unofficial and AI-assisted; GPLv3 and upstream
 copyright notices are unchanged.
+
+### D14 — OnePlus 12 runner: rootfs in $HOME via bwrap (2026-11-21)
+The phone (Fedora 45 from fedora-atomic-phone) has an 8 GiB, 97%-full root
+partition and no podman/distrobox; its system is another project's domain.
+Instead of installing anything there, `rig rootfs` builds a Fedora 44
+aarch64 tree with the ATL stack on the mini and installs it in
+`~/atl-root`; `rig` runs commands in it with unprivileged `bwrap` (private
+`/run`, private D-Bus session, `$HOME`/`/tmp`/GPU passed through). This is
+also the first step towards per-app sandboxing (roadmap step 4).

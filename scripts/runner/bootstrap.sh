@@ -28,17 +28,8 @@ log() { echo "[$(date +%T)] $*"; }
 
 step_packages() {
   command -v dnf >/dev/null || { echo "only Fedora (dnf) is supported" >&2; return 1; }
-  sudo dnf install -y \
-    patch gcc gcc-c++ make autoconf automake libtool meson ninja-build python3 zip unzip git rsync tmux sqlite \
-    xorg-x11-server-Xvfb ImageMagick mesa-dri-drivers glx-utils \
-    java-25-openjdk-devel maven objectweb-asm \
-    valgrind-devel libicu-devel openssl-devel expat-devel xz-devel \
-    wayland-protocols-devel wayland-devel gtk4-layer-shell-devel \
-    'pkgconfig(gtk4)' 'pkgconfig(libbsd)' 'pkgconfig(libportal)' 'pkgconfig(sqlite3)' \
-    'pkgconfig(libwebp)' 'pkgconfig(liblz4)' 'pkgconfig(openxr)' 'pkgconfig(webkitgtk-6.0)' \
-    'pkgconfig(libsecret-1)' 'pkgconfig(egl)' 'pkgconfig(libelf)' 'pkgconfig(libunwind)' \
-    'pkgconfig(alsa)' 'pkgconfig(libavcodec)' 'pkgconfig(libswscale)' 'pkgconfig(gudev-1.0)' \
-    'pkgconfig(libdrm)' 'pkgconfig(libcap)' 'pkgconfig(vulkan)' 'pkgconfig(sdl2)' 'pkgconfig(sndfile)'
+  # shellcheck disable=SC2046 # one package per word
+  sudo dnf install -y $(grep -v '^#' "$(dirname "$0")/packages.txt")
   printf '/usr/local/lib64\n/usr/local/lib\n' | sudo tee /etc/ld.so.conf.d/local.conf >/dev/null
   echo 'export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}' \
     | sudo tee /etc/profile.d/zz-local-pkgconfig.sh >/dev/null
@@ -180,6 +171,9 @@ print(v["file"]["name"].lstrip("/"), v["file"]["sha256"], v["manifest"]["version
 }
 
 step_harness() {
+  # Steps run in separate subshells: pick up a Rust installed by step_rust.
+  # shellcheck disable=SC1090
+  . ~/.cargo/env
   cd "$HARNESS_DIR"
   cargo build --release
 }

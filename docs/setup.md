@@ -140,6 +140,16 @@ and build ATL directly, same recipe as above (`make -j6` for art_standalone;
 scripts/rig -r mini atlh ...     # runners.toml points mini at config.aarch64.toml
 ```
 
+## Third runner: OnePlus 12 (aarch64, bwrap rootfs)
+
+The phone runs Fedora 45 from `fedora-atomic-phone` (decisions D14). Its
+root partition is 8 GiB and nearly full, and the system belongs to that
+project, so the runner lives entirely in `/home/phone`: a rootfs built on
+the mini (`rig -r oneplus12 rootfs --from mini`) used through `bwrap`. Reached
+over USB networking (`172.16.42.1`, user `phone`, ssh alias `atl-oneplus12`
+with `HostKeyAlias oneplus12`). Follow the phone project's safety rules: one
+actor on the phone, nothing outside `$HOME`.
+
 ## First-run checklist
 
 Everything here was written before ATL was run on the box, so these

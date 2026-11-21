@@ -46,6 +46,7 @@ class Runner:
     config: str = "config.toml"
     dir: str = "atl-harness"
     distrobox: str | None = None
+    bwrap_root: str | None = None
     jobs: int = 2
     make_jobs: int | None = None
     atl_src: str = "src/android_translation_layer"
@@ -86,6 +87,8 @@ def parse_registry(text: str) -> Registry:
         missing = REQUIRED_KEYS - set(d)
         if missing:
             raise RigError(f"runners.toml: [runners.{name}] missing {sorted(missing)}")
+        if "distrobox" in d and "bwrap_root" in d:
+            raise RigError(f"runners.toml: [runners.{name}] has both distrobox and bwrap_root")
         if ("lima_host" in d) != ("lima_instance" in d):
             raise RigError(f"runners.toml: [runners.{name}] needs both lima_host and lima_instance")
         reg.runners[name] = Runner(name=name, **d)
@@ -149,11 +152,33 @@ def inner_script(r: Runner, script: str, args: list[str] = (), cd: bool = True,
     return "\n".join(parts)
 
 
+def bwrap_prefix(root: str) -> str:
+    """bwrap into a rootfs tree (see scripts/runner/make-rootfs.sh): the tree is
+    /, with the user's home, /tmp (X sockets), GPU nodes, DNS and the host's
+    user database passed through. No privileges needed; nothing on the host
+    outside the tree and $HOME is writable."""
+    return " ".join([
+        "bwrap", "--bind", root, "/",
+        "--bind", '"$HOME"', '"$HOME"', "--bind", "/tmp", "/tmp",
+        "--proc", "/proc", "--dev", "/dev", "--dev-bind-try", "/dev/dri", "/dev/dri",
+        "--tmpfs", "/run", "--dir", '"/run/user/$(id -u)"', "--chmod", "0700", '"/run/user/$(id -u)"',
+        "--setenv", "XDG_RUNTIME_DIR", '"/run/user/$(id -u)"',
+        "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
+        "--ro-bind", "/etc/passwd", "/etc/passwd", "--ro-bind", "/etc/group", "/etc/group",
+        "--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin", "--chdir", '"$HOME"', "--die-with-parent",
+    ])
+
+
 def wrap(r: Runner, inner: str) -> str:
-    """Command string for ssh: enter the distrobox if configured, run bash -lc."""
+    """Command string for ssh: enter the distrobox or bwrap rootfs if configured, run bash -lc."""
     cmd = f"bash -lc {shlex.quote(inner)}"
     if r.distrobox:
         cmd = f"distrobox enter {shlex.quote(r.distrobox)} -- {cmd}"
+    elif r.bwrap_root:
+        # Private session bus: /run is a tmpfs inside, and libportal aborts
+        # without a bus. Don't expose the host's real desktop session.
+        cmd = (f"{bwrap_prefix(r.home_path(r.bwrap_root))} --unsetenv DBUS_SESSION_BUS_ADDRESS "
+               f"dbus-run-session -- {cmd}")
     return cmd
 
 
@@ -217,8 +242,12 @@ def check_job_name(name: str) -> str:
     return name
 
 
-def job_start_script(name: str, body: str, workdir: str) -> str:
-    """Remote script that writes BODY to a file and runs it detached."""
+def job_start_script(name: str, body: str, workdir: str, private_bus: bool = False) -> str:
+    """Remote script that writes BODY to a file and runs it detached.
+    private_bus: give the job its own D-Bus session (bwrap runners: the bus of
+    the ssh command that starts the job dies with it)."""
+    runner_cmd = 'dbus-run-session -- bash "$1"' if private_bus else 'bash "$1"'
+
     d = JOBS_DIR
     marker = "RIG_JOB_EOF_7f3a"
     if marker in body:
@@ -233,7 +262,7 @@ cat > {d}/{name}.sh <<'{marker}'
 cd {workdir}
 {body}
 {marker}
-setsid nohup bash -c 'bash "$1" > "$2" 2>&1; echo $? > "$3"' rig \\
+setsid nohup bash -c '{runner_cmd} > "$2" 2>&1; echo $? > "$3"' rig \\
   {d}/{name}.sh {d}/{name}.log {d}/{name}.exit < /dev/null > /dev/null 2>&1 &
 echo $! > {d}/{name}.pid
 echo "started job {name} (pid $!); log: ~/atlh-jobs/{name}.log"
@@ -274,7 +303,8 @@ def cmd_list(reg: Registry, a) -> int:
         up = dict(zip(reg.runners, ex.map(lambda r: reachable(r.ssh), reg.runners.values())))
     print(f"{'':2}{'name':12} {'ssh':14} {'arch':8} {'env':14} {'config':22} jobs  status")
     for n, r in reg.runners.items():
-        envs = f"distrobox:{r.distrobox}" if r.distrobox else ("lima" if r.lima_host else "host")
+        envs = (f"distrobox:{r.distrobox}" if r.distrobox else f"bwrap:{r.bwrap_root}" if r.bwrap_root
+                else "lima" if r.lima_host else "host")
         star = "*" if n == reg.default else " "
         print(f"{star} {n:12} {r.ssh:14} {r.arch:8} {envs:14} {r.config:22} {r.jobs:<5} "
               f"{'up' if up[n] else 'UNREACHABLE'}")
@@ -344,6 +374,13 @@ def doctor_one(r: Runner) -> int:
                          "--image registry.fedoraproject.org/fedora-toolbox:44"))
             return print_rows(rows)
         rows.append(("ok", "distrobox", r.distrobox, ""))
+    if r.bwrap_root:
+        p = host_cmd(r, f"cat {r.home_path(r.bwrap_root)}/etc/atl-rootfs-release && command -v bwrap >/dev/null")
+        if p.returncode != 0:
+            rows.append(("fail", "bwrap-root", f"~/{r.bwrap_root} missing or no bwrap on host",
+                         f"rig rootfs --from <same-arch runner> --to {r.name}"))
+            return print_rows(rows)
+        rows.append(("ok", "bwrap-root", p.stdout.strip()[:70], ""))
     t0 = time.time()
     env = {"EXPECT_ARCH": shlex.quote(r.arch), "HARNESS_DIR": r.home_path(r.dir)}
     p = run_remote(r, script_text("doctor.sh"), cd=False, capture=True, env=env)
@@ -452,7 +489,7 @@ def cmd_pull(reg: Registry, a) -> int:
 
 
 def start_job(r: Runner, name: str, body: str, workdir: str | None = None) -> int:
-    script = job_start_script(name, body, workdir or r.home_path(r.dir))
+    script = job_start_script(name, body, workdir or r.home_path(r.dir), private_bus=bool(r.bwrap_root))
     rc = run_remote(r, script, cd=False).returncode
     if rc == 0:
         print(f"follow: rig -r {r.name} job log {name} -f    wait: rig -r {r.name} job wait {name}")
@@ -575,6 +612,39 @@ def cmd_smoke(reg: Registry, a) -> int:
     return 0
 
 
+def cmd_rootfs(reg: Registry, a) -> int:
+    src, dst = pick_runner(reg, a.source), pick_runner(reg, a.runner)
+    if not dst.bwrap_root:
+        raise RigError(f"{dst.name} has no bwrap_root in runners.toml")
+    if src.arch != dst.arch:
+        raise RigError(f"arch mismatch: {src.name} is {src.arch}, {dst.name} is {dst.arch}")
+    tarball = "atl-rootfs.tar.zst"
+    if not a.reuse:
+        do_sync(src)
+        rc = start_job(src, "rootfs", f"bash scripts/runner/make-rootfs.sh ~/{tarball}")
+        if rc or wait_job(src, "rootfs"):
+            raise RigError(f"rootfs build on {src.name} failed; see rig -r {src.name} job log rootfs")
+    root = dst.home_path(dst.bwrap_root)
+    # Fedora keeps some dirs owner-read-only (e.g. /usr/lib): make the trees
+    # writable before deleting. Swap only after the new tree checks out.
+    install = f"""set -e
+rm -rf {root}.new 2>/dev/null || {{ chmod -R u+w {root}.new; rm -rf {root}.new; }}
+mkdir -p {root}.new
+zstd -dc | tar -C {root}.new --no-same-owner -xf - 2> >(grep -v 'Cannot mknod' >&2)
+chmod -R u+w {root}.new
+test -f {root}.new/etc/atl-rootfs-release
+if [ -d {root} ]; then chmod -R u+w {root}; rm -rf {root}; fi
+mv {root}.new {root}
+du -sh {root}; cat {root}/etc/atl-rootfs-release"""
+    print(f"streaming {src.name}:~/{tarball} -> {dst.name}:~/{dst.bwrap_root}")
+    sender = subprocess.Popen(ssh_argv(src.ssh, f"cat ~/{tarball}"), stdout=subprocess.PIPE)
+    rc = subprocess.run(ssh_argv(dst.ssh, f"bash -c {shlex.quote(install)}"), stdin=sender.stdout).returncode
+    sender.wait()
+    if rc or sender.returncode:
+        raise RigError("rootfs transfer failed")
+    return 0
+
+
 def lima_cmd(r: Runner, sub: str) -> str:
     # The Lima host may run fish/zsh: keep it to `env ... limactl ...`.
     return f"env PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin limactl {sub}"
@@ -676,6 +746,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--crop", type=int, default=50, help="title bar rows skipped when scoring (default %(default)s)")
     p.add_argument("atl_args", nargs="*", metavar="-- ATL_ARGS", help="extra ATL arguments, after --")
 
+    p = sub("rootfs", "build a Fedora+ATL rootfs on a same-arch runner and install it as -r's bwrap_root",
+            epilog="for runners that can't host a distrobox (runners.toml: bwrap_root); see docs/rig.md")
+    p.add_argument("--from", dest="source", required=True, help="runner to build on (bootstrapped, same arch)")
+    p.add_argument("--reuse", action="store_true", help="send the source's existing tarball, don't rebuild")
+
     sub("up", "start the runner's Lima VM")
     sub("down", "stop the runner's Lima VM")
     return ap
@@ -684,7 +759,7 @@ def build_parser() -> argparse.ArgumentParser:
 COMMANDS = {
     "list": cmd_list, "add": cmd_add, "doctor": cmd_doctor, "sync": cmd_sync, "atlh": cmd_atlh,
     "sh": cmd_sh, "pull": cmd_pull, "job": cmd_job, "bootstrap": cmd_bootstrap,
-    "rebuild-atl": cmd_rebuild_atl, "smoke": cmd_smoke, "up": cmd_up_down, "down": cmd_up_down,
+    "rebuild-atl": cmd_rebuild_atl, "smoke": cmd_smoke, "rootfs": cmd_rootfs, "up": cmd_up_down, "down": cmd_up_down,
 }
 
 

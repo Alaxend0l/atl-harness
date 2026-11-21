@@ -19,8 +19,10 @@ Start with `README.md`, then `docs/roadmap.md` for current status.
 ## Environment
 - A Linux **workstation** with this clone, and **runners** on the LAN
   listed in `runners.toml`: an x86_64 box (`bazzite`,
-  in a distrobox) and an aarch64 Lima VM on a Mac mini (`mini`; runs apps
-  only, never agents). ATL, Xvfb and the corpus live on the runners.
+  in a distrobox), an aarch64 Lima VM on a Mac mini (`mini`) and a OnePlus 12
+  phone (`oneplus12`, bwrap rootfs in `/home/phone` only; follow the
+  fedora-atomic-phone safety rules). Mini and phone run apps only, never
+  agents. ATL, Xvfb and the corpus live on the runners.
   Use `scripts/rig` for everything remote (`docs/rig.md`); don't hand-roll
   ssh/rsync lines. See `docs/setup.md`.
 - `work/` (corpus, logs, screenshots, sqlite) is git-ignored.

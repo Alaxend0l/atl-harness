@@ -20,3 +20,12 @@ make_jobs = 6
 lima_host = "atl-mini"
 lima_instance = "atl"
 notes = "Fedora 44 aarch64 Lima VM on the M4 Mac mini; run/screenshot target only, no agents"
+
+[runners.oneplus12]
+ssh = "atl-oneplus12"
+bwrap_root = "atl-root"
+arch = "aarch64"
+config = "config.aarch64.toml"
+jobs = 3
+make_jobs = 6
+notes = "OnePlus 12 (waffle) on Fedora from fedora-atomic-phone, USB networking; rootfs in ~/atl-root via bwrap (root partition is 8 GiB); nothing outside /home/phone"

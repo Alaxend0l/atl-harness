@@ -23,6 +23,7 @@ command), else `$ATLH_RUNNER`, else `default` in `runners.toml`.
 | Shell in the runner's environment | `rig sh` · `rig sh 'ls work/runs'` · `rig sh --home` |
 | Rebuild ATL after changing it | `rig rebuild-atl` · `rig rebuild-atl --ref my-branch` · `--pull` |
 | Start/stop a Lima VM runner | `rig up` · `rig down` |
+| (Re)install a bwrap rootfs runner | `rig -r oneplus12 rootfs --from mini` |
 
 Details:
 - `rig atlh` passes everything after its own options to `atlh` and adds
@@ -51,7 +52,9 @@ code. `rig job stop NAME` kills the job's process group. `bootstrap`,
 1. Make it reachable: an alias in `~/.ssh/config` and
    `ssh-copy-id ALIAS`. Put IPs only in `~/.ssh/config`. Ideally give the
    machine a DHCP reservation.
-2. Plain Fedora host: nothing else. Immutable host (Bazzite, Silverblue):
+2. Plain Fedora host: nothing else. Can't install packages at all (full or
+   off-limits root partition, e.g. the OnePlus 12): give it a **bwrap
+   rootfs**, see below. Immutable host (Bazzite, Silverblue):
    `distrobox create --name atl --image registry.fedoraproject.org/fedora-toolbox:44`.
    Mac: a Lima VM, see [setup.md](setup.md#second-runner-mac-mini-aarch64-lima-vm).
 3. Register it; this probes arch and CPU count and picks the config:
@@ -79,6 +82,26 @@ code. `rig job stop NAME` kills the job's process group. `bootstrap`,
 7. `rig -r NAME doctor` again, then `rig -r NAME smoke
    src/atl_test_apks/org.happysanta.gd_29.apk`.
 
+## bwrap rootfs runners
+For machines where nothing may be installed outside `$HOME`. `rig rootfs
+--from SRC` builds a Fedora tree with the whole ATL stack on a bootstrapped
+runner of the same arch (`scripts/runner/make-rootfs.sh`: `dnf
+--installroot` with `scripts/runner/packages.txt`, plus SRC's `/usr/local`),
+streams it to `~/<bwrap_root>` on the target, and swaps it in. Every `rig`
+command then runs inside it via unprivileged `bwrap`: the tree is `/`, with
+`$HOME`, `/tmp`, `/dev/dri`, DNS and the host's passwd/group passed through,
+a private `/run/user/UID`, and a **private D-Bus session** (libportal
+aborts without one; the host desktop's bus is never exposed). Detached jobs
+get their own bus. A `sudo` shim makes bootstrap steps work, since the user
+owns the tree. Then mark the steps the rootfs covers as done and bootstrap
+the per-user rest:
+```sh
+rig -r NAME sh --home 'mkdir -p ~/src/.bootstrap; for s in packages wolfssl bionic vixl art opensles atl; do touch ~/src/.bootstrap/$s.done; done'
+rig -r NAME bootstrap --only rust,sources,harness,microg --wait
+```
+Rebuild the rootfs after ATL changes that touch native code or deps:
+`rig -r NAME rootfs --from mini` (Java-only changes: `rig rebuild-atl`).
+
 ## runners.toml
 ```toml
 default = "bazzite"          # optional
@@ -89,6 +112,7 @@ arch = "x86_64"              # required: uname -m (doctor checks it)
 config = "config.toml"       # harness config on this runner
 dir = "atl-harness"          # checkout, relative to ~ (default)
 distrobox = "atl"            # optional: run inside this distrobox
+bwrap_root = "atl-root"      # optional (not with distrobox): rootfs under ~, see above
 jobs = 4                     # default --jobs for `atlh run`
 make_jobs = 6                # optional: compile parallelism for bootstrap
 atl_src = "src/android_translation_layer"   # ATL checkout, relative to ~

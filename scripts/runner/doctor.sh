@@ -19,7 +19,8 @@ ps=$(getconf PAGESIZE)
 if [ "$ps" = 4096 ]; then r ok page-size "$ps"
 else r warn page-size "$ps" "non-4K kernel: native libs and ART AOT may break (README of ATL)"; fi
 
-if have dnf; then r ok distro "$(. /etc/os-release; echo "$PRETTY_NAME")"
+if [ -f /etc/atl-rootfs-release ]; then r ok distro "rig rootfs: $(cut -d' ' -f2-4 /etc/atl-rootfs-release)"
+elif have dnf; then r ok distro "$(. /etc/os-release; echo "$PRETTY_NAME")"
 else r warn distro "$(. /etc/os-release; echo "$PRETTY_NAME")" "bootstrap only supports Fedora"; fi
 
 for t in cargo Xvfb import convert android-translation-layer; do
