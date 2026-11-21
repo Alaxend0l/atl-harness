@@ -117,6 +117,15 @@ with INTERNET runs there.
 App widgets: staged plan in `docs/agent-tasks/app-widgets.md` (stage 1 =
 local model, unblocks Flow; stage 3 = Claude design: cross-sandbox service).
 
+Late 2026-11-21 (Claude): fork main 63bf04e7 adds media playlists, a Typeface
+model, RippleDrawable radius (Gramophone gets further), widget stage 1
+(Flow starts; renders blank: Compose). Gramophone and Flow are installed on
+the phone. Phone audio goes through PipeWire (rootfs has pipewire-alsa; the
+sandbox gives no /dev/snd: raw hw: bypasses the speaker protection).
+fedora-atomic-phone main has a flash.sh guard (FLASH_PLAN=manual on
+oneplus-waffle), docs/agent-tasks/safety-audit.md and port briefs. Research
+on other ATL forks: docs/research/atl-forks.md (when committed).
+
 ## Runner use (several agents: see AGENTS.md)
 Say here which runner you're using for builds/gates, and clear it when done.
 - **opencode (this session, 2026-11-21 evening): `bazzite`** (sandbox A/B gate,
