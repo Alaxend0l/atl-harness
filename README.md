@@ -37,3 +37,6 @@ scripts/rig -r mini smoke some.apk          # one app on the aarch64 runner
 
 ## Development
 `cargo fmt && cargo clippy --all-targets && cargo test`
+
+## License
+AGPL-3.0-or-later; see [LICENSE](LICENSE) and [LICENSING.md](LICENSING.md). The ATL fork is a separate repository under GPL-3.0.

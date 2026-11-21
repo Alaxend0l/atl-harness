@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # aarch64 runners (Mac mini Lima VM). Copy of config.toml except allowed_abis;
 # keep the two in sync until the runner registry lands (docs/agent-tasks).
 [paths]

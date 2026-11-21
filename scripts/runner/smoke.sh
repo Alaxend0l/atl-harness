@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Run one APK under ATL on a private Xvfb, screenshot it, print a summary.
 # Usage (normally via `rig smoke`): smoke.sh OUT_DIR SETTLE_S CROP_TOP APK [ATL ARGS...]
 # Writes OUT_DIR/run.log and OUT_DIR/shot.png; prints key=value lines.

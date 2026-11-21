@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 [paths]
 # Corpus, logs, screenshots and the sqlite db live here (relative to this file).
 work_dir = "work"

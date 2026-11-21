@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Build one component on a runner, log it, and summarise errors.
 # Usage (normally via `rig build`): build.sh TARGET
 #   TARGET: atl | art | bionic | opensles | harness

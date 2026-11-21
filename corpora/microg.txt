@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # F-Droid apps that talk to Google Play Services without bundling its
 # proprietary libraries (found via index permissions, 2026-11-21).
 # Use with: atlh fetch --pkg-file corpora/microg.txt

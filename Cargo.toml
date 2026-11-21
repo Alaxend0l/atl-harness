@@ -1,10 +1,11 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 [package]
 name = "atlh"
 version = "0.1.0"
 edition = "2021"
+license = "AGPL-3.0-or-later"
 description = "Compatibility harness for a fork of Android Translation Layer"
 publish = false
-# license: TBD (repo is private for now)
 
 [dependencies]
 anyhow = "1"

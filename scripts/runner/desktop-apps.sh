@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Put Android apps on a runner's desktop/phone home screen, running under ATL.
 # Usage (normally via `rig desktop-apps`): desktop-apps.sh install|remove PKG...
 # Run from the harness checkout (APKs come from work/apks, names from

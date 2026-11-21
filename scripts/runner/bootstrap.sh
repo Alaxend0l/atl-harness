@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Build ATL and its dependencies on a Fedora runner (host or distrobox).
 # Run through `rig bootstrap`; it passes these environment variables:
 #   HARNESS_DIR  harness checkout (absolute)        MAKE_JOBS  parallel jobs

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Runner health checks. Sent inline by `rig doctor` (works before the first sync).
 # Env: EXPECT_ARCH, HARNESS_DIR (absolute).
 # Output: one line per check, "ok|warn|fail<TAB>check<TAB>detail<TAB>hint".

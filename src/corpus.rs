@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Sample and download APKs from the F-Droid repo index (index-v2.json).
 
 use std::collections::{HashMap, HashSet};

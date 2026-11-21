@@ -33,6 +33,7 @@ Start with `HANDOFF.md` (current state), then `README.md` and `docs/roadmap.md`.
 - `work/` (corpus, logs, screenshots, sqlite) is git-ignored.
 
 ## Working on the code
+- New files start with `SPDX-License-Identifier: AGPL-3.0-or-later` (LICENSING.md).
 - Before committing: `cargo fmt && cargo clippy --all-targets && cargo test`
   and `python3 -m unittest discover -s scripts/tests`.
 - Unit tests must not need Xvfb, ATL or network.

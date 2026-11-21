@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! atlh — compatibility harness for a hard fork of Android Translation Layer.
 
 mod classify;

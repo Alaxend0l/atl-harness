@@ -50,10 +50,13 @@ masking (`f4fe2012`) is not built there yet** (`rig -r oneplus12 build --pull`).
 5. Owner: run the Flatpak move on the phone (see below), install Spectacle, merge the two fedora-atomic-phone branches if happy.
 
 ## Waiting on the owner
-- **Spectacle** on the phone: `ssh -t atl-oneplus12 sudo dnf install -y spectacle` in a real terminal; then `scripts/phone-shot --open` (screenshots of the phone's live screen, no AI needed).
-- **Flatpak move** (frees ~3.5 GB on the 8 GiB root): script is at `~/move-flatpak-to-home.sh` on the phone. In a real terminal: `ssh -t atl-oneplus12 sudo ./move-flatpak-to-home.sh`, then `--apply`, check Firefox, reboot, `--remove-old`; `--rollback` undoes.
 - Telephony/SMS design for Messages and Phone.
-- License for atl-harness (private, none yet; see below).
+- Merging the two fedora-atomic-phone branches (`plasma-mobile-spectacle`, `oneplus12-flatpak-home`); both are already applied on the phone by hand.
+
+## Done by the owner (2026-11-21)
+- Spectacle installed on the phone; `scripts/phone-shot` verified (3/3 captures).
+- Flatpak data moved to /home with `move-flatpak-to-home.sh`: root 97% → 52% full (3.7 GB free).
+- License chosen: atl-harness is AGPL-3.0-or-later (decisions D15, LICENSING.md).
 
 ## Tools added today (all in docs/rig.md)
 `rig` (runners, sync, atlh, jobs, bootstrap, rootfs, build, smoke, desktop-apps, doctor), `rig build --worktree` (2–7 s edit→installed, parsed errors), bounded waits (exit 124 timeout / 125 stalled / 126 unreachable; every subprocess has a time limit), `atlh missing-apis`, `scripts/phone-shot`, `corpora/*.txt`, microG data templates.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Ranking, regression gate, and agent work items.
 
 use std::collections::HashMap;

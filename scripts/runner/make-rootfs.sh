@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Build a self-contained Fedora root filesystem with the ATL stack, for runners
 # that can't host a distrobox (e.g. a phone with a full root partition).
 # Runs on a bootstrapped runner of the same arch; uses its /usr/local build.

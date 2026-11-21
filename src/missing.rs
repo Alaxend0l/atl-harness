@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! `atlh missing-apis`: which framework methods, fields and classes are missing,
 //! aggregated over runs and ranked by how many apps hit them.
 //!

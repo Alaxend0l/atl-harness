@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Unit tests for scripts/rig. No network, ssh or runners needed.
 
 Run: python3 -m unittest discover -s scripts/tests

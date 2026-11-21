@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Turn an ATL run log into deduplicated failure signatures.
 
 use std::collections::HashSet;

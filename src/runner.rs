@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
 //! Run one APK under ATL in an isolated, headless X display.
 
 use std::fs::{self, File};

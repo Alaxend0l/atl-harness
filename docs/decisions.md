@@ -96,3 +96,11 @@ aarch64 tree with the ATL stack on the mini and installs it in
 `~/atl-root`; `rig` runs commands in it with unprivileged `bwrap` (private
 `/run`, private D-Bus session, `$HOME`/`/tmp`/GPU passed through). This is
 also the first step towards per-app sandboxing (roadmap step 4).
+
+### D15 — atl-harness is AGPL-3.0-or-later (2026-11-21)
+Replaces D9's "license TBD". Owner's choice, matching fedora-atomic-phone. All
+dependencies are permissive (checked with `cargo metadata`), so the combination
+is fine. AGPL's network clause only matters if the harness is ever offered as a
+service (e.g. a results dashboard); for the CLI it behaves like GPL-3.0. The
+ATL fork stays under upstream's GPL-3.0 and is not affected. Details:
+[LICENSING.md](../LICENSING.md).

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
 """Summarise errors in a build log (gcc/clang, javac, ld, meson, ninja, make,
 cargo, dx/d8, dnf, pkg-config).
 

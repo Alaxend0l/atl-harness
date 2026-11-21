@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
 # Runner machines for scripts/rig. Hostnames/IPs live in ~/.ssh/config, not here.
 # Add one with: scripts/rig add NAME --ssh ALIAS [--distrobox BOX]
 # Keys: see docs/rig.md.
