@@ -270,7 +270,22 @@ pub fn run_one(
     let mut failures = classify::parse(&text, stubs);
     let exit_code = status.map(|s| s.code().unwrap_or_else(|| -s.signal().unwrap_or(0)));
 
+    // ART dumps every thread before it aborts; on slow devices that outlasts
+    // settle_s, and the still-dying process would be scored on its screen.
+    let aborting = exit_code.is_none() && classify::is_aborting(&text);
     let outcome = match (exit_code, stddev) {
+        _ if aborting => {
+            let reason = classify::abort_reason(&text);
+            failures.push(Failure {
+                kind: Kind::Signal,
+                signature: match &reason {
+                    Some(r) => format!("signal: SIGABRT: {r}"),
+                    None => "signal: SIGABRT".to_string(),
+                },
+                detail: reason.unwrap_or_default(),
+            });
+            Outcome::Crash
+        }
         (Some(0), _) => Outcome::Exited,
         (Some(code), _) => {
             if code < 0 {

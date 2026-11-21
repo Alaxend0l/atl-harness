@@ -109,6 +109,20 @@ gles3jni) already work, so they don't help. Based on only 43 app runs
 `rig atlh rank` should reorder this. Work down from signatures that break
 the most apps (`brk`) and that are an app's only blocker (`sole`).
 
+**0. Fossify suite first (owner's priority: phone-essential apps).**
+`corpora/fossify.txt`, run `fossify1` (2026-11-21), same on x86_64 and
+aarch64: **12/16 ALIVE** with real UIs (Contacts, Calendar, Notes,
+Calculator, Clock, Gallery, File Manager, Music Player, Keyboard, Paint,
+Documents, Voice Recorder). Blockers, one per app:
+- Messages: `Telephony.Sms.getDefaultSmsPackage(Context)` missing.
+- Phone: `getSystemService("telecom")` not implemented (TelecomManager).
+- Camera: `SoundPool.load(String, int)` missing (+ `setOnLoadCompleteListener` stub).
+- Launcher: `android.appwidget.AppWidgetHost` missing.
+Visible but unclassified: File Manager and Music Player show a black
+rectangle top-left (likely an unrendered popup/overlay from the shared
+Fossify library: one fix, several apps); Gallery opens a GTK file chooser
+at start (ATL's storage-access mapping) that covers the app.
+
 **1. Infrastructure bugs (first: they make every other result clearer)**
 - **JNI calls with a pending exception.** ATL native code calls
   `GetMethodID`/`FindClass`/`GetObjectClass` while a Java exception is
@@ -145,3 +159,4 @@ EVMap, …) don't reach Play Services yet; good tests once section 1 is fixed.
 ## Agent tasks
 Standing work for coding agents, independent of the steps above:
 - [Runner registry, harness tooling, documentation](agent-tasks/tooling-and-docs.md)
+- [Research: compatibility layers (Wine, Proton, FEX, Berberis, …) and tooling](agent-tasks/research-compat-layers.md) (approved by the owner; report, don't adopt)

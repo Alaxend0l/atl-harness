@@ -134,6 +134,15 @@ pub fn abort_reason(text: &str) -> Option<String> {
         .map(|r| normalize(&r).chars().take(160).collect())
 }
 
+/// The runtime has started aborting (it may still be dumping threads).
+pub fn is_aborting(text: &str) -> bool {
+    text.lines().any(|l| {
+        l.contains("Runtime aborting")
+            || l.starts_with("Fatal signal ")
+            || l.contains("JNI DETECTED ERROR IN APPLICATION")
+    })
+}
+
 pub fn parse(text: &str, stubs: &[Regex]) -> Vec<Failure> {
     let mut chains: Vec<Vec<Block>> = Vec::new();
     let mut out = Vec::new();
@@ -243,6 +252,16 @@ java.lang.IllegalStateException: boom 0x11
             Some("bad thing N")
         );
         assert_eq!(abort_reason("nothing here\n"), None);
+    }
+
+    #[test]
+    fn aborting_detection() {
+        assert!(is_aborting(
+            "x\nA/art(1): JNI DETECTED ERROR IN APPLICATION: y\n"
+        ));
+        assert!(is_aborting(" Runtime aborting...\n"));
+        assert!(is_aborting("Fatal signal 6 (SIGABRT), code -6\n"));
+        assert!(!is_aborting("W/x: everything is fine\n"));
     }
 
     #[test]

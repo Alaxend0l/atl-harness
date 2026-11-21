@@ -1,0 +1,20 @@
+# Fossify suite: FOSS replacements for core phone apps, sharing one common
+# library (fixes tend to carry across apps). Priority target (2026-11-21).
+# Use with: atlh fetch --pkg-file corpora/fossify.txt
+#           atlh run --pkg-file corpora/fossify.txt --run-id fossify-<atl commit>
+org.fossify.phone           # Phone (dialer)
+org.fossify.messages        # Messages (SMS)
+org.fossify.contacts        # Contacts
+org.fossify.calendar        # Calendar
+org.fossify.clock           # Clock (beta)
+org.fossify.camera          # Camera (beta)
+org.fossify.gallery         # Gallery
+org.fossify.filemanager     # File Manager
+org.fossify.home            # Launcher (beta)
+org.fossify.keyboard        # Keyboard (beta)
+org.fossify.math            # Calculator (beta)
+org.fossify.notes           # Notes (beta)
+org.fossify.musicplayer     # Music Player
+org.fossify.voicerecorder   # Voice Recorder (beta)
+org.fossify.documents       # Documents (beta)
+org.fossify.paint           # Paint (beta)
