@@ -128,9 +128,16 @@ class Loop:
         return c.returncode, c.stdout
 
     def agent(self, prompt: str, logfile: Path, minutes: int) -> int:
-        argv = ["opencode", "run", "--agent", "atl-fixer", "--auto", "--title", f"agent-loop {self.tag}", prompt]
+        # --standalone: a private server rooted in the clone, so the clone's
+        # .opencode/agents/atl-fixer.md is always the agent (a shared background
+        # service started elsewhere reports "Agent not found")
+        argv = ["opencode", "run", "--standalone", "--agent", "atl-fixer", "--auto",
+                "--title", f"agent-loop {self.tag}", prompt]
         p = self.run(argv, minutes * 60, cwd=self.clone)
-        logfile.write_text((p.stdout or "") + "\n--- stderr ---\n" + (p.stderr or ""))
+        out = (p.stdout or "") + "\n--- stderr ---\n" + (p.stderr or "")
+        logfile.write_text(out)
+        if p.returncode == 0 and re.search(r"Error: .*(Agent not found|Model not found|ECONNREFUSED|fetch failed)", out):
+            return 2  # opencode reports some failures with exit code 0
         return p.returncode
 
     def lint(self, diff: str):
@@ -185,6 +192,12 @@ src/. If it is already fixed, or needs a large redesign, change nothing and say 
         rc = self.agent(self.prompt_for(it), d / "agent.log", minutes)
         diff = self.diff()
         (d / "diff.patch").write_text(diff)
+        if rc not in (0, 124):
+            tail = (d / "agent.log").read_text().strip().splitlines()[-1:] or [""]
+            res["result"] = f"agent failed (exit {rc}): {tail[0][:120]}"
+            res["agent_error"] = True
+            self.discard()
+            return res
         if rc == 124:
             res["result"] = "agent timed out"
         if not diff.strip():
@@ -291,6 +304,7 @@ src/. If it is already fixed, or needs a large redesign, change nothing and say 
         if verdict is None:
             raise SystemExit("baseline gate run failed: " + msg)
         self.baseline = base
+        agent_errors = 0
         try:
             for n, it in enumerate(items, 1):
                 if n > self.a.max_tasks or self.time_left() < self.a.task_minutes * 60 + 1200:
@@ -304,6 +318,12 @@ src/. If it is already fixed, or needs a large redesign, change nothing and say 
                 self.results.append(r)
                 self.log(f"task {n}: {r['result']}", **{k: v for k, v in r.items() if k != 'flags'})
                 self.summary()
+                # a broken agent (strata down, config error) would otherwise burn
+                # through the whole queue as "failed": stop after two in a row
+                agent_errors = agent_errors + 1 if r.get("agent_error") else 0
+                if agent_errors >= 2:
+                    self.log("stopping: the agent failed twice in a row (see task-NN/agent.log)")
+                    break
         finally:
             self.log(f"restoring {self.a.runner}'s ATL to origin/main")
             self.rig("build", "--ref", "origin/main", timeout=1800)
