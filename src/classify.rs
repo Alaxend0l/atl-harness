@@ -50,6 +50,8 @@ pub enum Kind {
     /// ATL logged and cleared an exception from a callback (fork: doc/Exceptions.md);
     /// Android would have ended the app.
     Swallowed,
+    /// A step of the app's interaction script failed (src/interact.rs).
+    Interaction,
 }
 
 impl Kind {
@@ -60,6 +62,7 @@ impl Kind {
             Kind::Stub => "stub",
             Kind::Signal => "signal",
             Kind::Swallowed => "swallowed",
+            Kind::Interaction => "interaction",
         }
     }
 }

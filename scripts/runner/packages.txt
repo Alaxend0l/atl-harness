@@ -54,3 +54,6 @@ pkgconfig(sdl2)
 pkgconfig(sndfile)
 dbus-daemon
 dbus-tools
+xdotool
+tesseract
+tesseract-langpack-eng

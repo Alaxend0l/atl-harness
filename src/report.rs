@@ -91,17 +91,49 @@ pub fn rank(conn: &Connection, run_id: &str, top: usize) -> Result<()> {
     Ok(())
 }
 
-fn outcomes(conn: &Connection, run_id: &str) -> Result<HashMap<String, Outcome>> {
-    let mut stmt = conn.prepare("SELECT pkg, outcome FROM runs WHERE run_id=?1")?;
+/// Outcome plus the interaction script's result (None: no script, or not run).
+type Result2 = (Outcome, Option<bool>);
+
+fn outcomes(conn: &Connection, run_id: &str) -> Result<HashMap<String, Result2>> {
+    let mut stmt = conn.prepare("SELECT pkg, outcome, interact_ok FROM runs WHERE run_id=?1")?;
     let rows = stmt.query_map([run_id], |r| {
-        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, Option<bool>>(2)?,
+        ))
     })?;
     let mut map = HashMap::new();
     for row in rows {
-        let (pkg, outcome) = row?;
-        map.insert(pkg, outcome.parse()?);
+        let (pkg, outcome, interact) = row?;
+        map.insert(pkg, (outcome.parse()?, interact));
     }
     Ok(map)
+}
+
+fn label((o, i): Result2) -> String {
+    match i {
+        Some(true) => format!("{}+ok", o.as_str()),
+        Some(false) => format!("{}+FAIL", o.as_str()),
+        None => o.as_str().to_string(),
+    }
+}
+
+/// -1 worse, 0 same, 1 better. Outcome first; with the same outcome, an
+/// interaction script that passed before and fails now is a regression
+/// (and the reverse an improvement). Apps without a script in either run
+/// compare by outcome only.
+pub fn verdict(x: Result2, y: Result2) -> i8 {
+    use std::cmp::Ordering::*;
+    match y.0.score().cmp(&x.0.score()) {
+        Greater => 1,
+        Less => -1,
+        Equal => match (x.1, y.1) {
+            (Some(true), Some(false)) => -1,
+            (Some(false), Some(true)) => 1,
+            _ => 0,
+        },
+    }
 }
 
 /// Regression gate. Returns the number of regressed apps.
@@ -112,10 +144,10 @@ pub fn compare(conn: &Connection, base: &str, new: &str) -> Result<usize> {
     let (mut better, mut worse) = (Vec::new(), Vec::new());
     for pkg in common.iter().copied() {
         let (x, y) = (a[pkg], b[pkg]);
-        if y.score() > x.score() {
-            better.push((pkg, x, y));
-        } else if y.score() < x.score() {
-            worse.push((pkg, x, y));
+        match verdict(x, y) {
+            1 => better.push((pkg, x, y)),
+            -1 => worse.push((pkg, x, y)),
+            _ => {}
         }
     }
     println!(
@@ -125,10 +157,10 @@ pub fn compare(conn: &Connection, base: &str, new: &str) -> Result<usize> {
         worse.len()
     );
     for (p, x, y) in &better {
-        println!("  + {p}: {} -> {}", x.as_str(), y.as_str());
+        println!("  + {p}: {} -> {}", label(*x), label(*y));
     }
     for (p, x, y) in &worse {
-        println!("  - {p}: {} -> {}", x.as_str(), y.as_str());
+        println!("  - {p}: {} -> {}", label(*x), label(*y));
     }
     if !worse.is_empty() {
         println!(
@@ -200,6 +232,17 @@ pub fn workitem(conn: &Connection, cfg: &Config, run_id: &str, n: usize, out: &P
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn interaction_verdicts() {
+        use super::verdict;
+        use crate::runner::Outcome::*;
+        assert_eq!(verdict((Alive, Some(true)), (Alive, Some(false))), -1);
+        assert_eq!(verdict((Alive, Some(false)), (Alive, Some(true))), 1);
+        assert_eq!(verdict((Alive, None), (Alive, Some(false))), 0);
+        assert_eq!(verdict((Alive, Some(true)), (Crash, None)), -1);
+        assert_eq!(verdict((Blank, Some(false)), (Alive, Some(false))), 1);
+    }
+
     use super::*;
     use crate::{classify, db};
 

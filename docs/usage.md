@@ -88,6 +88,30 @@ regressions; **exits 1 if anything regressed**, so it can gate scripts.
 Startup is flaky: rerun regressed apps (`run --run-id NEW --force --pkg …`)
 before believing a regression.
 
+### Interaction scripts (`interactions/<pkg>.txt`)
+With `[interact] dir = "interactions"` in the config, `run` drives each app
+that has a script after it settles, on its private Xvfb display:
+```
+# Fossify Calculator: 7 + 8 = shows 15 (1080x1920 screen coordinates)
+tap 140 1055      # 7
+tap 940 1547      # +
+tap 405 1055      # 8
+tap 940 1793      # =
+wait 1
+shot result       # -> work/runs/<run>/<pkg>.result.png
+expect-changed    # vs. the previous screenshot (default > 0.005 % of pixels)
+expect-text "15"  # tesseract OCR of the latest screenshot
+```
+Steps: `wait S`, `tap X Y`, `long-press X Y [S]`, `type "text"`, `key NAME`
+(xdotool names: `Return`, `BackSpace`, `ctrl+a`), `shot NAME`,
+`expect-changed [PCT]`, `expect-text "text"`. The run stores `interact_ok` and
+per-step results (`interact_detail`); a failed step adds an `interaction`
+signature; if the app exits during the script it is a CRASH like any other.
+`compare` treats "script passed, now fails" (same outcome) as a regression,
+so the gate covers what apps *do*, not only how they start. Find coordinates
+from a screenshot (`rig smoke`). Runners need `xdotool` and `tesseract`
+(in `scripts/runner/packages.txt`).
+
 ### `missing-apis` — what to implement next
 ```
 atlh missing-apis [RUN...] [--top 40] [--include-app-classes] [--json]
@@ -167,6 +191,7 @@ Unknown keys are rejected, so typos fail loudly.
 | `atl.command` | ATL invocation; `{apk}`, `{pkg}` substituted |
 | `atl.settle_s` | Seconds before screenshot + kill |
 | `atl.env` | Extra environment variables for ATL |
+| `interact.dir` | Optional: directory of per-app interaction scripts (`<pkg>.txt`), relative to the config file |
 | `atl.data_template` | Optional dir copied into each app's ATL data dir (e.g. `~/src/atl-data/microg`); `run --data-template`/`--no-data-template` override |
 | `display.xvfb_args` | Extra Xvfb args (screen size/depth) |
 | `display.crop_border_px` | Pixels skipped on every edge (ATL's window frame) when scoring; default 0 |

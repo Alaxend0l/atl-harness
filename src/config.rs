@@ -15,6 +15,15 @@ pub struct Config {
     pub display: Display,
     pub classify: Classify,
     pub agent: Option<Agent>,
+    /// Per-app interaction scripts (src/interact.rs); optional.
+    pub interact: Option<Interact>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Interact {
+    /// Directory with `<pkg>.txt` scripts (relative to the config file).
+    pub dir: PathBuf,
 }
 
 #[derive(Debug, Deserialize)]
@@ -87,6 +96,9 @@ impl Config {
         let work = base.join(&cfg.paths.work_dir);
         fs::create_dir_all(&work).with_context(|| format!("creating {}", work.display()))?;
         cfg.paths.work_dir = work.canonicalize()?;
+        if let Some(i) = cfg.interact.as_mut() {
+            i.dir = base.join(expand_tilde(&i.dir));
+        }
         if let Some(t) = cfg.atl.data_template.as_mut() {
             *t = expand_tilde(t);
         }

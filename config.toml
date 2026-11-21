@@ -47,3 +47,7 @@ command = ["opencode", "run", "{prompt}"]
 # command = ["claude", "-p", "{prompt}"]
 atl_repo = "~/src/android_translation_layer"
 aosp_frameworks = "~/src/aosp/frameworks/base"
+
+[interact]
+# Per-app interaction scripts: interactions/<pkg>.txt (see src/interact.rs).
+dir = "interactions"

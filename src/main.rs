@@ -5,6 +5,7 @@ mod classify;
 mod config;
 mod corpus;
 mod db;
+mod interact;
 mod missing;
 mod report;
 mod runner;
@@ -273,8 +274,9 @@ fn run(cfg: &Config, conn: &mut Connection, run_id: &str, o: &RunOpts) -> Result
                 params![run_id, pkg],
             )?;
             t.execute(
-                "INSERT INTO runs(run_id, pkg, outcome, exit_code, duration_s, screen_stddev, log_path, screenshot_path)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO runs(run_id, pkg, outcome, exit_code, duration_s, screen_stddev, log_path, screenshot_path,
+                                  interact_ok, interact_detail)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
                 params![
                     run_id,
                     pkg,
@@ -284,6 +286,8 @@ fn run(cfg: &Config, conn: &mut Connection, run_id: &str, o: &RunOpts) -> Result
                     r.screen_stddev,
                     r.log_path.to_string_lossy(),
                     r.screenshot_path.as_ref().map(|p| p.to_string_lossy().into_owned()),
+                    r.interact_ok,
+                    r.interact_detail,
                 ],
             )?;
             let row = t.last_insert_rowid();

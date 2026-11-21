@@ -37,9 +37,24 @@ CREATE INDEX IF NOT EXISTS failures_sig ON failures(signature);
 CREATE INDEX IF NOT EXISTS failures_run ON failures(run_row);
 ";
 
+/// Columns added after the first release; ALTER existing databases in place.
+fn migrate(conn: &Connection) -> Result<()> {
+    let cols: Vec<String> = conn
+        .prepare("SELECT name FROM pragma_table_info('runs')")?
+        .query_map([], |r| r.get(0))?
+        .collect::<std::result::Result<_, _>>()?;
+    for (name, ty) in [("interact_ok", "INTEGER"), ("interact_detail", "TEXT")] {
+        if !cols.iter().any(|c| c == name) {
+            conn.execute_batch(&format!("ALTER TABLE runs ADD COLUMN {name} {ty}"))?;
+        }
+    }
+    Ok(())
+}
+
 pub fn connect(work_dir: &Path) -> Result<Connection> {
     let conn = Connection::open(work_dir.join("atlh.sqlite"))?;
     conn.execute_batch("PRAGMA foreign_keys = ON;")?;
     conn.execute_batch(SCHEMA)?;
+    migrate(&conn)?;
     Ok(conn)
 }

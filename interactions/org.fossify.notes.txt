@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Fossify Notes: typing into the note shows the text (EditText input path).
+tap 300 140       # the note's text field ("Insert text here")
+type "hello atl"
+wait 1
+shot typed
+expect-changed
+expect-text "hello atl"

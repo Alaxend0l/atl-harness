@@ -53,7 +53,7 @@ with `javac -h`; commit the regenerated header with any new native method.
 
 ## Next steps (roadmap has the full queue)
 1. **Audit fixes**: `docs/audit/2026-11-21-atl-audit.md` (139 confirmed, 41 high; leniently verified, re-check each). Done: password masking, EditText/Enter, compound button clicks, SharedPreferences listeners, layer-list state, drawRect stroke. Next suggested: gradient shaders (`<shape><gradient>` draws solid black), Bitmap pixel channel swap / `getPixel` exiting the process, TextView `maxLines`/`ellipsize`, dialogs (`setView`, `setCancelable`), Theme cache key, locale in AssetManager.
-1b. **Input scripting** in the harness, so the fixes above that act on interaction can be verified.
+1b. **Interaction scripts** exist (`interactions/`, docs/usage.md): Calculator (7+8=15) and Notes (typing) pass on the mini and are gated. Add scripts for more apps, especially ones exercising fixes 5–8 (checkbox clicks, Enter/IME actions, preferences).
 2. App widgets (`AppWidgetManager`, `AppWidgetHost`): unblocks Flow and Fossify Launcher.
 3. Visual check of password masking on the phone (an app with a password field).
 4. Harness: input scripting, stop-early settle (census is 98% fixed 25 s waits), per-app bubblewrap sandbox (roadmap step 4, owner wants it early).

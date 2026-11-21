@@ -75,6 +75,10 @@ pub struct RunResult {
     pub log_path: PathBuf,
     pub screenshot_path: Option<PathBuf>,
     pub failures: Vec<Failure>,
+    /// Some(passed) if the app had an interaction script and was alive to run it.
+    pub interact_ok: Option<bool>,
+    /// Per-step results of the interaction script (JSON lines), for `atlh show`/reports.
+    pub interact_detail: Option<String>,
 }
 
 struct Xvfb {
@@ -260,7 +264,7 @@ pub fn run_one(
         .spawn()
         .with_context(|| format!("spawning {program}"))?;
 
-    let status = wait_timeout(&mut child, Duration::from_secs(cfg.atl.settle_s))?;
+    let mut status = wait_timeout(&mut child, Duration::from_secs(cfg.atl.settle_s))?;
     let stddev = match status {
         Some(_) => None,
         None => screenshot(
@@ -271,12 +275,44 @@ pub fn run_one(
         )
         .ok(),
     };
+    // Interaction script, if the app is alive and has one.
+    let script = match (&status, &cfg.interact) {
+        (None, Some(ic)) => crate::interact::load(&ic.dir, pkg)?,
+        _ => None,
+    };
+    let interaction = script.map(|steps| {
+        let first = shot_path.exists().then(|| shot_path.clone());
+        crate::interact::run(&steps, &xvfb.display, &mut child, out_dir, pkg, first)
+    });
+    if interaction.as_ref().is_some_and(|i| i.exited) {
+        status = child.try_wait()?;
+    }
     kill_group(&mut child);
     drop(xvfb);
     let duration_s = started.elapsed().as_secs_f64();
 
     let text = String::from_utf8_lossy(&fs::read(&log_path)?).into_owned();
     let mut failures = classify::parse(&text, stubs);
+    if let Some(i) = &interaction {
+        if let Some(s) = i.first_failure() {
+            failures.push(Failure {
+                kind: Kind::Interaction,
+                signature: format!("interaction failed: line {} {}", s.line, s.text),
+                detail: s.detail.clone(),
+            });
+        }
+        if i.exited {
+            let last = i
+                .steps
+                .last()
+                .map_or(String::new(), |s| format!("line {} {}", s.line, s.text));
+            failures.push(Failure {
+                kind: Kind::Interaction,
+                signature: format!("interaction: app exited after {last}"),
+                detail: String::new(),
+            });
+        }
+    }
     let exit_code = status.map(|s| s.code().unwrap_or_else(|| -s.signal().unwrap_or(0)));
 
     // ART dumps every thread before it aborts; on slow devices that outlasts
@@ -324,6 +360,22 @@ pub fn run_one(
         log_path,
         screenshot_path: shot_path.exists().then_some(shot_path),
         failures,
+        interact_ok: interaction.as_ref().map(|i| i.passed()),
+        interact_detail: interaction.as_ref().map(|i| {
+            i.steps
+                .iter()
+                .map(|s| {
+                    format!(
+                        "{}\tline {}\t{}\t{}",
+                        if s.ok { "ok" } else { "FAIL" },
+                        s.line,
+                        s.text,
+                        s.detail
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        }),
     })
 }
 

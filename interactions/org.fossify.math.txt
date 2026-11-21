@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Fossify Calculator: 7 + 8 = shows 15. Coordinates: 1080x1920 Xvfb screen.
+tap 140 1055      # 7
+tap 940 1547      # +
+tap 405 1055      # 8
+tap 940 1793      # =
+wait 1
+shot result
+expect-changed
+expect-text "15"
