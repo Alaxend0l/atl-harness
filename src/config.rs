@@ -59,7 +59,7 @@ pub struct Classify {
 #[serde(deny_unknown_fields)]
 pub struct Agent {
     /// `{prompt}` = prompt text, `{prompt_file}` = path to it.
-    #[allow(dead_code)] // consumed by the agent loop (DESIGN.md stage 4), not built yet
+    #[allow(dead_code)] // consumed by the agent loop (docs/design.md stage 4), not built yet
     pub command: Vec<String>,
     pub atl_repo: PathBuf,
     pub aosp_frameworks: PathBuf,

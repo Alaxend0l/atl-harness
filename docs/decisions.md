@@ -1,0 +1,51 @@
+# Decision log
+
+Newest last. Add an entry when you change direction.
+
+### D1 — Hard fork, nothing goes upstream (2026-11-21)
+Upstream ATL (postmarketOS developers) has a hard no-AI-contributions
+policy. The ATL fork is therefore a hard fork: no upstream PRs or issues
+from this project or for fork-only bugs. Keep upstream license files and
+copyright notices; label the fork clearly as unofficial and AI-assisted.
+Upstream changes are merged into the fork on a schedule and go through the
+same regression gate. See [design.md → Hard fork](design.md#hard-fork).
+
+### D2 — Harness in Rust (2026-11-21)
+Considered Python (faster iteration while heuristics are in flux) vs. Rust
+(type safety, single binary, sturdier process handling). Chose Rust now
+because a later port would only get harder. The ATL fork itself stays in
+its own languages (Java framework + C native glue).
+
+### D3 — Two machines: workstation + runner box (2026-11-21)
+ATL needs Linux; the harness and agent run on a dedicated Linux box on the
+LAN. Development happens on a Linux workstation with the git clone, driving
+the box over SSH (`scripts/remote.sh`). The harness has no knowledge of
+this split, so a single machine also works.
+
+### D4 — Xvfb + ImageMagick for headless runs (2026-11-21)
+Simplest path to a per-app display and screenshot. Assumes ATL (GTK4) works
+on X11 with software GL. Untested against ATL. If it doesn't work, switch the
+runner to a headless Wayland compositor.
+
+### D5 — F-Droid as the corpus (2026-11-21)
+Open-source apps, legally redistributable, with a machine-readable index
+that includes ABIs and checksums. Biased toward simpler apps without Google
+Play Services, which suits ATL's current maturity.
+
+### D6 — SQLite, single writer (2026-11-21)
+One file, queryable by hand with `sqlite3`, easy to copy back with
+`remote.sh pull`. Only the main thread writes.
+
+### D7 — Agent is a pluggable CLI command (2026-11-21)
+The agent loop calls whatever is in `[agent].command` (opencode, Claude
+Code, …) in an ATL worktree. Lets agents be swapped or compared on the
+same work items.
+
+### D8 — Gate scores outcomes, not exceptions (2026-11-21)
+`ALIVE=3 > BLANK/EXITED/NO_SCREENSHOT=1 > CRASH=0`. Rewarding "no
+exception" would invite stub-it-out fixes; rewarding a live, non-blank
+screen is harder to game. Stage 2 (reference oracle) tightens this further.
+
+### D9 — Private repo, license TBD (2026-11-21)
+`atl-harness` starts private with no license. Decide before making it
+public. Note the ATL fork's license is inherited from upstream regardless.

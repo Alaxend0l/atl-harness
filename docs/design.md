@@ -4,20 +4,22 @@ Goal: measure, rank and eventually auto-fix what stops real Android apps from
 running on Android Translation Layer (ATL), with a regression gate so the
 system only ever moves forward.
 
-The harness lives on a **remote Linux box** (where ATL builds and runs). Your
-laptop only syncs code and issues commands over SSH. The coding agent (opencode,
+The harness runs on the **runner box** (a Linux machine on the LAN where ATL
+builds and runs). Development happens on a separate **workstation** that
+holds the git clone and drives the box over SSH. The coding agent (opencode,
 Claude Code, …) is a pluggable command that also runs on the box.
+See [setup.md](setup.md) for the machine roles.
 
 ```
- laptop ──ssh/rsync──► Linux box
-                        ├── ATL fork checkout (built from source, git worktrees per fix)
-                        ├── atlh (this repo, Rust; built with cargo on the box)
-                        │     fetch ─► corpus of F-Droid APKs
-                        │     run   ─► Xvfb + ATL per app ─► log + screenshot
-                        │     rank  ─► failure signatures by impact
-                        │     compare ─► regression gate (exit 1 on regression)
-                        │     workitem ─► prompt file for the agent
-                        └── agent CLI (opencode run / claude -p) edits ATL worktree
+ workstation ──ssh/rsync──► runner box
+                             ├── ATL fork checkout (built from source, git worktrees per fix)
+                             ├── atlh (this repo, Rust; built with cargo on the box)
+                             │     fetch ─► corpus of F-Droid APKs
+                             │     run   ─► Xvfb + ATL per app ─► log + screenshot
+                             │     rank  ─► failure signatures by impact
+                             │     compare ─► regression gate (exit 1 on regression)
+                             │     workitem ─► prompt file for the agent
+                             └── agent CLI (opencode run / claude -p) edits ATL worktree
 ```
 
 ## Stages
@@ -55,7 +57,7 @@ reference screenshots to catch "renders, but wrong".
 ### 3. Regression gate (implemented as `compare`)
 `atlh compare BASE NEW` scores outcomes (`ALIVE`=3, `BLANK`/`EXITED`/
 `NO_SCREENSHOT`=1, `CRASH`=0) and exits 1 if any app got worse. Before
-trusting a regression, rerun just those apps 2–3× (`run --pkg …`) — GUI
+trusting a regression, rerun just those apps 2–3× (`run --force --pkg …`) — GUI
 startup is flaky. Later add a CTS subset as a second gate.
 
 ### 4. Agent loop (sketched)
@@ -113,12 +115,7 @@ regression elsewhere.
 census. Agent iterations should run only the affected apps first and the full
 corpus only when that passes.
 
-## Verify on the box before trusting results
-- [ ] ATL binary name and flags → `[atl].command` (and whether it needs an
-      explicit launch activity for some apps).
-- [ ] What ATL prints for unimplemented methods → `[classify].stub_patterns`.
-- [ ] ATL renders under Xvfb + Mesa llvmpipe (GDK_BACKEND=x11). If not, switch
-      to a headless Wayland compositor (`weston --backend=headless`).
-- [ ] Box CPU ABI → `[corpus].allowed_abis` (`arm64-v8a` on ARM, `x86_64` on
-      x86 — note most Android native libs ship arm64 only).
-- [ ] Exact opencode / claude CLI flags for non-interactive runs → `[agent]`.
+## Open questions
+Things to confirm on the real box are tracked in
+[setup.md → First-run checklist](setup.md#first-run-checklist); stage status
+and next tasks are in [roadmap.md](roadmap.md).
