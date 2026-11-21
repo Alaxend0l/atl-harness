@@ -110,6 +110,9 @@ bazzite; then consider `sandbox = true` in config.toml.
 
 ## Runner use (several agents: see AGENTS.md)
 Say here which runner you're using for builds/gates, and clear it when done.
+- **opencode (this session, 2026-11-21 evening): `bazzite`** (sandbox A/B gate,
+  album-art fix builds/gates) **and `oneplus12`** (phone build + Fossify Music
+  playback check). Not mini.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
