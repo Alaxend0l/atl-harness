@@ -56,6 +56,15 @@ DEFAULT_TIMEOUTS = {
     "bootstrap": 600, "add": 120, "up": 300, "down": 300, "job": 600,
 }
 TIMEOUT = 600  # set from the command in main()
+RSYNC_SSH = "ssh -o BatchMode=yes -o ConnectTimeout=8 -o ServerAliveInterval=20 -o ServerAliveCountMax=3"
+
+
+def run_bounded(argv, what: str, **kw) -> subprocess.CompletedProcess:
+    """subprocess.run with the command's time limit (local rsync/scp/tar steps too)."""
+    try:
+        return subprocess.run(argv, timeout=TIMEOUT, **kw)
+    except subprocess.TimeoutExpired:
+        raise RigTimeout(f"TIMEOUT after {TIMEOUT}s: {what} (raise with --timeout)")
 
 
 # ---------------------------------------------------------------- registry
@@ -240,7 +249,8 @@ def run_remote(r: Runner, script: str, args: list[str] = (), cd: bool = True, tt
 
 def host_cmd(r: Runner, command: str, capture: bool = True) -> subprocess.CompletedProcess:
     """Run on the runner's ssh host directly (outside any distrobox)."""
-    return subprocess.run(ssh_argv(r.ssh, f"bash -c {shlex.quote(command)}"), text=True, capture_output=capture)
+    return subprocess.run(ssh_argv(r.ssh, f"bash -c {shlex.quote(command)}"), text=True, capture_output=capture,
+                          stdin=subprocess.DEVNULL, timeout=min(TIMEOUT, 120))
 
 
 def reachable(host: str, timeout: int = 4) -> bool:
@@ -393,7 +403,7 @@ def doctor_one(r: Runner) -> int:
     print(f"== {r.name} ({r.ssh})")
     rows: list[tuple[str, str, str, str]] = []
     if r.lima_host:
-        p = subprocess.run(ssh_argv(r.lima_host, lima_cmd(r, "list --format '{{.Status}}' " + r.lima_instance)),
+        p = subprocess.run(ssh_argv(r.lima_host, lima_cmd(r, "list --format '{{.Status}}' " + r.lima_instance)), timeout=60,
                            capture_output=True, text=True)
         st = p.stdout.strip() or "unknown"
         rows.append(("ok" if st == "Running" else "fail", "lima-vm", f"{r.lima_instance} on {r.lima_host}: {st}",
@@ -461,13 +471,13 @@ def do_sync(r: Runner, quiet: bool = False) -> None:
         argv = ["rsync", "-rlpz", "--checksum", "--delete"]
         for e in SYNC_EXCLUDES:
             argv += ["--exclude", e]
-        argv += ["-e", "ssh -o BatchMode=yes", f"{REPO}/", f"{r.ssh}:{dest}"]
-        p = subprocess.run(argv)
+        argv += ["-e", RSYNC_SSH, f"{REPO}/", f"{r.ssh}:{dest}"]
+        p = run_bounded(argv, "rsync")
     else:
         # Fresh machines may lack rsync: tar, extracting with -m (fresh mtimes).
         ex = " ".join(f"--exclude=./{e.rstrip('/')}" for e in SYNC_EXCLUDES)
         tar = subprocess.Popen(f"tar -C {shlex.quote(str(REPO))} {ex} -czf - .", shell=True, stdout=subprocess.PIPE)
-        p = subprocess.run(ssh_argv(r.ssh, f"bash -c {shlex.quote(f'mkdir -p ~/{dest} && tar -xzmf - -C ~/{dest}')}"),
+        p = subprocess.run(ssh_argv(r.ssh, f"bash -c {shlex.quote(f'mkdir -p ~/{dest} && tar -xzmf - -C ~/{dest}')}"), timeout=TIMEOUT,
                            stdin=tar.stdout)
         tar.wait()
     if p.returncode != 0:
@@ -513,13 +523,13 @@ def cmd_pull(reg: Registry, a) -> int:
     local = REPO / "work" / "remote" / r.name
     local.mkdir(parents=True, exist_ok=True)
     src = f"{r.ssh}:{r.dir.rstrip('/')}/work/"
-    argv = ["rsync", "-rltz", "-e", "ssh -o BatchMode=yes"]
+    argv = ["rsync", "-rltz", "-e", RSYNC_SSH]
     if a.run:
         argv += ["--include", "atlh.sqlite", "--include", "runs/", "--include", f"runs/{a.run}/***",
                  "--exclude", "*"]
     else:
         argv += ["--exclude", "apks/", "--exclude", "index-v2.json"]
-    p = subprocess.run(argv + [src, f"{local}/"])
+    p = run_bounded(argv + [src, f"{local}/"], "rsync from runner")
     if p.returncode == 0:
         print(f"pulled -> {local.relative_to(REPO)}/")
     return p.returncode
@@ -652,8 +662,8 @@ def sync_worktree(r: Runner, path: str) -> str:
     if not (src / "meson.build").is_file():
         raise RigError(f"{src} doesn't look like an ATL checkout (no meson.build)")
     argv = ["rsync", "-rlpz", "--checksum", "--delete", "--exclude", "/builddir/", "--exclude", ".git/",
-            "-e", "ssh -o BatchMode=yes", f"{src}/", f"{r.ssh}:{DEV_TREE}/"]
-    if subprocess.run(argv).returncode:
+            "-e", RSYNC_SSH, f"{src}/", f"{r.ssh}:{DEV_TREE}/"]
+    if run_bounded(argv, "rsync to runner").returncode:
         raise RigError(f"{r.name}: syncing {src} failed")
     return r.home_path(DEV_TREE)
 
@@ -711,7 +721,7 @@ def cmd_smoke(reg: Registry, a) -> int:
     if Path(apk).is_file():
         remote_apk = f"atlh-smoke/apks/{Path(apk).name}"
         run_remote(r, "mkdir -p ~/atlh-smoke/apks", cd=False, check=True)
-        if subprocess.run(["scp", "-q", "-o", "BatchMode=yes", apk, f"{r.ssh}:{remote_apk}"]).returncode:
+        if subprocess.run(["scp", "-q", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", apk, f"{r.ssh}:{remote_apk}"], timeout=TIMEOUT).returncode:
             raise RigError("upload failed")
     stem = re.sub(r"[^A-Za-z0-9_.-]", "_", Path(apk).stem)
     rdir = f"atlh-smoke/out/{stem}"
@@ -726,8 +736,8 @@ def cmd_smoke(reg: Registry, a) -> int:
         return p.returncode
     local = REPO / "work" / "remote" / r.name / "smoke" / stem
     local.mkdir(parents=True, exist_ok=True)
-    subprocess.run(["scp", "-q", "-o", "BatchMode=yes", f"{r.ssh}:{rdir}/run.log", f"{r.ssh}:{rdir}/shot.png",
-                    f"{local}/"], stderr=subprocess.DEVNULL)
+    subprocess.run(["scp", "-q", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", f"{r.ssh}:{rdir}/run.log", f"{r.ssh}:{rdir}/shot.png",
+                    f"{local}/"], stderr=subprocess.DEVNULL, timeout=TIMEOUT)
     print(p.stdout.rstrip())
     print(f"log:  {local.relative_to(REPO)}/run.log")
     if (local / "shot.png").exists():
@@ -761,7 +771,8 @@ mv {root}.new {root}
 du -sh {root}; cat {root}/etc/atl-rootfs-release"""
     print(f"streaming {src.name}:~/{tarball} -> {dst.name}:~/{dst.bwrap_root}")
     sender = subprocess.Popen(ssh_argv(src.ssh, f"cat ~/{tarball}"), stdout=subprocess.PIPE)
-    rc = subprocess.run(ssh_argv(dst.ssh, f"bash -c {shlex.quote(install)}"), stdin=sender.stdout).returncode
+    rc = subprocess.run(ssh_argv(dst.ssh, f"bash -c {shlex.quote(install)}"), stdin=sender.stdout,
+                        timeout=TIMEOUT).returncode
     sender.wait()
     if rc or sender.returncode:
         raise RigError("rootfs transfer failed")
@@ -797,7 +808,7 @@ def cmd_up_down(reg: Registry, a) -> int:
     if not r.lima_host:
         raise RigError(f"{r.name} has no lima_host/lima_instance; nothing to start or stop")
     sub = f"{'start' if a.command == 'up' else 'stop'} --tty=false {shlex.quote(r.lima_instance)}"
-    rc = subprocess.run(ssh_argv(r.lima_host, lima_cmd(r, sub))).returncode
+    rc = subprocess.run(ssh_argv(r.lima_host, lima_cmd(r, sub)), timeout=TIMEOUT).returncode
     if rc == 0 and a.command == "up":
         print("up" if reachable(r.ssh, timeout=10) else f"started, but ssh {r.ssh} does not answer yet")
     return rc
@@ -941,6 +952,10 @@ def main(argv: list[str] | None = None) -> int:
     except RigError as e:
         print(f"rig: {e}", file=sys.stderr)
         return e.code
+    except subprocess.TimeoutExpired as e:
+        cmd = e.cmd if isinstance(e.cmd, str) else " ".join(map(str, e.cmd))
+        print(f"rig: TIMEOUT after {e.timeout:.0f}s: {cmd[:120]} (raise with --timeout)", file=sys.stderr)
+        return RigTimeout.code
     except KeyboardInterrupt:
         return 130
 
