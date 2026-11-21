@@ -20,6 +20,7 @@ against real ATL. See [docs/roadmap.md](docs/roadmap.md).
 | [docs/design.md](docs/design.md) | The full plan: stages, hard fork, reward hacking |
 | [docs/decisions.md](docs/decisions.md) | Why things are the way they are |
 | [docs/roadmap.md](docs/roadmap.md) | Status and next steps |
+| [HANDOFF.md](HANDOFF.md) | Current state, open items, lessons (read first) |
 | [docs/opencode-strata.md](docs/opencode-strata.md) | Continuing with opencode + the local strata model |
 | [docs/rig.md](docs/rig.md) | Runner tool: sync, run, smoke, jobs, add/bootstrap machines |
 | [AGENTS.md](AGENTS.md) | Context and rules for coding agents |

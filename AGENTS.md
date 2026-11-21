@@ -6,7 +6,7 @@ Read by opencode (`AGENTS.md`) and Claude Code (via `CLAUDE.md`).
 `atlh`: a Rust harness that runs F-Droid apps under a **hard fork** of
 Android Translation Layer (ATL), classifies failures into signatures, ranks
 them, gates on regressions, and generates prompts for an automated fix loop.
-Start with `README.md`, then `docs/roadmap.md` for current status.
+Start with `HANDOFF.md` (current state), then `README.md` and `docs/roadmap.md`.
 
 ## Hard rules
 - **Nothing goes to upstream ATL.** Upstream (postmarketOS developers) has a
