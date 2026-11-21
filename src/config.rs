@@ -1,0 +1,91 @@
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+use anyhow::{Context, Result};
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Config {
+    pub paths: Paths,
+    pub corpus: Corpus,
+    pub atl: Atl,
+    pub display: Display,
+    pub classify: Classify,
+    pub agent: Option<Agent>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Paths {
+    /// Corpus, logs, screenshots and the sqlite db (relative to the config file).
+    pub work_dir: PathBuf,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Corpus {
+    pub index_url: String,
+    pub repo_url: String,
+    pub allowed_abis: Vec<String>,
+    pub include_native: bool,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Atl {
+    /// `{apk}` and `{pkg}` are substituted in each element.
+    pub command: Vec<String>,
+    pub settle_s: u64,
+    #[serde(default)]
+    pub env: BTreeMap<String, String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Display {
+    pub xvfb_args: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Classify {
+    pub stub_patterns: Vec<String>,
+    pub blank_stddev_threshold: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Agent {
+    /// `{prompt}` = prompt text, `{prompt_file}` = path to it.
+    #[allow(dead_code)] // consumed by the agent loop (DESIGN.md stage 4), not built yet
+    pub command: Vec<String>,
+    pub atl_repo: PathBuf,
+    pub aosp_frameworks: PathBuf,
+}
+
+impl Config {
+    pub fn load(path: &Path) -> Result<Self> {
+        let text = fs::read_to_string(path)
+            .with_context(|| format!("reading config {}", path.display()))?;
+        let mut cfg: Config =
+            toml::from_str(&text).with_context(|| format!("parsing {}", path.display()))?;
+        let base = path.parent().unwrap_or(Path::new("."));
+        let work = base.join(&cfg.paths.work_dir);
+        fs::create_dir_all(&work).with_context(|| format!("creating {}", work.display()))?;
+        cfg.paths.work_dir = work.canonicalize()?;
+        if let Some(agent) = cfg.agent.as_mut() {
+            agent.atl_repo = expand_tilde(&agent.atl_repo);
+            agent.aosp_frameworks = expand_tilde(&agent.aosp_frameworks);
+        }
+        Ok(cfg)
+    }
+}
+
+fn expand_tilde(p: &Path) -> PathBuf {
+    match (p.strip_prefix("~"), std::env::var_os("HOME")) {
+        (Ok(rest), Some(home)) => PathBuf::from(home).join(rest),
+        _ => p.to_path_buf(),
+    }
+}
