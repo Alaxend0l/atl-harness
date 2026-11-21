@@ -61,3 +61,4 @@ tesseract-langpack-eng
 ffmpeg-free
 passt
 nftables
+pipewire-alsa

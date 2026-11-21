@@ -258,8 +258,13 @@ def nft_rules(allow: list[str]) -> str:
 
 def resolv_target(rootfs: str | None) -> str:
     """Where /etc/resolv.conf points inside the sandbox (it's often a symlink)."""
+    return resolv_like_target(rootfs, "/etc/resolv.conf")
+
+
+def resolv_like_target(rootfs: str | None, path: str) -> str:
+    """`path` inside the sandbox root with symlinks followed (bwrap can't mount on a symlink)."""
     root = Path(rootfs) if rootfs else Path("/")
-    p = Path("/etc/resolv.conf")
+    p = Path(path)
     for _ in range(8):
         real = root / p.relative_to("/")
         if not real.is_symlink():
@@ -361,11 +366,19 @@ def build_args(apk: str, atl_args: list[str], policy: dict, *, rootfs: str | Non
         a += ["--ro-bind", "/usr", "/usr", "--ro-bind", "/etc", "/etc",
               "--symlink", "usr/bin", "/bin", "--symlink", "usr/sbin", "/sbin",
               "--symlink", "usr/lib", "/lib", "--symlink", "usr/lib64", "/lib64"]
-    if rootfs:  # host files the rootfs's /etc lacks (without a rootfs, /etc is the host's)
-        a += ["--ro-bind-try", "/etc/resolv.conf", "/etc/resolv.conf",
-              "--ro-bind-try", "/etc/localtime", "/etc/localtime",
-              "--ro-bind-try", "/etc/machine-id", "/etc/machine-id",
-              "--ro-bind", "/etc/passwd", "/etc/passwd", "--ro-bind", "/etc/group", "/etc/group"]
+    if rootfs:
+        # host files over the rootfs's (without a rootfs, /etc is the host's). The
+        # rootfs is read-only: a bind needs an existing target there, or bwrap
+        # aborts ("Can't create file ...: Read-only file system").
+        for f in ("/etc/passwd", "/etc/group", "/etc/machine-id", "/etc/localtime"):
+            if Path(f).exists() and os.path.lexists(Path(rootfs) / f.lstrip("/")):
+                target = resolv_like_target(rootfs, f)
+                if (Path(rootfs) / target.lstrip("/")).exists():
+                    a += ["--ro-bind", f, target]
+        if dns_file is None and Path("/etc/resolv.conf").exists():
+            target = resolv_target(rootfs)
+            if (Path(rootfs) / target.lstrip("/")).exists():
+                a += ["--ro-bind", "/etc/resolv.conf", target]
     if mode not in ("none", "full") and dns_file:
         a += ["--ro-bind", dns_file, resolv_target(rootfs)]
     a += ["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", "/var/tmp",
@@ -395,6 +408,11 @@ def build_args(apk: str, atl_args: list[str], policy: dict, *, rootfs: str | Non
         "XDG_CONFIG_HOME": str(app_data / ".atl-config"), "XDG_CACHE_HOME": str(cache),
         "ATL_MEDIA_DIRS": ":".join(str(d) for d in media_dirs),
     }
+    tz = os.environ.get("TZ")
+    if not tz and os.path.islink("/etc/localtime"):  # .../zoneinfo/Europe/Amsterdam
+        tz = os.readlink("/etc/localtime").split("zoneinfo/", 1)[-1]
+    if tz:
+        env["TZ"] = tz
     for k, v in os.environ.items():
         if k.startswith(PASS_ENV_PREFIXES) and k != "ATL_MEDIA_DIRS":
             env[k] = v
@@ -412,6 +430,9 @@ def build_args(apk: str, atl_args: list[str], policy: dict, *, rootfs: str | Non
         a += ["--ro-bind", src, f"{rt}/wayland-0"]
         env.update(WAYLAND_DISPLAY="wayland-0", GDK_BACKEND="wayland")
     if policy.get("audio", True):
+        # ATL's AudioTrack/SoundPool open ALSA directly: without /dev/snd (or an
+        # ALSA->PipeWire plugin in the rootfs) snd_pcm_open fails
+        a += ["--dev-bind-try", "/dev/snd", "/dev/snd"]
         a += ["--ro-bind-try", f"{rt}/pipewire-0", f"{rt}/pipewire-0",
               "--ro-bind-try", f"{rt}/pulse/native", f"{rt}/pulse/native"]
     if dbus_socket:

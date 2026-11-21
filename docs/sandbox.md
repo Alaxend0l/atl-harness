@@ -20,7 +20,7 @@ The sandbox limits each app to what Android would give it.
 | System | the rootfs (`~/atl-root`) or host `/usr` + `/etc`, **read-only**; private `/tmp` | |
 | Processes | own PID and UTS namespaces, own IPC namespace under Wayland (X11 needs the shared one for MIT-SHM); no capabilities; new session (no TIOCSTI); dies with its launcher | |
 | Display | the Wayland socket only (X11 display in harness runs, `--x11`) | X11 lets any client read other clients' input and screens |
-| Audio | PipeWire and Pulse sockets | playback. Capture can't be separated at the socket level: an app could record without `RECORD_AUDIO` |
+| Audio | PipeWire and Pulse sockets, and `/dev/snd` (ATL's AudioTrack/SoundPool open ALSA directly) | playback. Capture can't be separated at the socket level: an app could record without `RECORD_AUDIO` |
 | GPU | `/dev/dri`, read-only `/sys/devices` + `/sys/dev/char` for device discovery | |
 | Camera | `/dev/video*`, `/dev/media*` only with `CAMERA` | |
 | Network | per policy (below); default: nothing without `INTERNET`, **internet only** (no LAN) with it | apps shouldn't reach your LAN unless you say so |
