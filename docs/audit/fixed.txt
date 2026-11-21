@@ -11,3 +11,4 @@ compoundbutton.gettext() returns the literal
 sharedpreferences change listeners never fire
 native drawrect ignores paint.style.stroke
 drawrect ignores paint.style.stroke
+AlertDialog button with null listener

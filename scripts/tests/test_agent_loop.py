@@ -54,3 +54,29 @@ class Lint(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Queue(unittest.TestCase):
+    def loop(self, queue):
+        loop = al.Loop.__new__(al.Loop)
+        loop.a = types.SimpleNamespace(queue=queue)
+        loop.log = lambda *_: None
+        return loop
+
+    def test_triage_queue_builds_prompts(self):
+        items = self.loop("triage").queue()
+        self.assertTrue(items)
+        fixed = [ln.strip().lower() for ln in al.SKIP_FILE.read_text().splitlines()
+                 if ln.strip() and not ln.startswith("#")]
+        for it in items:
+            with self.subTest(it["title"][:40]):
+                self.assertFalse(any(f in it["title"].lower() for f in fixed))
+                p = self.loop("triage").prompt_for(it)
+                self.assertIn(it["title"], p)
+                if it.get("fix_hint"):
+                    self.assertIn(it["fix_hint"], p)
+
+    def test_audit_queue_still_works(self):
+        items = self.loop("audit").queue()
+        self.assertGreater(len(items), 100)
+        self.loop("audit").prompt_for(items[0])

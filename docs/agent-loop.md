@@ -16,6 +16,13 @@ Permission rules were verified empirically on 2026-11-21: writes outside
 `src/` and outside the clone, `ssh`, and bypass attempts (`;`, `>`, `$(...)`,
 `find -delete`) were all refused; allowed reads/edits/`git status` worked.
 
+**Queue** (`--queue triage`, the default): `docs/agent-tasks/local-queue.json`,
+the items a multi-agent triage judged small and unambiguous enough for the
+local model, ordered by user impact, each with a precise `fix_hint` that goes
+into the prompt ([docs/agent-tasks/triage.md](agent-tasks/triage.md); the
+rest is marked for Claude). `--queue audit` takes every audit item instead.
+Titles in `docs/audit/fixed.txt` are skipped either way.
+
 Per task the loop: agent edits (time limit, default 30 min) → **lint**
 (rejects: changes outside `src/`, catch-all or empty `catch`, removing >150
 lines; flags for review: added `return null;`/`return 0;`, empty bodies) →

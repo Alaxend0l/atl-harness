@@ -32,6 +32,9 @@ RIG = str(REPO / "scripts" / "rig")
 DEFAULT_CLONE = Path.home() / "Develop" / "atl-agent"
 AUDIT = REPO / "docs" / "audit" / "2026-11-21-atl-audit.json"
 SKIP_FILE = REPO / "docs" / "audit" / "fixed.txt"
+# Items triaged as suitable for the local model, with precise fix hints
+# (docs/agent-tasks/triage.md). --queue audit takes the raw audit instead.
+LOCAL_QUEUE = REPO / "docs" / "agent-tasks" / "local-queue.json"
 HEADERS = "src/api-impl-jni/generated_headers/"
 
 # Diff lint: rejected outright / flagged for review in the summary.
@@ -105,12 +108,16 @@ class Loop:
         self.log(f"clone {self.clone} on {b} at {self.git('rev-parse', '--short', 'HEAD').stdout.strip()}")
 
     def queue(self):
-        items = json.load(open(AUDIT))["confirmed"]
         skip = [ln.strip().lower() for ln in SKIP_FILE.read_text().splitlines()
                 if ln.strip() and not ln.startswith("#")] if SKIP_FILE.exists() else []
         order = {"high": 0, "medium": 1, "low": 2}
+        if self.a.queue == "triage":
+            # already ordered by user impact, then size
+            items = json.load(open(LOCAL_QUEUE))["items"]
+        else:
+            items = json.load(open(AUDIT))["confirmed"]
+            items.sort(key=lambda i: (order.get(i["severity"], 3), i["area"]))
         items = [i for i in items if not any(s in i["title"].lower() for s in skip)]
-        items.sort(key=lambda i: (order.get(i["severity"], 3), i["area"]))
         self.log(f"queue: {len(items)} audit items after skipping {len(skip)} fixed patterns")
         return items
 
@@ -172,15 +179,15 @@ class Loop:
         return f"""Fix this ATL issue found by an audit (it was verified against the code, but re-check it):
 
 Title: {it['title']}
-Where: {it['file']}:{it['line']}
-Category: {it['category']}
+Where: {it['file']}{(':' + str(it['line'])) if it.get('line') else ''}
+Category: {it.get('category', '')}
 Evidence (code as it was):
 {it['evidence']}
 
-What Android does: {it['android_behavior']}
-Impact on apps: {it['impact']}
-Suggested fix: {it['suggested_fix']}
-
+What Android does: {it.get('android_behavior') or 'see the fix below'}
+Impact on apps: {it.get('impact') or it.get('user_impact', '')}
+Suggested fix: {it.get('suggested_fix') or '-'}
+{("Precise fix (from a reviewer who checked the code; follow it unless the code shows it is wrong):" + chr(10) + it['fix_hint'] + chr(10)) if it.get('fix_hint') else ''}
 Read the file around the cited line first. Make the smallest correct change under
 src/. If it is already fixed, or needs a large redesign, change nothing and say so."""
 
@@ -188,7 +195,7 @@ src/. If it is already fixed, or needs a large redesign, change nothing and say 
     def task(self, n: int, it) -> dict:
         d = self.out / f"task-{n:02d}"
         d.mkdir(exist_ok=True)
-        res = {"n": n, "title": it["title"], "file": it["file"], "severity": it["severity"]}
+        res = {"n": n, "title": it["title"], "file": it["file"], "severity": it.get("severity", "")}
         self.log(f"task {n}: {it['title']}")
         minutes = min(self.a.task_minutes, max(5, int(self.time_left() / 60) - 20))
         rc = self.agent(self.prompt_for(it), d / "agent.log", minutes)
@@ -342,6 +349,8 @@ def main():
     ap.add_argument("--task-minutes", type=int, default=30, help="time limit for the agent per task")
     ap.add_argument("--jobs", type=int, default=4, help="gate parallelism (strata shares the box)")
     ap.add_argument("--max-removed", type=int, default=150, help="reject diffs removing more lines")
+    ap.add_argument("--queue", choices=["triage", "audit"], default="triage",
+                    help="triage: items triaged as local-model-sized, with fix hints (default); audit: every audit item")
     ap.add_argument("--no-push", dest="push", action="store_false")
     a = ap.parse_args()
     if os.environ.get("AGENT_LOOP_INHIBITED") != "1" and subprocess.run(
