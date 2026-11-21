@@ -108,11 +108,20 @@ Harness: `atlh run --sandbox`. Pending: full 52-app A/B gate on bazzite
 (`run --sandbox` vs a plain run of the same build) once no other agent uses
 bazzite; then consider `sandbox = true` in config.toml.
 
+Network policy modes (D16 follow-up): `"none"`, `"internet"` (default with
+INTERNET, no LAN), allow-lists for LAN/Tailscale (Jellyfin, Home Assistant),
+`"full"`; see docs/sandbox.md "Network". Phone rootfs needs a rebuild
+(`rig -r oneplus12 rootfs --from mini`) to get passt/nftables before an app
+with INTERNET runs there.
+
+App widgets: staged plan in `docs/agent-tasks/app-widgets.md` (stage 1 =
+local model, unblocks Flow; stage 3 = Claude design: cross-sandbox service).
+
 ## Runner use (several agents: see AGENTS.md)
 Say here which runner you're using for builds/gates, and clear it when done.
 - **opencode (this session, 2026-11-21 evening): `bazzite`** (sandbox A/B gate,
   album-art fix builds/gates) **and `oneplus12`** (phone build + Fossify Music
-  playback check). Not mini.
+  playback check) **, plus `mini`** (album-art instrumentation runs). Not shared.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
