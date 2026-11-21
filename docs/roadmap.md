@@ -123,6 +123,30 @@ rectangle top-left (likely an unrendered popup/overlay from the shared
 Fossify library: one fix, several apps); Gallery opens a GTK file chooser
 at start (ATL's storage-access mapping) that covers the app.
 
+Update 2026-11-21 (harness now scores aborting apps as CRASH and crops the
+window frame; baseline `fossify-base2` on fork `main`): **10 ALIVE, 6 CRASH**.
+File Manager and Music Player were never really alive: both abort with a
+JNI pending `NullPointerException` from `PropertyValuesHolder.setAnimatedValue`
+(shared Fossify animation code) shortly after drawing: next family target.
+- Camera: fixed on fork branch `fix/soundpool-path-load` (SoundPool
+  `load(String,int)`, 1-based IDs, load callbacks; `setShowWhenLocked`/
+  `setTurnScreenOn`). Gate `fossify-base2` → `fossify-fix2`: CRASH → BLANK,
+  0 regressions. Blank is expected: no runner has a camera. Not merged to
+  fork `main` yet (owner review).
+
+**Owner's wishlist app: Flow** (github.com/Flow-Tube/Flow, YouTube/YouTube
+Music client, Jetpack Compose; use the `flow-foss-*` APKs, sha256 from the
+release's checksums.txt). Smoke on oneplus12 (v3.0.5): reaches `onResume`,
+then exits 10 via its crash handler. Blockers:
+- **ATL picks the wrong launch activity**: it takes the first `MAIN`
+  activity (`TvActivity`, `LEANBACK_LAUNCHER`) instead of the
+  `CATEGORY_LAUNCHER` one (`MainActivity`). Affects every app that also
+  targets Android TV.
+- `AppWidgetManager.getInstalledProviders()` missing (same widget area as
+  Fossify Launcher's `AppWidgetHost`: one implementation helps both).
+- `WindowInsetsCompat` reflection on `View.getViewRootImpl` fails (logged,
+  non-fatal).
+
 **1. Infrastructure bugs (first: they make every other result clearer)**
 - **JNI calls with a pending exception.** ATL native code calls
   `GetMethodID`/`FindClass`/`GetObjectClass` while a Java exception is

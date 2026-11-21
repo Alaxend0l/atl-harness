@@ -157,6 +157,7 @@ Unknown keys are rejected, so typos fail loudly.
 | `atl.env` | Extra environment variables for ATL |
 | `atl.data_template` | Optional dir copied into each app's ATL data dir (e.g. `~/src/atl-data/microg`); `run --data-template`/`--no-data-template` override |
 | `display.xvfb_args` | Extra Xvfb args (screen size/depth) |
+| `display.crop_border_px` | Pixels skipped on every edge (ATL's window frame) when scoring; default 0 |
 | `display.crop_top_px` | Rows skipped at the top of the screenshot when scoring blankness (ATL title bar); default 0 |
 | `classify.stub_patterns` | Regexes ([Rust `regex` syntax](https://docs.rs/regex)) for stub log lines |
 | `classify.blank_stddev_threshold` | Screenshot std-dev below which a screen counts as blank |

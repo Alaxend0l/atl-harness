@@ -54,6 +54,9 @@ pub struct Display {
     /// (ATL's own title bar, which is drawn even when the app shows nothing).
     #[serde(default)]
     pub crop_top_px: u32,
+    /// Rows/columns skipped on every edge (ATL's light window frame), after crop_top_px.
+    #[serde(default)]
+    pub crop_border_px: u32,
 }
 
 #[derive(Debug, Deserialize)]

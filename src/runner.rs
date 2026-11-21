@@ -145,7 +145,7 @@ fn kill_group(child: &mut Child) {
 
 /// Capture the root window; return colour std-dev (0..1) as a blankness score.
 /// The saved PNG is the full screen; the score skips the top `crop_top` rows.
-fn screenshot(display: &str, dest: &Path, crop_top: u32) -> Result<f64> {
+fn screenshot(display: &str, dest: &Path, crop_top: u32, border: u32) -> Result<f64> {
     let status = Command::new("import")
         .args(["-display", display, "-window", "root"])
         .arg(dest)
@@ -161,6 +161,8 @@ fn screenshot(display: &str, dest: &Path, crop_top: u32) -> Result<f64> {
         .arg(dest)
         .arg("-chop")
         .arg(format!("0x{crop_top}"))
+        .arg("-shave")
+        .arg(format!("{border}x{border}"))
         .args(["-format", "%[fx:standard_deviation]", "info:"])
         .stderr(Stdio::null())
         .output()
@@ -260,7 +262,13 @@ pub fn run_one(
     let status = wait_timeout(&mut child, Duration::from_secs(cfg.atl.settle_s))?;
     let stddev = match status {
         Some(_) => None,
-        None => screenshot(&xvfb.display, &shot_path, cfg.display.crop_top_px).ok(),
+        None => screenshot(
+            &xvfb.display,
+            &shot_path,
+            cfg.display.crop_top_px,
+            cfg.display.crop_border_px,
+        )
+        .ok(),
     };
     kill_group(&mut child);
     drop(xvfb);

@@ -30,12 +30,16 @@ GDK_DISABLE = "glx"
 xvfb_args = ["-screen", "0", "1080x1920x24"]
 # ATL draws a 50px title bar even over a blank app; skip it when scoring.
 crop_top_px = 50
+# ATL's light window frame lifts a blank dark app's score; skip it.
+crop_border_px = 6
 
 [classify]
 # VERIFY: tune to what ATL actually logs for unimplemented framework methods.
 stub_patterns = ['(?i)\bstub\b', '(?i)not implemented', '(?i)unimplemented']
 # Screenshot std-dev (0..1) below this counts as a blank screen.
-blank_stddev_threshold = 0.02
+# Truly blank screens score 0 once the frame is cropped; sparse real UIs
+# (Fossify Notes) score ~0.016, so keep this low. Calibrated 2026-11-21.
+blank_stddev_threshold = 0.005
 
 [agent]
 # Run inside an ATL git worktree. {prompt} = prompt text, {prompt_file} = path.
