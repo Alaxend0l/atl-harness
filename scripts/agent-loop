@@ -69,8 +69,11 @@ class Loop:
             f.write(json.dumps({"t": now(), "msg": msg, **data}) + "\n")
 
     def run(self, argv, timeout, cwd=None, capture=True, check=False):
+        # PWD too: subprocess's cwd= doesn't update it, and opencode uses $PWD
+        # (not getcwd) to find the project, i.e. the clone's .opencode/agents/
+        env = dict(os.environ, PWD=str(cwd)) if cwd else None
         try:
-            p = subprocess.run(argv, cwd=cwd, text=True, capture_output=capture, timeout=timeout,
+            p = subprocess.run(argv, cwd=cwd, env=env, text=True, capture_output=capture, timeout=timeout,
                                stdin=subprocess.DEVNULL)
         except subprocess.TimeoutExpired:
             return subprocess.CompletedProcess(argv, 124, "", f"TIMEOUT after {timeout}s")
@@ -128,9 +131,8 @@ class Loop:
         return c.returncode, c.stdout
 
     def agent(self, prompt: str, logfile: Path, minutes: int) -> int:
-        # --standalone: a private server rooted in the clone, so the clone's
-        # .opencode/agents/atl-fixer.md is always the agent (a shared background
-        # service started elsewhere reports "Agent not found")
+        # --standalone: a private server for this run, rooted in the clone ($PWD,
+        # see run()), so the clone's .opencode/agents/atl-fixer.md is the agent
         argv = ["opencode", "run", "--standalone", "--agent", "atl-fixer", "--auto",
                 "--title", f"agent-loop {self.tag}", prompt]
         p = self.run(argv, minutes * 60, cwd=self.clone)
