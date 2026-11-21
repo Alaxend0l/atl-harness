@@ -22,7 +22,7 @@ avoids the OpenSSH per-source penalties that locked the mini's VM out twice.
 | Repo | Where | State |
 |---|---|---|
 | atl-harness (this) | github `Alaxend0l/atl-harness`, private | `main` pushed |
-| ATL fork | github `Alaxend0l/android-translation-layer`, private; workstation clone `~/Develop/android-translation-layer` | `main` = `9a2cd6c4`; upstream fetch-only. Runners pull with read-only deploy keys (alias `github-atl-fork`). Beware: several agents share this clone — one loop switches branches in it live (it also checks out `main` in `~/Develop/atl-shaders` and keeps a detached scratch worktree under `/tmp/claude-*/scratchpad/atl-main`); it silently discarded uncommitted edits once this session. Commit WIP early; never rely on uncommitted files surviving. |
+| ATL fork | github `Alaxend0l/android-translation-layer`, private; workstation clone `~/Develop/android-translation-layer` | `main` = `7cb4cd2b`; upstream fetch-only. Runners pull with read-only deploy keys (alias `github-atl-fork`). Beware: several agents share this clone — one loop switches branches in it live (it also checks out `main` in `~/Develop/atl-shaders` and keeps a detached scratch worktree under `/tmp/claude-*/scratchpad/atl-main`); it silently discarded uncommitted edits once this session. Commit WIP early; never rely on uncommitted files surviving. |
 | fedora-atomic-phone | github `Alaxend0l/fedora-atomic-phone`; clone `~/Develop/fedora-atomic-phone` | branches **`plasma-mobile-spectacle`** and **`oneplus12-flatpak-home`** pushed, not merged |
 
 ## ATL fork: what's merged on `main`
@@ -39,7 +39,7 @@ All gated with the corpus (52 apps on bazzite) unless noted:
 9. EditText getText()/getEditableText() no longer call each other (infinite recursion hung Fossify Music at "Loading files", found by the owner).
 10. **Media library** (`doc/MediaLibrary.md` in the fork): content://media answers from a real index (SQLite, MediaStore columns) of the XDG music/pictures/videos/download dirs + app storage; tags via libavformat (new native dep); albums/artists/genres/album art; insert/update/delete; MediaScannerConnection and MediaMetadataRetriever real. Was: every query opened a file chooser. Fossify Music lists albums and tracks, Fossify Gallery shows folders. Also: Parcel passes binders by reference, `Binder.equals` is identity, `ATL_BINDER_TRACE=1`, `getPackagesForUid` for the app's uid, `IBinder.isBinderAlive` etc.
 11. AlertDialog buttons with a null listener dismiss instead of crashing (the local agent's fix, cherry-picked).
-12. Native shaders: gradients, bitmap/compose shaders, affine canvas transforms (`doc/Shaders.md` in the fork; Claude): `<shape><gradient>` renders (was solid black), Cairo-rendered bitmaps no longer turn pink under transforms. Note: Fossify Music/Gallery covers that are still pink are Fossify's *error placeholder* (Glide fails to load the art silently; not rendering), open.
+12. Native shaders: gradients, bitmap/compose shaders, affine canvas transforms (`doc/Shaders.md` in the fork; Claude): `<shape><gradient>` renders (was solid black), Cairo-rendered bitmaps no longer turn pink under transforms. The pink Fossify Music/Gallery covers were Fossify's *error placeholder* — fixed by item 14.
 13. **Media session trust / uid identity** (Fossify Music now plays a track):
 `UserHandle.getCallingUserId()` returned a hardcoded 1000, so
 `generateApplicationInfo()` mangled the uid to `getUid(1000, -1)` = 99999999
@@ -52,6 +52,21 @@ read-only player commands (`MCImplBase` warnings). Now
 `getLatency`, `AudioRouting` + routing listeners. Gate
 (`fossify-base2 -> fossify-uidfix2`): 4 improved (camera, filemanager,
 messages, musicplayer `CRASH -> ALIVE+ok`), 0 regressed.
+
+14. **`View.layout()` calls `onSizeChanged()` and dispatches
+`OnLayoutChangeListeners`** (`fix/albumart`, merged as `7cb4cd2b`): ATL only
+did that from `layoutInternal()` (the GTK entry), so views sized by
+Android-side ViewGroups (RecyclerView/ConstraintLayout call `layout()` on
+their children) never notified their listeners — Glide's `SizeDeterminer`
+waited forever on its one-shot listener and album/track covers stayed at
+Fossify's pink error placeholder. Now real covers in Albums/Tracks/
+now-playing (mini, run art16). Gate: bazzite `sbx1 -> fix2`: 0 improved,
+0 regressed (see merge commit message). Two new `W/Canvas STUB:
+drawColor(0x00000000, CLEAR)` signatures appear because Glide transforms now
+run — `Canvas.drawColor(int, PorterDuff.Mode)` is still a stub, queued in
+triage.md. Deliberately NOT called from `layout()`: `onLayout()` — the GTK
+pass already runs it, and double-dispatching RecyclerView made RunnerUp go
+BLANK (found by the gate, fixed before merge).
 
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
@@ -80,10 +95,10 @@ left: AudioTrack `stop()`/`flush()` stubs (harness flags
 indicator), and mini's Lima audio device failing `snd_pcm_hw_params`
 (VM config, audible audio untested there). Phone gate with the new main not
 run yet.
-1b. **Interaction scripts** exist (`interactions/`, docs/usage.md): Calculator (7+8=15) and Notes (typing) pass on the mini and are gated. Add scripts for more apps, especially ones exercising fixes 5–8 (checkbox clicks, Enter/IME actions, preferences).
+1b. **Interaction scripts** exist (`interactions/`, docs/usage.md): Calculator (7+8=15), Notes (typing) and Fossify Music (library, playback, + a failing `setView` dialog check) are gated. Status and candidates: `docs/agent-tasks/test-first.md` "Status" (maxLines/ellipsize needs an OCR-DSL step first, e.g. `expect-no-text`). Add scripts for more apps, especially ones exercising fixes 5–8 (checkbox clicks, Enter/IME actions, preferences).
 2. App widgets (`AppWidgetManager`, `AppWidgetHost`): unblocks Flow and Fossify Launcher.
 3. Visual check of password masking on the phone (an app with a password field).
-4. Harness: input scripting, stop-early settle (census is 98% fixed 25 s waits), per-app bubblewrap sandbox (roadmap step 4, owner wants it early).
+4. Harness: input scripting, stop-early settle (census is 98% fixed 25 s waits). (Per-app sandbox: done, see above.)
 5. Owner: run the Flatpak move on the phone (see below), install Spectacle, merge the two fedora-atomic-phone branches if happy.
 
 ## Harness media library
@@ -95,6 +110,7 @@ a photo). `interactions/org.fossify.musicplayer.txt` checks albums, tracks and
 ## Waiting on the owner
 - Telephony/SMS design for Messages and Phone.
 - Merging the two fedora-atomic-phone branches (`plasma-mobile-spectacle`, `oneplus12-flatpak-home`); both are already applied on the phone by hand.
+- **Phone music playback check** (roadmap step "phone gate"): phone ATL is still at `8a511be7`; it needs `rig -r oneplus12 build --pull` (fork main `7cb4cd2b`), then open Fossify Music and play a track — I inspect `~/.local/state/atl/org.fossify.musicplayer.log` on the phone afterwards (audio may stay silent: Phone 12 raw-HW path caveat).
 
 ## Done by the owner (2026-11-21)
 - Spectacle installed on the phone; `scripts/phone-shot` verified (3/3 captures).
@@ -104,9 +120,10 @@ a photo). `interactions/org.fossify.musicplayer.txt` checks albums, tracks and
 ## Per-app sandbox (2026-11-21)
 Every app on the phone runs in its own bwrap sandbox (`docs/sandbox.md`,
 policies in `~/atl-apps/<pkg>.policy.json`, `ATL_NO_SANDBOX=1` to compare).
-Harness: `atlh run --sandbox`. Pending: full 52-app A/B gate on bazzite
-(`run --sandbox` vs a plain run of the same build) once no other agent uses
-bazzite; then consider `sandbox = true` in config.toml.
+Harness: `atlh run --sandbox`. Done 2026-11-21: the full 52-app A/B gate ran
+on bazzite (plain `plain1` vs sandboxed `sbx1` of build 9a2cd6c4): 52 apps in
+both runs, 0 improved, 0 regressed — evidence in docs/sandbox.md "Rollout".
+`sandbox = true` is now the default in config.toml and config.aarch64.toml.
 
 Network policy modes (D16 follow-up): `"none"`, `"internet"` (default with
 INTERNET, no LAN), allow-lists for LAN/Tailscale (Jellyfin, Home Assistant),
@@ -128,9 +145,10 @@ on other ATL forks: docs/research/atl-forks.md (when committed).
 
 ## Runner use (several agents: see AGENTS.md)
 Say here which runner you're using for builds/gates, and clear it when done.
-- **opencode (this session, 2026-11-21 evening): `bazzite`** (sandbox A/B gate,
-  album-art fix builds/gates) **and `oneplus12`** (phone build + Fossify Music
-  playback check) **, plus `mini`** (album-art instrumentation runs). Not shared.
+- opencode (this session, 2026-11-21 evening): used `bazzite`, `mini` and
+  (claimed but not used) `oneplus12`; all released 2026-11-21. bazzite and
+  mini have fork main `7cb4cd2b` installed (`rig build --worktree
+  ~/Develop/atl-albumart`, tree identical to what was merged).
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

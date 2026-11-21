@@ -1,6 +1,29 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Fossify Music Player: the media library lists albums and tracks, and a track plays.
+# Fossify Music Player: the media library lists albums and tracks, and a track plays;
+# and AlertDialog custom views (Builder.setView) actually appear in dialogs.
 # Needs the harness test library ([atl] media_dir, scripts/runner/make-test-media.sh). 1080x1920 screen.
+#
+# The dialog part is EXPECTED TO FAIL on ATL today (docs/agent-tasks/triage.md,
+# "AlertDialog.Builder.setView(View) drops the custom view"): observed on mini
+# (run nav10) the "Create new playlist" dialog renders only its title and the
+# Cancel/OK buttons - the custom view (title EditText) is dropped, so the typed
+# playlist name never appears. Run twice on the unfixed fork (runs setv1/setv2):
+# failed identically, at line 24 ExpectText("TestList") on every run.
+tap 108 1880      # Playlists tab
+wait 2
+tap 1045 83       # overflow menu (3-dot)
+wait 2
+tap 850 117       # Create new playlist
+wait 3
+shot dlg
+tap 540 450       # the custom view (title field) should be here
+wait 1
+type "TestList"
+wait 1
+shot typed
+expect-text "TestList"   # the dialog must show what was typed
+tap 540 1000      # dismiss the dialog (outside tap)
+wait 2
 tap 754 1880      # Albums tab
 wait 2
 shot albums
