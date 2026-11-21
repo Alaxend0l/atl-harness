@@ -79,3 +79,11 @@ the harness itself stays Rust (D2). Runner-side logic stays in bash
 (`scripts/runner/`), sent inline where it must work before a sync.
 Per-runner results live in separate DBs (`work/remote/RUNNER/`), so runs
 from different architectures can't be compared by accident.
+
+### D13 — The ATL fork: private GitHub repo, `main`, fetch-only upstream (2026-11-21)
+`Alaxend0l/android-translation-layer` (private for now). Branch `main` =
+upstream `master` at the fork point plus fork commits; upstream changes come
+in by `git merge upstream/master`. The `upstream` remote's push URL is set to
+an invalid value so nothing can be pushed there by accident (D1). `FORK.md`
+and a README banner mark it as unofficial and AI-assisted; GPLv3 and upstream
+copyright notices are unchanged.
