@@ -33,8 +33,9 @@ All gated with the corpus (52 apps on bazzite) unless noted:
 4. Drawables: alpha through layer/ripple drawables; cached drawables no longer shared between views (Calculator digit/operator shades).
 5. Password masking, input types, `InputType`, `Replacement`/`SingleLine`/`HideReturns`TransformationMethod. **Masking not yet seen on screen** (no corpus app shows a password field at startup; harness can't type yet).
 
-On the phone: ATL `main` up to `7353c736` (drawables) is installed; **password
-masking (`f4fe2012`) is not built there yet** (`rig -r oneplus12 build --pull`).
+On the phone: ATL `main` at `049eedbe` (everything above) is installed. Note for
+fork commits: the build regenerates `src/api-impl-jni/generated_headers/*.h`
+with `javac -h`; commit the regenerated header with any new native method.
 
 ## Results to know
 - Fossify suite (`corpora/fossify.txt`): **13/16 work** on the phone; Phone (telecom), Launcher (app widgets), Camera (no camera) don't. 13 are on the phone's home screen ("… (ATL)"), via `rig desktop-apps`.
