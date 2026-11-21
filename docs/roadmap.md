@@ -101,13 +101,46 @@ Play Store terms-of-service caveats discussed 2026-11-21).
 - Long runs: `rig atlh --detach NAME ...` (jobs survive ssh drops).
 - New Xvfb per app costs ~1 s; fine for now.
 
-## Known ATL bugs found by the harness (fork work queue)
-- **microG native libs not found**: `main.c` data dir `<apk file>_` vs
-  `ATLLoadedAppManager` `<package>_/lib` (see usage.md, data template).
-- **JNI glue ignores pending exceptions**: ATL native code calls
-  `GetMethodID`/`FindClass`/`GetObjectClass` with an exception pending, so a
-  missing API becomes a CheckJNI abort (8/20 apps in census1 on aarch64,
-  signature `signal: SIGABRT: JNI ... called with pending exception`).
+## Fork work queue (targets from census1, 2026-11-21)
+Every failure recorded so far is in upstream ATL too: the fork is upstream
+`22a96b28` plus a notice. Upstream's own test APKs (Gravity Defied,
+gles3jni) already work, so they don't help. Based on only 43 app runs
+(20 bazzite, 20 mini, plus re-runs); a 100–500 app census ranked with
+`rig atlh rank` should reorder this. Work down from signatures that break
+the most apps (`brk`) and that are an app's only blocker (`sole`).
+
+**1. Infrastructure bugs (first: they make every other result clearer)**
+- **JNI calls with a pending exception.** ATL native code calls
+  `GetMethodID`/`FindClass`/`GetObjectClass` while a Java exception is
+  pending, so CheckJNI aborts (8/20 apps on the mini; signature
+  `signal: SIGABRT: JNI … called with pending exception`). Fixing it turns
+  hard aborts into readable Java errors. Hits Markor, Fossify Messages,
+  SuperTuxKart, Daedalus, IonLauncher, among others.
+- **microG native lib path.** `main.c:416` makes data dirs `<apk file>_`,
+  `ATLLoadedAppManager.java:122` looks in `<package>_/lib`: in-process
+  microG loads without its native libraries. One-line naming mismatch.
+
+**2. Single-app targets, one missing API each (good first fixes)**
+- Markor (`net.gsantner.markor`, popular notes app): `Window.setExitTransition`.
+- Fossify Messages (`org.fossify.messages`): `Telephony.Sms.getDefaultSmsPackage`.
+- SuperTuxKart (`org.supertuxkart.stk`): `addContentView`, then OpenGL; a real native game.
+- Daedalus and other VPN apps: `android.net.VpnService` (likely hard to do for real).
+- `Menu.addSubMenu(CharSequence)` (small); `Context.startForegroundService`.
+- Torch app (`com.softcodingforyou.touchtorch`): `CameraManager$TorchCallback`.
+- bazzite: `InputFilter$AllCaps`, `WebSettings.getJavaScriptEnabled`,
+  `WindowInsets.getInsetsIgnoringVisibility`, `AccessibilityService`.
+- `android.webkit.VideoView`/`CalendarView` lookups: the layout inflater
+  can't find real `VideoView`/`CalendarView` widgets (probably missing).
+
+**3. Families (one fix, many apps)**
+- **Fossify suite** (Messages, Music Player, Gallery, …): shared library.
+- **Flutter apps** (e.g. `com.sidhant.colorgram`): same engine abort in
+  `library_loader.cc` (`[FATAL:…] Check failed: result.`). Common on F-Droid.
+- **Godot games**: `libgodot_android.so` needs NDK camera symbol
+  `ACameraMetadata_getConstEntry`.
+
+**4. Play Services apps** (`corpora/microg.txt`: Mastodon, Tasks.org,
+EVMap, …) don't reach Play Services yet; good tests once section 1 is fixed.
 
 ## Agent tasks
 Standing work for coding agents, independent of the steps above:
