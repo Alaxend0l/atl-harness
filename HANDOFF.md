@@ -36,6 +36,10 @@ All gated with the corpus (52 apps on bazzite) unless noted:
 7. SharedPreferences change listeners fire; selectors inside layer-list/ripple get state changes (pressed/checked/disabled looks).
 8. `Canvas.drawRect` honours stroke style.
 
+9. EditText getText()/getEditableText() no longer call each other (infinite recursion hung Fossify Music at "Loading files", found by the owner).
+10. **Media library** (`doc/MediaLibrary.md` in the fork): content://media answers from a real index (SQLite, MediaStore columns) of the XDG music/pictures/videos/download dirs + app storage; tags via libavformat (new native dep); albums/artists/genres/album art; insert/update/delete; MediaScannerConnection and MediaMetadataRetriever real. Was: every query opened a file chooser. Fossify Music lists albums and tracks, Fossify Gallery shows folders. Also: Parcel passes binders by reference, `Binder.equals` is identity, `ATL_BINDER_TRACE=1`, `getPackagesForUid` for the app's uid, `IBinder.isBinderAlive` etc.
+11. AlertDialog buttons with a null listener dismiss instead of crashing (the local agent's fix, cherry-picked).
+
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
 regressions but no visible startup change. Gates now run with `--jobs 6` on
@@ -53,11 +57,18 @@ with `javac -h`; commit the regenerated header with any new native method.
 
 ## Next steps (roadmap has the full queue)
 1. **Audit fixes**: `docs/audit/2026-11-21-atl-audit.md` (139 confirmed, 41 high; leniently verified, re-check each). Done: password masking, EditText/Enter, compound button clicks, SharedPreferences listeners, layer-list state, drawRect stroke. Next suggested: gradient shaders (`<shape><gradient>` draws solid black), Bitmap pixel channel swap / `getPixel` exiting the process, TextView `maxLines`/`ellipsize`, dialogs (`setView`, `setCancelable`), Theme cache key, locale in AssetManager.
+0. **Fossify Music playback** (owner wants to play their album on the phone): the library works, but tapping a track opens the player with nothing loaded. media3's MediaController connects to the app's MediaSessionService (in-process: no binder transactions, `queryLocalInterface`), `isConnected` is true, yet its available player commands are empty (`W/MCImplBase: Controller isn't allowed to call command= 1/2/20`). Ruled out: Parcel/Bundle marshalling (none happens), Binder.equals merging controllers, the package check (fixed), Fossify's own command overrides, SparseBooleanArray. Next: attach a debugger (`JDWP_LISTEN=port` in ATL's main.c) and inspect the ConnectionState / PlayerWrapper.getAvailableCommands() on the session side. After that: AudioTrack stop/flush/getTimestamp stubs (triage: Claude) and AnimationUtils.loadInterpolator returning null (crashes Music's progress indicator).
 1b. **Interaction scripts** exist (`interactions/`, docs/usage.md): Calculator (7+8=15) and Notes (typing) pass on the mini and are gated. Add scripts for more apps, especially ones exercising fixes 5–8 (checkbox clicks, Enter/IME actions, preferences).
 2. App widgets (`AppWidgetManager`, `AppWidgetHost`): unblocks Flow and Fossify Launcher.
 3. Visual check of password masking on the phone (an app with a password field).
 4. Harness: input scripting, stop-early settle (census is 98% fixed 25 s waits), per-app bubblewrap sandbox (roadmap step 4, owner wants it early).
 5. Owner: run the Flatpak move on the phone (see below), install Spectacle, merge the two fedora-atomic-phone branches if happy.
+
+## Harness media library
+`[atl] media_dir = "work/test-media"`: every run sees a fixed library made by
+`scripts/runner/make-test-media.sh` (two albums, Opus + FLAC, macOS junk files,
+a photo). `interactions/org.fossify.musicplayer.txt` checks albums, tracks and
+(failing until playback works) the player.
 
 ## Waiting on the owner
 - Telephony/SMS design for Messages and Phone.
@@ -67,6 +78,15 @@ with `javac -h`; commit the regenerated header with any new native method.
 - Spectacle installed on the phone; `scripts/phone-shot` verified (3/3 captures).
 - Flatpak data moved to /home with `move-flatpak-to-home.sh`: root 97% → 52% full (3.7 GB free).
 - License chosen: atl-harness is AGPL-3.0-or-later (decisions D15, LICENSING.md).
+
+## Triage: local model vs Claude
+`docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
+items small enough for the local model (with precise fix hints, in
+`docs/agent-tasks/local-queue.json`, which agent-loop now uses by default), 91
+for Claude. Trial 3 of the loop: 2 commits; the null-listener fix was right
+(merged), `Builder.setView` was plausible but wrong (needs a slot in the native
+dialog layout; tag `agent-trial3` in the agent clone keeps it). The agent
+branch was reset to the fork's main afterwards.
 
 ## Overnight agent (opencode + strata)
 `scripts/agent-loop` ([docs/agent-loop.md](docs/agent-loop.md)): the local
