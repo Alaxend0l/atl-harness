@@ -270,6 +270,43 @@ with `javac -h`; commit the regenerated header with any new native method.
        K-9 ALIVE (2 sigs), Antennapod/Fossify Clock ALIVE.
      Queue now 80 items; fixed.txt covers 25/26 too.
 
+ 20. **davdroid fixed: the missing superclass was the whole story
+     (gates `fc12` -> `fc13`), 2026-11-22**:
+     - `9b996923` queue-78 `ConnectivityManager.getRestrictBackgroundStatus`
+       (+ RESTRICT_BACKGROUND_STATUS_* constants, AOSP values; DISABLED
+       since ATL has no data saver).
+     - `4e33640b` queue-27+30 framework `PopupMenu` Menu/MenuItem surface:
+       all UnsupportedOperationException stubs implemented (groupId/order/
+       checkable/... stored; removal always via setVisible(false) so the
+       GMenu visible-position bookkeeping stays consistent; item click
+       order itemListener -> intent -> popup listener). Honest scope: no
+       corpus app crashes on these (no PopupMenu/"Unimplemented method"
+       signature anywhere in fc12/fc13), 29 apps reference the class;
+       gate shows no-breakage only, no witness crash exists.
+     - `3a438448` `android.provider.DocumentsProvider` (queue-79):
+       investigation per the task hint first — davdroid's own class IS in
+       its classes.dex (13 refs), ATL's api-impl dex has ZERO refs to
+       `android/provider/DocumentsProvider`, and `ATLLoadedApp.loadClass`
+       is plain `Class.forName`, so ART fails to *define* the app class
+       (unresolvable superclass) and blames the app class name. davdroid's
+       dex implements exactly the classic provider surface. Ported AOSP-14
+       DocumentsProvider (+ meson srcs entry — dex-verified after the
+       known silent-drop trap), with ATL adaptations commented: no
+       URI-permission enforcement in call() (single-process, Context
+       grant/revoke are log stubs), no canonicalize, the Bundle-query
+       dispatch lives in the 5-arg query() ATL actually has, Log.wtf->Log.e.
+       Support bits also AOSP-faithful: DocumentsContract.EXTRA_TARGET_URI/
+       buildTreeDocumentUri/Path, ClipDescription.compareMimeTypes,
+       ContentResolver.EXTRA_SIZE, ContentProvider.getStreamTypes/
+       openTypedAssetFile bases.
+     - Gate `fc12 -> fc13` (74 apps): **at.bitfire.davdroid CRASH -> ALIVE**,
+       0 regressed; CNFE count 0, provider loads; the fetched witness-app
+       rule is satisfied with an outcome flip, not just no-breakage.
+     Queue items 27/30/78/79 now in fixed.txt. Remaining davdroid
+     signatures are inert stubs + the shared ViewGroup.native_addView
+     exception (separate item). Live queue: Vibrator (28), ContentResolver
+     observers (29), then the low-impact tail.
+
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
 regressions but no visible startup change. Gates now run with `--jobs 6` on
@@ -402,6 +439,11 @@ Say here which runner you're using for builds/gates, and clear it when done.
   queue fixes through `c75de5c0`. Bazzite left installed with the
   `local-fixes` tip `c75de5c0` (dirty at build time, commits came
   after). Released.
+- **opencode (this session, 2026-11-22, eighth): `bazzite`** — gate
+  `fc13` (davdroid CRASH -> ALIVE, 0 regressed) and the fixes through
+  `3a438448` (ConnectivityManager, PopupMenu, DocumentsProvider port).
+  Bazzite left installed with `local:c75de5c0-dirty`, which is the
+  `local-fixes` tip `3a438448` tree. Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

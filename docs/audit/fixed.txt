@@ -38,3 +38,7 @@ AccountManager.addOnAccountsUpdatedListener(listener, handler, boolean)
 Intent copy constructor and putExtras alias Bundles
 scrollTo/setScrollX/setScrollY never call onScrollChanged
 Window.addFlags/setFlags/clearFlags are empty
+Framework PopupMenu Menu methods throw UnsupportedOperationException
+Framework PopupMenu MenuItem methods throw UnsupportedOperationException
+ConnectivityManager.getRestrictBackgroundStatus() missing
+ClassNotFoundException for its own DavDocumentsProvider
