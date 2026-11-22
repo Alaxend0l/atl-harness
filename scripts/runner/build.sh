@@ -36,7 +36,7 @@ meson_build() { # dir [setup args...]
     # bit-identical. Existing builddirs pick it up on their next CLEAN
     # build. NOCACHE=1 skips it.
     if command -v ccache >/dev/null 2>&1 && [ -z "${NOCACHE:-}" ]; then
-      CCACHE_DIR=${CCACHE_DIR:-$HOME/.ccache} CCACHE_MAXSIZE=${CCACHE_MAXSIZE:-10G} \
+      CCACHE_DIR=${CCACHE_DIR:-$HOME/.ccache} \
         CC="${CC:-ccache gcc}" CXX="${CXX:-ccache g++}" \
         meson setup builddir --prefix=/usr/local "$@" || return 1
     else

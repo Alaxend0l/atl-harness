@@ -34,6 +34,9 @@ step_packages() {
   printf '/usr/local/lib64\n/usr/local/lib\n' | sudo tee /etc/ld.so.conf.d/local.conf >/dev/null
   echo 'export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}' \
     | sudo tee /etc/profile.d/zz-local-pkgconfig.sh >/dev/null
+  # ccache size is a persistent config (the launcher env in build.sh only
+  # reaches the compiler call, not this setting).
+  command -v ccache >/dev/null && ccache -M "${CCACHE_MAXSIZE:-10G}" || true
 }
 
 step_rust() {
