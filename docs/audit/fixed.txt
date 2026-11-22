@@ -45,3 +45,11 @@ ClassNotFoundException for its own DavDocumentsProvider
 Vibrator has no vibrate(VibrationEffect)
 ContentResolver.registerContentObserver/notifyChange are no-ops
 View.getViewRootImpl missing, no ViewRootImpl / View$AttachInfo
+ProgressBar.setIndeterminate assigns the parameter
+Editor.putX(key, null) stores null instead of removing the key
+CountDownTimer delays the first onTick
+Window.peekDecorView() returns null
+moveTaskToBack and setFinishOnTouchOutside are package-private
+IntentFilter.match discards the action-mismatch result
+BounceInterpolator missing
+AnticipateOvershootInterpolator

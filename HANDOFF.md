@@ -350,6 +350,31 @@ with `javac -h`; commit the regenerated header with any new native method.
      - Queue item 59 (dispatchApplyWindowInsets/WindowInsets surface) is
        adjacent but NOT done — this fix covers only the reflection chain.
 
+ 23. **Queue tail batch 31–37 + interpolator crashes (gates `fc16`–`fc18`),
+     2026-11-22**:
+     - Queue refresh: `atl-gaps --emit-queue 20` against the fixed tree
+       (queue now 100 items; no runtime-hit gaps remain — all were
+       fixed/filed).
+     - Small fixes, one commit each: `0ff2c21a` queue-31 ProgressBar
+       setIndeterminate (parameter shadow), `c64c7aab` queue-32
+       SharedPreferences putX(key,null) removes, `8e7f67bc` queue-33
+       CountDownTimer first tick immediate, `96c45b78` queue-34
+       peekDecorView returns the decor view, `e3c20343` queue-35
+       moveTaskToBack/setFinishOnTouchOutside public, `b4d0f3ce`
+       queue-37 IntentFilter.match early NO_MATCH_ACTION (was: every
+       filter matched data-less intents). All silent-behaviour: gate
+       `fc15 -> fc16` 0/0, no-breakage only, recorded honestly.
+     - `ed3f2760` + `7ccb4a77` queue-54 interpolators:
+       `BounceInterpolator` and `AnticipateOvershootInterpolator`
+       (AOSP-14 fetch; first draft used the pre-14 ctor set/formula and
+       the witness then failed on `<init>(FF)V` — fixed by porting the
+       actual android14-release source). Crash witness
+       indi.dmzz_yyhyy.lightnovelreader's static-init chain: gates
+       `fc15 -> fc16` (signatures gone) then **`fc17 -> fc18`:
+       CRASH -> ALIVE**, 0 regressed. Remaining lightnovelreader
+       signatures (SSL handshake, forkAndExec) are environmental.
+     - Commits pushed; `local-fixes` = `7ccb4a77`.
+
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
 regressions but no visible startup change. Gates now run with `--jobs 6` on
@@ -495,6 +520,11 @@ Say here which runner you're using for builds/gates, and clear it when done.
   `fc15` and the ViewRootImpl/getViewRootImpl fix `083e0c4e`. Bazzite
   left installed with `local:755e604d-dirty`, which is the `local-fixes`
   tip `083e0c4e` tree. Released.
+- **opencode (this session, 2026-11-22, eleventh): `bazzite`** — gates
+  `fc16`–`fc18` (lightnovelreader CRASH -> ALIVE) and the queue-tail +
+  interpolator fixes through `7ccb4a77`. Bazzite left installed with
+  `local:ed3f2760-dirty`, which is the `local-fixes` tip `7ccb4a77`
+  tree. Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
