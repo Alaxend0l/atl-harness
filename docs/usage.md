@@ -124,6 +124,30 @@ them by the number of distinct apps hit, with a per-class summary. Members of
 app/library classes are hidden unless `--include-app-classes`. Only errors
 that reach the log are counted; apps that catch them silently don't show up.
 
+### `scripts/atl-gaps` — the other half: stubs already in the tree
+```
+python3 scripts/atl-gaps --atl PATH [--db work/atlh.sqlite] [--apks work/apks]
+    [--kind K]... [--area REGEX] [--limit N] [--all] [--json] [--md OUT]
+    [--emit-queue N] [--queue-kind K]
+```
+Static scan of the fork's Java layer: classifies every method body as `empty`,
+`unsupported`, `const-return`, `log-only`, `log+const`, `stub-call`,
+`commented-out`, `native-missing` (no `Java_*` symbol in `src/api-impl-jni`),
+`todo` or `print-in-body`, plus `hook` (empty `on*` callback; hidden by
+default — Android's own is often empty too) and `implemented` (hidden, shown
+with `--all` alongside todo/perf markers). Unlike `missing-apis` this finds
+silent no-ops: methods that exist, never throw, and do nothing. Each gap is
+joined with usage evidence so ranking means something: sqlite (apps that hit
+it at runtime), corpus APKs (dexes that reference the class/member), the queue
+and `docs/audit/fixed.txt` (dedupe). `--emit-queue N` appends the N top gaps
+to `docs/agent-tasks/local-queue.json` in the canonical schema (excluding
+`native-missing`/`hook` unless `--queue-kind` says otherwise), which is how
+`scripts/agent-loop` gets fresh work. Run it on a runner, that is where the
+corpus and db are; scanning the 858-file tree + 71 APKs takes ~10 s. Limit:
+anonymous-class methods without modifiers are not scanned, and annotation
+members are skipped. Tests: `scripts/tests/test_atl_gaps.py`. Report of the
+last full run: `work/gaps/` (git-ignored).
+
 ### `workitem` — agent prompt
 ```
 atlh workitem RUN_ID [-n 1] [--out FILE]

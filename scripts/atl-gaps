@@ -1,0 +1,617 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: AGPL-3.0-or-later
+"""atl-gaps: which ATL functions are not implemented (or not optimised) yet.
+
+`atlh missing-apis` answers "what did apps ask for and ATL did not have" from
+run logs. This answers the other half, from the source: every method in the
+fork's Java layer that is present but not real, plus framework members that do
+not exist in the fork at all but were requested at runtime. Run it on a checkout
+(usually the one you are building) and it classifies every method body:
+
+  empty            body has no statements at all
+  unsupported      body is a single `throw new UnsupportedOperationException`
+  const-return     body is a single `return <literal|null|0|false|new X[0]>;`
+  log-only         body only prints (Log.*, System.out/err) and returns nothing
+  log+const        prints, then returns a constant
+  stub-call        body only delegates to a *stub*/gstub helper
+  commented-out    body is only commented-out code (implementation removed)
+  todo             has a real body but a TODO/FIXME/XXX/not-implemented marker
+  print-in-body    has a real body but prints on every call (hot-path noise)
+  native-missing   `native` method whose JNI symbol is not in src/api-impl-jni
+  implemented      everything else (not reported unless --all)
+
+Usage evidence decides what is worth fixing, so each gap is joined with:
+  --db PATH      atlh.sqlite: how many apps hit this member at runtime
+                 (missing_api failures, parsed like `atlh missing-apis`)
+  --apks DIR     corpus APKs: how many ship a dex that mentions the class
+                 and the member name (so a fix has some coverage at all)
+  --queue FILE   docs/agent-tasks/local-queue.json: gaps already filed
+  --fixed FILE   docs/audit/fixed.txt: gaps already fixed
+
+`--emit-queue N` appends the N best gaps that are not filed yet, in the queue's
+canonical schema, so `scripts/agent-loop` can pick them up overnight.
+
+Ranking: apps hit at runtime first, then dex references, then how central the
+class is. `--md OUT` writes the report as markdown.
+
+Run it on a runner to get the usage joins (that is where the corpus lives):
+  scripts/rig -r bazzite sync
+  scripts/rig -r bazzite sh "python3 scripts/atl-gaps --atl ~/src/atl-dev \
+      --apks work/apks --db work/atlh.sqlite --json > ~/atl-gaps.json"
+Unit tests: python3 -m unittest scripts/tests/test_atl_gaps.py
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import sqlite3
+import sys
+import zipfile
+from collections import Counter
+from dataclasses import dataclass, field
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parent.parent
+
+# --- source classification -------------------------------------------------
+
+# Method/constructor declaration heads are found by locating `name(` and then
+# validating the *declaration window* in front of it (the text since the nearest
+# `;`, `{`, `}`, `)` or `,`). A plain regex with a nested quantifier over
+# modifiers backtracks catastrophically over a 858-file tree.
+NAME_AT = re.compile(r"(?P<name>\w+)\s*\(")
+HEAD_TOK = re.compile(r"^@?[\w.]+(?:<[^<>]*>)?(?:\[\s*\])*$")
+KEYWORDS = {"if", "for", "while", "switch", "catch", "return", "new", "synchronized", "try",
+            "else", "do", "case", "throw", "finally", "super", "this", "instanceof", "package",
+            "import", "enum", "class", "interface"}
+TYPE_HEAD = re.compile(r"\b(?P<kind>class|interface|enum|@interface)\s+(?P<name>\w+)")
+TODO_MARK = re.compile(r"(?i)\b(TODO|FIXME|XXX|HACK)\b|not implemented|unimplemented|for now|placeholder|does nothing|no-op")
+CODE_IN_COMMENT = re.compile(r"[;{}]=(?!=)|\breturn\b|\bnew\b|\w+\s*\(.*\)\s*;?")
+PRINT_STMT = re.compile(r"\bSystem\.(out|err)\.(print|write)|\bLog\.[vdiwe]\(")
+STUB_STMT = re.compile(r"\b(stubs|stub_)\w*\(|\bGStub\b|\bgstub\b")
+CONST_RETURN = re.compile(
+    r"^return\s+(?:null|true|false|0+(?:\.0+)?|\"\"|'0'|new\s+\w+(?:<[^>]*>)?\s*\(\s*\)"
+    r"|new\s+\w+\s*\[\s*\]|0x0|Float\.NaN|Integer\.MAX_VALUE|Integer\.MIN_VALUE)\s*;?$"
+)
+THROWS_UNSUPPORTED = re.compile(r"^throw\s+new\s+(?:Unsupported|NotImplemented)\w*Exception\b")
+
+# Reported kinds, worst first; also the order --kind filters use. `hook` is
+# hidden unless asked for: an empty `on*` callback is often empty in Android too.
+KINDS = ["empty", "unsupported", "const-return", "log-only", "log+const", "stub-call",
+         "commented-out", "native-missing", "todo", "print-in-body", "hook"]
+
+
+def mask_java(src: str) -> str:
+    """Blank out comments, string and char literals (same length), so brace and
+    paren scanning cannot be fooled by them. Comment text stays in `raw`."""
+    out = list(src)
+    i, n = 0, len(src)
+    while i < n:
+        c = src[i]
+        if c == '"' or c == "'":
+            q, j = c, i + 1
+            while j < n:
+                if src[j] == "\\":
+                    j += 2
+                    continue
+                if src[j] == q or src[j] == "\n" and q == "'":
+                    break
+                j += 1
+            for k in range(i, min(j + 1, n)):
+                if src[k] != "\n":
+                    out[k] = " "
+            i = j + 1
+        elif src.startswith("//", i):
+            j = src.find("\n", i)
+            j = n if j < 0 else j
+            for k in range(i, j):
+                out[k] = " "
+            i = j
+        elif src.startswith("/*", i):
+            j = src.find("*/", i + 2)
+            j = n if j < 0 else j + 2
+            for k in range(i, j):
+                if src[k] != "\n":
+                    out[k] = " "
+            i = j
+        else:
+            i += 1
+    return "".join(out)
+
+
+def match_brace(masked: str, open_at: int) -> int:
+    """Index of the `}` closing the `{` at open_at (or len(masked) if unbalanced)."""
+    depth = 0
+    for i in range(open_at, len(masked)):
+        if masked[i] == "{":
+            depth += 1
+        elif masked[i] == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+    return len(masked)
+
+
+def match_paren(masked: str, open_at: int) -> int:
+    depth = 0
+    for i in range(open_at, len(masked)):
+        if masked[i] == "(":
+            depth += 1
+        elif masked[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return i
+    return len(masked)
+
+
+def split_statements(masked_body: str) -> list[str]:
+    """Top-level statements of a body (braced blocks count as one)."""
+    stmts, buf, depth = [], [], 0
+    for ch in masked_body:
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+        if ch == ";" and depth == 0:
+            stmts.append("".join(buf).strip())
+            buf = []
+        else:
+            buf.append(ch)
+            if depth == 0 and ch == "}":
+                stmts.append("".join(buf).strip())
+                buf = []
+    if "".join(buf).strip():
+        stmts.append("".join(buf).strip())
+    return [s for s in stmts if s and not s.isspace()]
+
+
+def classify(body_masked: str, body_raw: str, is_native: bool, has_jni_symbol: bool,
+             name: str = "") -> tuple[str, str]:
+    """(kind, note) for one method body."""
+    if is_native:
+        return ("implemented", "") if has_jni_symbol else ("native-missing", "no JNI symbol in src/api-impl-jni")
+    stmts = [s for s in split_statements(body_masked) if s]
+    commented = [ln.strip() for ln in body_raw.splitlines()
+                 if ln.strip().startswith(("//", "*")) or ln.strip().startswith("/*")]
+    code_comments = [ln for ln in commented if CODE_IN_COMMENT.search(ln)]
+    if not stmts:
+        if code_comments:
+            return ("commented-out", f"{len(code_comments)} commented-out code lines")
+        if commented:
+            return ("empty", f"comment only: {commented[0][:70]}")
+        if name.startswith("on") and len(name) > 2:
+            return ("hook", "empty callback: AOSP's own is often empty too, check before filing")
+        return ("empty", "")
+    if len(stmts) == 1 and THROWS_UNSUPPORTED.match(stmts[0]):
+        return ("unsupported", stmts[0][:80])
+    if len(stmts) == 1 and CONST_RETURN.match(stmts[0]):
+        return ("const-return", stmts[0])
+    prints = [s for s in stmts if PRINT_STMT.search(s)]
+    rest = [s for s in stmts if not PRINT_STMT.search(s)]
+    if not rest:
+        return ("log-only", "; ".join(prints)[:80])
+    if len(rest) == 1 and CONST_RETURN.match(rest[0]) and prints:
+        return ("log+const", rest[0])
+    if all(STUB_STMT.search(s) or CONST_RETURN.match(s) for s in rest) and any(STUB_STMT.search(s) for s in rest):
+        return ("stub-call", "; ".join(rest)[:80])
+    marks = TODO_MARK.search(body_raw)
+    if marks:
+        return ("todo", body_raw[marks.start():marks.start() + 80].splitlines()[0].strip())
+    if prints:
+        return ("print-in-body", "; ".join(prints)[:80])
+    return ("implemented", "")
+
+
+@dataclass
+class Member:
+    clazz: str          # android.view.Window (inner classes as A$B)
+    file: str           # src/api-impl/android/view/Window.java (repo-relative)
+    line: int
+    name: str
+    params: str
+    kind: str
+    note: str
+    kind_flags: list[str] = field(default_factory=list)  # secondary markers
+
+    def member_id(self) -> str:
+        return f"{self.clazz}.{self.name}"
+
+
+def scan_java_file(path: Path, root: Path, jni_symbols: set[str]) -> list[Member]:
+    raw = path.read_text(encoding="utf-8", errors="replace")
+    masked = mask_java(raw)
+    pkg = re.search(r"(?m)^\s*package\s+([\w.]+)\s*;", masked)
+    pkg = pkg.group(1) if pkg else ""
+    rel = path.relative_to(root).as_posix()
+    lines = raw.splitlines()
+    line_at = [0]
+    for ln in lines:
+        line_at.append(line_at[-1] + len(ln) + 1)
+
+    def lineno(pos: int) -> int:
+        lo, hi = 0, len(line_at) - 1
+        while lo < hi:
+            mid = (lo + hi + 1) // 2
+            if line_at[mid] <= pos:
+                lo = mid
+            else:
+                hi = mid - 1
+        return lo + 1
+
+    # type declarations, innermost enclosing one per method
+    types = [(m.start(), m.group("name"), masked[m.start() - 1:m.start()] == "@")
+             for m in TYPE_HEAD.finditer(masked)]
+    type_ranges: list[tuple[int, int, str]] = []
+    anno_ranges: list[tuple[int, int]] = []
+    for pos, name, is_anno in types:
+        brace = masked.find("{", pos)
+        end = match_brace(masked, brace) if brace >= 0 else pos
+        type_ranges.append((pos, end, name))
+        if is_anno:
+            anno_ranges.append((pos, end))
+
+    def enclose(pos: int) -> str:
+        outer, inner = "", []
+        for start, end, name in type_ranges:
+            if start < pos <= end:
+                inner.append(name)
+        base = path.stem
+        if pkg:
+            outer = f"{pkg}.{base}"
+        else:
+            outer = base
+        return "$".join([outer] + inner[1:])
+
+    out: list[Member] = []
+    for m in NAME_AT.finditer(masked):
+        name = m.group("name")
+        if name in KEYWORDS:
+            continue
+        start = m.start("name")
+        if any(s < start <= e for s, e in anno_ranges):
+            continue                      # annotation members (`value()`...) never run
+        before = masked[:start].rstrip()
+        if not before or before[-1] in ".,=+-*/&|!?:(":
+            continue                      # call, argument, or expression
+        bound = max(masked.rfind(c, 0, start) for c in ";{}),") + 1
+        window = masked[bound:start]
+        toks = window.split()
+        if not toks or any(not HEAD_TOK.match(t) or t in KEYWORDS for t in toks):
+            continue                      # not a declaration head
+        op = m.end() - 1
+        close = match_paren(masked, op)
+        if close >= len(masked):
+            continue
+        after = masked[close + 1:close + 400]
+        brace = after.find("{")
+        semi = after.find(";")
+        if brace < 0 and semi < 0:
+            continue                      # `name(...)` inside an expression
+        is_native = "native" in toks
+        if brace < 0 and (semi >= 0 or is_native):
+            body_masked, body_raw = "", ""
+        elif brace >= 0 and (semi < 0 or brace < semi):
+            end = match_brace(masked, close + 1 + brace)
+            body_masked = masked[close + 1 + brace + 1:end]
+            body_raw = raw[close + 1 + brace + 1:end]
+        else:
+            continue
+        params = re.sub(r"\s+", " ", masked[op + 1:close]).strip()
+        clazz = enclose(start)
+        fqn = clazz.split("$")[0]
+        # ATL binds its natives by the JNI mangled name (Java_<pkg>_<Class>_<m>,
+        # `_1` for underscores), so build that rather than guessing substrings.
+        jni_candidates = {name, f"native_{name}", f"Java_{fqn}_{name}",
+                          "Java_" + fqn.replace(".", "_") + "_" + name.replace("_", "_1")}
+        kind, note = classify(body_masked, body_raw, is_native,
+                              any(c in jni_symbols for c in jni_candidates), name)
+        flags = []
+        if TODO_MARK.search(body_raw):
+            flags.append("todo-marker")
+        if re.search(r"(?m)^\s*//.*\b(slow|optimi[sz]e|unoptimi[sz]ed|expensive|O\(n\w*\))\b", body_raw):
+            flags.append("perf-marker")
+        out.append(Member(clazz=clazz, file=rel, line=lineno(start), name=name,
+                          params=params[:120], kind=kind, note=note, kind_flags=flags))
+    return out
+
+
+def collect_symbols(root: Path) -> set[str]:
+    """JNI symbols implemented in the fork's C layer. ATL uses classic JNI
+    mangling: `Java_<pkg>_<Class>_<method>` plus a `__<descriptor>` suffix when
+    the method is overloaded, so index both forms."""
+    syms: set[str] = set()
+    jni = root / "src" / "api-impl-jni"
+    for c in list(jni.rglob("*.c")) + list(jni.rglob("*.cpp")):
+        txt = c.read_text(encoding="utf-8", errors="replace")
+        for tok in re.findall(r"\b(?:native_\w+|Java_\w+)\b", txt):
+            syms.add(tok)
+            if "__" in tok:
+                syms.add(tok.split("__", 1)[0])
+        syms.update(re.findall(r"\.name\s*=\s*\"(\w+)\"", txt))          # JNINativeMethod tables
+        syms.update(re.findall(r"\{\s*\"(\w+)\"\s*,\s*\"[^\"]*\"\s*,\s*\(", txt))
+    return syms
+
+
+def scan_atl(root: Path) -> tuple[list[Member], dict[str, int]]:
+    syms = collect_symbols(root)
+    members: list[Member] = []
+    counts: Counter[str] = Counter()
+    for java in sorted((root / "src" / "api-impl").rglob("*.java")):
+        for m in scan_java_file(java, root, syms):
+            members.append(m)
+            counts[m.kind] += 1
+    return members, counts
+
+
+# --- usage evidence --------------------------------------------------------
+
+def db_hits(db: Path) -> dict[str, set[str]]:
+    """member id ("class.name" or bare name) -> apps that hit it at runtime."""
+    out: dict[str, set[str]] = {}
+    if not db.exists():
+        return out
+    conn = sqlite3.connect(db)
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT r.pkg, f.signature FROM failures f JOIN runs r ON r.id=f.run_row "
+            "WHERE f.kind IN ('missing_api','exception')").fetchall()
+    except sqlite3.Error:
+        return out
+    meth = re.compile(r"No (?:virtual|static|direct|interface|super) method (\w+)\(")
+    fld = re.compile(r"No (?:static|instance)? ?field (\w+) of type")
+    clsdesc = re.compile(r"in class L([\w/$]+);|L([\w/$]+);")
+    dotted = re.compile(r"ClassNotFoundException: ([\w.$]+)|Didn't find class \"([\w.$]+)\"")
+    per_app_class: dict[str, set[str]] = {}
+    for pkg, sig in rows:
+        m = meth.search(sig) or fld.search(sig)
+        if m:
+            d = clsdesc.search(sig)
+            dcls = (d.group(1) or d.group(2)).replace("/", ".") if d else ""
+            if dcls:
+                out.setdefault(f"{dcls}.{m.group(1)}", set()).add(pkg)
+                out.setdefault(m.group(1), set()).add(pkg)
+        d = dotted.search(sig)
+        if d:
+            c = d.group(1) or d.group(2)
+            out.setdefault(c, set()).add(pkg)
+            per_app_class.setdefault(c, set()).add(pkg)
+    for c, apps in per_app_class.items():          # class-level: which apps touch the class at all
+        out.setdefault(c.rsplit(".", 1)[0] if "." in c else c, set()).update(apps)
+    return out
+
+
+def apk_usage(apk_dir: Path, names: set[str], classes: set[str]) -> tuple[dict[str, int], dict[str, int]]:
+    """(member name -> APKs whose dex mentions it, class -> APKs that ship it).
+
+    One pass per APK: pull out identifier tokens and class descriptors and
+    intersect, instead of searching for every name in every dex."""
+    by_name: Counter[str] = Counter()
+    by_class: Counter[str] = Counter()
+    if not apk_dir.is_dir():
+        return by_name, by_class
+    want_names = {n for n in names if len(n) > 2}
+    want_classes = {c.replace(".", "/") for c in classes}
+    tok = re.compile(rb"[A-Za-z_][A-Za-z0-9_$]{2,80}")
+    desc = re.compile(rb"L[A-Za-z0-9_/$]{3,124};")
+    for apk in sorted(apk_dir.rglob("*.apk")):
+        try:
+            with zipfile.ZipFile(apk) as z:
+                blobs = [z.read(n) for n in z.namelist() if n.startswith("classes") and n.endswith(".dex")]
+        except (zipfile.BadZipFile, OSError):
+            continue
+        if not blobs:
+            continue
+        blob = b"".join(blobs)
+        seen_c = {d[1:-1].decode("utf-8", "replace") for d in desc.findall(blob)}
+        for c in want_classes & seen_c:
+            by_class[c.replace("/", ".")] += 1
+        seen_n = {t.decode("utf-8", "replace") for t in tok.findall(blob)}
+        for n in want_names & seen_n:
+            by_name[n] += 1
+    return by_name, by_class
+
+
+# --- reporting -------------------------------------------------------------
+
+CANON = ["source", "title", "file", "line", "category", "area", "evidence", "android_behavior",
+         "impact", "suggested_fix", "severity", "user_impact", "est_lines", "fix_hint", "why_local"]
+
+KIND_CATEGORY = {"empty": "silent_noop", "unsupported": "unimplemented_method",
+                 "const-return": "constant_instead_of_state", "log-only": "silent_noop",
+                 "log+const": "silent_noop", "stub-call": "silent_noop",
+                 "commented-out": "commented_out_code", "native-missing": "native_mismatch",
+                 "todo": "needs_investigation", "print-in-body": "other"}
+CORE_CLASSES = ("android.view.View", "android.view.ViewGroup", "android.widget.TextView",
+                "android.widget.ImageView", "android.graphics.Paint", "android.graphics.Canvas",
+                "android.app.Activity", "android.content.res.Resources")
+
+
+def rank(m: Member, hits: dict[str, set[str]], apk_name: dict[str, int], apk_cls: dict[str, int]):
+    """Worth-fixing order: apps that hit it at runtime, then classes corpus
+    apps actually reference (`dex_apks` is only the member *name* appearing, so
+    generic names like `release` are noise on their own)."""
+    apps = max(len(hits.get(m.member_id(), ())), len(hits.get(m.name, ())))
+    dex_apks = apk_name.get(m.name, 0)
+    cls_apks = apk_cls.get(m.clazz.split("$")[0], 0)
+    core = m.clazz.split("$")[0] in CORE_CLASSES
+    return (-apps, -cls_apks, -dex_apks, 0 if core else 1, KINDS.index(m.kind), m.file, m.line)
+
+
+def evidence_line(m: Member, hits, apk_name, apk_cls) -> str:
+    apps = sorted(set(hits.get(m.member_id(), set())) | set(hits.get(m.name, set())))
+    parts = []
+    if apps:
+        parts.append(f"{len(apps)} app(s) hit it at runtime: {', '.join(apps[:3])}")
+    parts.append(f"{apk_name.get(m.name, 0)} corpus APK(s) mention `{m.name}`, "
+                 f"{apk_cls.get(m.clazz.split('$')[0], 0)} mention {m.clazz.split('$')[0]}")
+    return "; ".join(parts)
+
+
+def title_for(m: Member) -> str:
+    kind_txt = {"empty": "is empty", "unsupported": "throws UnsupportedOperationException",
+                "const-return": "returns a constant instead of state",
+                "log-only": "only logs", "log+const": "logs and returns a constant",
+                "stub-call": "only calls a stub helper",
+                "commented-out": "has its implementation commented out",
+                "native-missing": "is `native` with no JNI implementation",
+                "todo": "is marked TODO/FIXME", "print-in-body": "prints on every call"}
+    return f"{m.clazz}.{m.name}({m.params}) {kind_txt.get(m.kind, m.kind)}"
+
+
+def queue_item(m: Member, hits, apk_name, apk_cls) -> dict:
+    apps = sorted(set(hits.get(m.member_id(), set())) | set(hits.get(m.name, set())))
+    it = {
+        "source": f"scripts/atl-gaps static scan (kind={m.kind})",
+        "title": title_for(m),
+        "file": m.file,
+        "line": m.line,
+        "category": KIND_CATEGORY.get(m.kind, "other"),
+        "area": m.clazz.split(".")[1] if m.clazz.count(".") >= 2 else "other-java",
+        "evidence": f"{m.file}:{m.line} {m.name}({m.params}): {m.note or m.kind}",
+        "android_behavior": "Check AOSP 7.1 (frameworks/base) for the real behaviour before writing anything: ATL stands in for the Android framework, so the method must do what Android's does.",
+        "impact": (f"{len(apps)} corpus app(s) hit it at runtime ({', '.join(apps[:4])})."
+                   if apps else "No corpus app hits it yet, so a fix cannot be gated on behaviour - "
+                                "fetch an app that uses it first (`atlh fetch --pkg ...`)."),
+        "suggested_fix": f"implement {m.name} in {m.file}",
+        "severity": "medium" if (apps or m.clazz.split("$")[0] in CORE_CLASSES) else "low",
+        "user_impact": "medium" if apps else "low",
+        "est_lines": 10,
+        "fix_hint": f"{m.file}:{m.line}. Kind: {m.kind} ({m.note}). Verify with a "
+                    "full-corpus gate (0 regressions) and confirm the class reaches "
+                    "api-impl.jar (src/api-impl/meson.build srcs list).",
+        "why_local": "Localised to one method body; needs the AOSP behaviour, no native work.",
+    }
+    return {k: it[k] for k in CANON}
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(prog="atl-gaps", description=__doc__.splitlines()[0],
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--atl", default=str(Path.home() / "Develop" / "android-translation-layer"),
+                    help="ATL checkout to scan")
+    ap.add_argument("--db", default="work/atlh.sqlite", help="atlh database (runtime hits)")
+    ap.add_argument("--apks", default="work/apks", help="corpus APK dir (dex reference scan)")
+    ap.add_argument("--queue", default="docs/agent-tasks/local-queue.json", help="queue to dedupe/append")
+    ap.add_argument("--fixed", default="docs/audit/fixed.txt", help="fixed titles to skip")
+    ap.add_argument("--kind", action="append", help="only these kinds (repeatable)")
+    ap.add_argument("--area", help="only classes matching this regex")
+    ap.add_argument("--limit", type=int, default=120, help="rows to print (0 = all)")
+    ap.add_argument("--all", action="store_true", help="also list methods with a TODO marker or perf comment")
+    ap.add_argument("--no-usage", action="store_true", help="skip the sqlite and APK joins")
+    ap.add_argument("--json", action="store_true", help="machine-readable output")
+    ap.add_argument("--md", help="also write the report as markdown here")
+    ap.add_argument("--emit-queue", type=int, metavar="N", help="append the top N unfiled gaps to --queue")
+    ap.add_argument("--queue-kind", action="append",
+                    help="kinds allowed into the queue (default: all but native-missing and hook)")
+    a = ap.parse_args()
+
+    root = Path(a.atl).expanduser().resolve()
+    if not (root / "src" / "api-impl").is_dir():
+        print(f"atl-gaps: {root} has no src/api-impl", file=sys.stderr)
+        return 2
+    members, counts = scan_atl(root)
+
+    hits: dict[str, set[str]] = {}
+    apk_name: dict[str, int] = {}
+    apk_cls: dict[str, int] = {}
+    if not a.no_usage:
+        hits = db_hits(Path(a.db).expanduser())
+        apk_dir = Path(a.apks).expanduser()
+        names = {m.name for m in members}
+        classes = {m.clazz.split("$")[0] for m in members}
+        apk_name, apk_cls = apk_usage(apk_dir, names, classes)
+
+    skip_names: set[str] = set()
+    qpath = Path(a.queue).expanduser()
+    queued: list[dict] = []
+    if qpath.exists():
+        queued = json.load(open(qpath, encoding="utf-8")).get("items", [])
+        for it in queued:
+            f, ln = it.get("file", ""), it.get("line", 0)
+            skip_names.add(f"{f}:{ln}")
+            mt = re.search(r"([A-Za-z0-9_.$]+)\.(\w+)\(", it.get("title", ""))
+            if mt:
+                skip_names.add(f"{mt.group(1)}.{mt.group(2)}")
+    fixed_titles = [ln.strip().lower() for ln in Path(a.fixed).read_text().splitlines()
+                    if ln.strip() and not ln.startswith("#")] if Path(a.fixed).exists() else []
+
+    hidden = {"implemented", "hook"}
+    gaps = [m for m in members if m.kind not in hidden or (a.all and m.kind_flags)]
+    if a.kind:
+        gaps = [m for m in gaps if m.kind in a.kind]
+    if a.area:
+        rx = re.compile(a.area)
+        gaps = [m for m in gaps if rx.search(m.clazz)]
+    gaps = [m for m in gaps
+            if f"{m.file}:{m.line}" not in skip_names and m.member_id() not in skip_names
+            and not any(t in title_for(m).lower() for t in fixed_titles)]
+    gaps.sort(key=lambda m: rank(m, hits, apk_name, apk_cls))
+
+    if a.json:
+        print(json.dumps([{
+            "class": m.clazz, "file": m.file, "line": m.line, "name": m.name, "params": m.params,
+            "kind": m.kind, "note": m.note, "flags": m.kind_flags,
+            "runtime_apps": sorted(set(hits.get(m.member_id(), set())) | set(hits.get(m.name, set()))),
+            "dex_apks": apk_name.get(m.name, 0), "class_apks": apk_cls.get(m.clazz.split("$")[0], 0),
+            "title": title_for(m),
+        } for m in gaps], indent=2))
+    else:
+        order = [k for k in KINDS if counts.get(k)]
+        flagged = sum(1 for m in members if m.kind_flags)
+        print(f"ATL gaps in {root}")
+        print("  kinds: " + ", ".join(f"{k}={counts[k]}" for k in order) +
+              f", methods with a todo/perf marker but a real body={flagged}")
+        scope = "sqlite + corpus APKs" if not a.no_usage else "source only"
+        print(f"  reported: {len(gaps)} (after queue/fixed dedupe); usage from {scope}")
+        print(f"{'apps':>4} {'dex':>4} {'class':>5}  {'kind':<14} {'member':<52} where")
+        for m in gaps[:a.limit] or gaps:
+            apps = len(set(hits.get(m.member_id(), set())) | set(hits.get(m.name, set())))
+            print(f"{apps:>4} {apk_name.get(m.name, 0):>4} {apk_cls.get(m.clazz.split('$')[0], 0):>5}  "
+                  f"{m.kind:<14} {m.clazz.split('.')[-1] + '.' + m.name:<52} {m.file}:{m.line}")
+        by_pkg: Counter[str] = Counter(m.clazz.split(".")[1] if m.clazz.count(".") >= 2 else "?" for m in gaps)
+        print("\nby package: " + ", ".join(f"{k}={v}" for k, v in by_pkg.most_common(12)))
+        unhit = [m for m in gaps if not (hits.get(m.member_id()) or hits.get(m.name))]
+        print(f"no runtime coverage: {len(unhit)}/{len(gaps)} gaps - fetch an app that uses them "
+              f"(atlh fetch --pkg ...) before trusting a gate")
+
+    if a.md:
+        kinds_txt = ", ".join(f"`{k}`={counts[k]}" for k in KINDS if counts.get(k))
+        lines = [f"# ATL gaps ({root.name})", "", f"Kinds: {kinds_txt}", "",
+                 "| apps | dex | kind | member | where |", "|---|---|---|---|---|"]
+        for m in gaps:
+            apps = len(set(hits.get(m.member_id(), set())) | set(hits.get(m.name, set())))
+            lines.append(f"| {apps} | {apk_name.get(m.name, 0)} | {m.kind} | `{title_for(m)}` | "
+                         f"`{m.file}:{m.line}` |")
+        Path(a.md).write_text("\n".join(lines) + "\n", encoding="utf-8")
+        print(f"markdown -> {a.md}")
+
+    if a.emit_queue:
+        if not qpath.exists():
+            print(f"atl-gaps: no queue at {qpath}", file=sys.stderr)
+            return 2
+        data = json.load(open(qpath, encoding="utf-8"))
+        have = {i.get("file", "") + ":" + str(i.get("line", 0)) for i in data["items"]}
+        # Native work is a different job (C code + JNI headers), and empty `on*`
+        # callbacks are usually empty in Android too: neither belongs in a queue
+        # of Java-side fixes unless asked for.
+        allowed = set(a.queue_kind or [k for k in KINDS if k not in ("native-missing", "hook")])
+        added = 0
+        for m in gaps:
+            if m.kind not in allowed:
+                continue
+            if added >= a.emit_queue:
+                break
+            if f"{m.file}:{m.line}" in have:
+                continue
+            data["items"].append(queue_item(m, hits, apk_name, apk_cls))
+            have.add(f"{m.file}:{m.line}")
+            added += 1
+        data["updated"] = __import__("time").strftime("%Y-%m-%d")
+        qpath.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        print(f"queued {added} new gaps in {qpath} (now {len(data['items'])} items)")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

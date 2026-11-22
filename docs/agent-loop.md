@@ -56,6 +56,9 @@ terminal open:
 scripts/agent-loop --max-tasks 2 --no-push --hours 2    # supervised trial first
 scripts/agent-loop --hours 8                             # overnight
 ```
+When the queue runs low, `scripts/atl-gaps --emit-queue N` (docs/usage.md)
+refills it from a static scan of the ATL tree ranked by corpus usage; run it on
+a runner so the sqlite/APK joins work.
 Options: `--task-minutes`, `--jobs`, `--runner`, `--branch`, `--max-removed`,
 `--no-push`. While it runs, bazzite has the agent's ATL build installed; it is
 put back to `origin/main` when the loop ends (also after an error or Ctrl-C).
