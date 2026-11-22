@@ -10,7 +10,7 @@ or anything outside one clone; you review its branch in the morning.
 | Who | Can |
 |---|---|
 | **The agent** (`atl-fixer`, defined in the clone's `.opencode/agents/`) | read files; edit files under the clone's `src/` only; run read-only shell commands (`git diff/status/log/show`, `grep`, `find`, `ls`, `head`, `tail`, `wc`). Shell chaining, pipes, redirection, command substitution and `find -exec/-delete` are denied. No network, ssh, builds, commits or pushes. |
-| **The loop script** (deterministic) | lint the diff, build on the runner, run the gate, commit, push **only** `agent/overnight`, restore the runner's ATL to `origin/main` at the end |
+| **The loop script** (deterministic) | lint the diff, build on the runner, run the gate, commit, push **only** the agent branch (default `local-fixes`, D17: local-model fixes never land on `main` without owner review), restore the runner's ATL to `origin/main` at the end |
 
 Permission rules were verified empirically on 2026-11-21: writes outside
 `src/` and outside the clone, `ssh`, and bypass attempts (`;`, `>`, `$(...)`,
@@ -64,6 +64,6 @@ put back to `origin/main` when the loop ends (also after an error or Ctrl-C).
 - `work/agent/<time>/summary.md`: one row per task (committed / no change /
   rejected by lint / build failed / regressions), review flags, commits.
 - `work/agent/<time>/task-NN/`: the agent's output, the diff, build logs, gate.
-- Review: `git -C ~/Develop/atl-agent log -p origin/main..origin/agent/overnight`.
+- Review: `git -C ~/Develop/atl-agent log -p origin/main..origin/local-fixes`.
   Cherry-pick or merge what's right into the fork's `main` yourself (or ask
   Claude to check them), add their titles to `docs/audit/fixed.txt`.

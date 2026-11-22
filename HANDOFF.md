@@ -68,8 +68,9 @@ triage.md. Deliberately NOT called from `layout()`: `onLayout()` — the GTK
 pass already runs it, and double-dispatching RecyclerView made RunnerUp go
 BLANK (found by the gate, fixed before merge).
 
-15. **Overnight-loop batch, merged 2026-11-22 (`66ff04af`)**: 18 audit fixes
-    from loop `20261121-185746` (branch `agent/overnight`), all reviewed
+15. **Overnight-loop batch, staged on `local-fixes` (tip `2ea23604`), 2026-11-22**:
+    18 audit fixes from loop `20261121-185746` (branch `agent/overnight`),
+    all reviewed
     against their fix_hints (no fake fixes; the two lint flags — Settings
     `return null`, selectDrawable `return false` — are correct Android
     behaviour): setPaddingRelative; ImageView setImageBitmap/setImageResource
@@ -84,7 +85,7 @@ BLANK (found by the gate, fixed before merge).
     mid-gate, its run `agent-20261121-185746-20` is unusable — ATL was
     restored to main mid-run — redone as `-20b`). Gate chain
     base->-19->-20b on bazzite: 0 regressed at every step. The two loop
-    rejections were re-done by hand and merged the same day: ProgressBar
+    rejections were re-done by hand and staged on the same branch: ProgressBar
     `android:max/progress` via a non-virtual `applyInitialRange()` hook
     (`c3b2684b`, gate `pbmax1`; the loop's constructor-virtual-call variant
     → ClassCastException in Material's LinearProgressIndicator, run -12,
@@ -92,6 +93,9 @@ BLANK (found by the gate, fixed before merge).
     DrawableContainer.setBounds (`2ea23604`, gate `dc1`; the loop's
     musicplayer CRASH was a SIGABRT on the Jit thread pool with no drawable
     frames, did not reproduce in 4/4 reruns — the known flaky-abort class).
+    Owner instruction 2026-11-22 (D17): none of this goes to `main` without
+    owner review — `main` was rewound to `7cb4cd2b` and all 20 fixes now live
+    on `local-fixes`; merge decisions there are the owner's.
 
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
@@ -109,7 +113,7 @@ with `javac -h`; commit the regenerated header with any new native method.
 - Owner's wishlist app **Flow** (YouTube client): starts, then exits on missing `AppWidgetManager.getInstalledProviders()`.
 
 ## Next steps (roadmap has the full queue)
-1. **Audit fixes**: `docs/audit/2026-11-21-atl-audit.md` (139 confirmed, 41 high; leniently verified, re-check each). Done: password masking, EditText/Enter, compound button clicks, SharedPreferences listeners, layer-list state, drawRect stroke. Next suggested: gradient shaders (`<shape><gradient>` draws solid black), Bitmap pixel channel swap / `getPixel` exiting the process, TextView `maxLines`/`ellipsize`, dialogs (`setView`, `setCancelable`), locale in AssetManager. (Theme cache key: merged in the overnight batch.) The two loop-rejected retries are done: ProgressBar `max/progress` (`c3b2684b`) and DrawableContainer.setBounds (`2ea23604`).
+1. **Audit fixes**: `docs/audit/2026-11-21-atl-audit.md` (139 confirmed, 41 high; leniently verified, re-check each). Done: password masking, EditText/Enter, compound button clicks, SharedPreferences listeners, layer-list state, drawRect stroke. Next suggested: gradient shaders (`<shape><gradient>` draws solid black), Bitmap pixel channel swap / `getPixel` exiting the process, TextView `maxLines`/`ellipsize`, dialogs (`setView`, `setCancelable`), locale in AssetManager. (Theme cache key: merged in the overnight batch.) The two loop-rejected retries are done (staged on `local-fixes`): ProgressBar `max/progress` (`c3b2684b`) and DrawableContainer.setBounds (`2ea23604`).
 0. **Fossify Music playback** — **done 2026-11-21** (fork main >= `9a2cd6c4`,
 brief updated with root cause: `UserHandle.getCallingUserId()` uid mismatch,
 see HANDOFF item 13): tapping a track now loads the player ("Alpha Song 1")
@@ -177,11 +181,12 @@ Say here which runner you're using for builds/gates, and clear it when done.
 - **opencode (this session, 2026-11-21 night): `oneplus12`** — ATL build +
   owner music-playback check (task: phone gate). Not shared.
 - **opencode (this session, 2026-11-22): `bazzite`** — finished overnight
-  task 20 (build + gate `agent-20261121-185746-20b`), merged
-  `agent/overnight` into fork main (`66ff04af`), re-did the two loop
-  rejections (gates `pbmax1`, `dc1`; merged `c3b2684b`, `2ea23604`), left
-  bazzite installed with clean main `2ea23604` (nothing agent-branch-
-  specific). Released.
+  task 20 (build + gate `agent-20261121-185746-20b`), reviewed the whole
+  `agent/overnight` batch, re-did the two loop rejections (gates `pbmax1`,
+  `dc1`); per owner instruction everything is staged on `local-fixes`
+  (tip `2ea23604`) instead of `main`, and `main` was rewound to
+  `7cb4cd2b`. Left bazzite installed with clean main `7cb4cd2b`
+  (nothing agent-branch-specific). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
@@ -190,14 +195,15 @@ items small enough for the local model (with precise fix hints, in
 for Claude. Trial 3 of the loop: 2 commits; the null-listener fix was right
 (merged), `Builder.setView` was plausible but wrong (needs a slot in the native
 dialog layout; tag `agent-trial3` in the agent clone keeps it). Full overnight
-run `20261121-185746`: 18 fixes reviewed and merged 2026-11-22 (fork item 15);
-both gate-rejected tasks were re-done by hand and merged the same day
-(`c3b2684b`, `2ea23604`). The agent branch was reset to the fork's main
-afterwards.
+run `20261121-185746`: 18 fixes reviewed and staged on `local-fixes`
+(fork item 15, D17 — no local-model fix goes to `main` without owner
+review); both gate-rejected tasks re-done by hand, also on `local-fixes`.
+The agent branch was reset to the fork's main afterwards.
 
 ## Overnight agent (opencode + strata)
 `scripts/agent-loop` ([docs/agent-loop.md](docs/agent-loop.md)): the local
-model fixes audit items in `~/Develop/atl-agent` on branch `agent/overnight`;
+model fixes audit items in `~/Develop/atl-agent` on branch `local-fixes`
+(since D17; before that `agent/overnight`);
 the agent can only edit `src/` there (permissions tested), the script builds,
 gates, and commits/pushes only that branch when nothing regressed. Run on the
 workstation: `scripts/agent-loop --hours 8`; review

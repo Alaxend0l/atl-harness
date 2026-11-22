@@ -115,3 +115,15 @@ Flatpak-style portals-only storage because Android apps expect real media
 folders (MediaStore), and over a hand-written policy per app because the
 manifest already states what the app needs. Known gaps (LAN reachable with
 INTERNET, mic via PipeWire, no seccomp) are listed in docs/sandbox.md.
+
+## D17 (2026-11-22): local-model fixes stage on `local-fixes`; `main` takes only reviewed merges
+Owner instruction after the first full overnight run: fixes produced by the
+local model (agent-loop, and hand-finished retries of its queue items) do not
+land on the fork's `main` without owner review. The 2026-11-22 merges
+(`66ff04af`, `c3b2684b`, `2ea23604`) were unwound: `main` was rewound to
+`7cb4cd2b` and all 20 gated fixes now live on `local-fixes`. That branch is
+the agent-loop's default target (`--branch local-fixes`) and accumulates
+gated local-model fixes stacked on `main`; the morning review is
+`origin/main..origin/local-fixes`. Merging into `main` follows AGENTS.md's
+merge rule and is the owner's call. `agent/overnight` stays as the raw branch
+of run 20261121-185746.
