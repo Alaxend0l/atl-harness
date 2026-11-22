@@ -98,12 +98,14 @@ BLANK (found by the gate, fixed before merge).
     on `local-fixes`; merge decisions there are the owner's.
 
 16. **Fixcov batch: the 9 fixcov crashes, staged on `local-fixes` (tip
-    `1aed7fe5`), 2026-11-22** — 12 commits from branch `fix/fixcov-crashes`
+    `44897c0d`), 2026-11-22** — 14 commits from branch `fix/fixcov-crashes`
     (worktree `~/Develop/atl-fixcov`), one full-corpus gate per step:
     `fcbase -> fc01` 6 improved / 0 regressed (tickmate, omninotes, siggen,
     tuner, kdeconnect `CRASH -> ALIVE`, diary `CRASH -> BLANK`),
     `fc02 -> fc03` and `fc03 -> fc04` 0 regressed, `fc01 -> fc02` +1
-    (gramophone), `fc03 -> fc04` +1 (editor `CRASH -> BLANK`).
+    (gramophone), `fc03 -> fc04` +1 (editor `CRASH -> BLANK`),
+    `fc04 -> fc07` 0 improved / 0 regressed (the last two commits are
+    outcome-neutral on x86_64).
     Fixes: `setContentView` inflates into the window content ViewGroup with
     `attachToRoot=true` (diary `<merge/>`); `ListActivity` binds
     `@android:id/empty` in `onContentChanged()` and forwards
@@ -141,6 +143,31 @@ BLANK (found by the gate, fixed before merge).
     `AppIntroViewPager` count desync) — both queued with evidence in
     `local-queue.json`, together with the menu action-view gap
     (`MenuItemImpl.expandActionView` throws `UnsupportedOperationException`).
+    The last two commits, both outcome-neutral in the gates: the main activity
+    now gets an Intent with `ACTION_MAIN` + `CATEGORY_LAUNCHER` (it was
+    `ACTION_MAIN` with no category, so `filterEquals(Intent.CATEGORY_LAUNCHER)`
+    comparisons fail — found while reading the diary crash, and `Settings
+    → Applications → Application details` needs it); and
+    `ScrollView`/`HorizontalScrollView` create the `OverScroller` on demand
+    (`ensureScroller()`), because ATL reaches `computeScroll()` from
+    `WrapperWidget.c`'s size-allocate callback while the Java constructor chain
+    is still running — on **aarch64 only**, where gramophone's now-playing
+    header crashed with `NullPointerException @
+    android.widget.HorizontalScrollView.computeScroll` (the x86_64 gates never
+    hit that ordering, which is why the aarch64 run was worth doing).
+
+    aarch64 verification (runner `mini`, 67-app DB after fetching the fixcov
+    APKs there): `mfcbase` (build `local:f5753053`) -> `mfc01`
+    (`local:1aed7fe5`) **8 improved / 0 regressed** — the same eight apps and
+    the same outcomes as x86_64; `mfc01 -> mfc03` (`local:44897c0d`)
+    0 improved / 0 regressed and the `computeScroll` NPE is gone (checked in
+    the `failures` table, not just outcomes). Fixcov on mini at the tip: 6
+    ALIVE, 2 BLANK (diary, editor), `me.zhanghai.android.files` CRASH,
+    `player.phonograph.plus` EXITED — identical to bazzite. New mini-only
+    signatures still open on gramophone: `ClassNotFoundException:
+    android.media.MediaFile` (real missing API, used by its MediaStore
+    deletion path) and `NoSuchFieldException @ android.view.View.layoutInternal`
+    (kotlin-reflect on a private field), queued.
     Partial also: audit M72/M74 (the scroll views now animate, but
     `fillViewport`, `fullScroll` and the GtkScrolledWindow mapping are still
     missing, so those audit items stay open in `fixed.txt` terms).
@@ -242,12 +269,25 @@ Say here which runner you're using for builds/gates, and clear it when done.
   the crashes. Left bazzite installed with clean main `7cb4cd2b`. Released.
 - **opencode (this session, 2026-11-22, third): `bazzite`** — fixed the fixcov
   crashes on worktree `~/Develop/atl-fixcov`, branch `fix/fixcov-crashes`
-  (off `local-fixes`); gates `fcbase`→`fc01`→`fc02`→`fc03`→`fc04`, each step
-  0 regressions (see HANDOFF item 16). `local-fixes` fast-forwarded to
-  `1aed7fe5` and pushed; `main` untouched at `7cb4cd2b` (D17). Bazzite is left
-  installed with that tip (`local:1aed7fe5`, built from `atl-fixcov`) because
-  the agent-loop defaults to `local-fixes` — say so before building over it.
-  `mini` untouched (still `local:f5753053` from 2026-11-21). Released.
+  (off `local-fixes`); gates `fcbase`→`fc01`→`fc02`→`fc03`→`fc04`→`fc07`,
+  each step 0 regressions (see HANDOFF item 16). `local-fixes` fast-forwarded
+  to `44897c0d` and pushed; `main` untouched at `7cb4cd2b` (D17). The
+  overnight agent loop was live on bazzite throughout: its `agent-*` runs
+  share `work/atlh.sqlite`, so per-app signature *counts* drift between runs,
+  and the `fc05` run rows disappeared from the DB (`fc01..fc04` survived) —
+  latest usable bazzite baseline `fc04`, newest full run `fc07`. Bazzite is
+  left installed with the `local-fixes` tip `44897c0d` (built from
+  `atl-fixcov`) because the agent-loop defaults to `local-fixes` — say so
+  before building over it. Released.
+- **opencode (this session, 2026-11-22, fourth): `mini` (aarch64)** —
+  verifying the fixcov batch on arm64: fetched the fixcov APKs into mini's
+  corpus (`atlh fetch --pkg-file corpora/fixcov.txt`, DB now 67 apps), ran
+  `mfcbase` on mini's previous build (`local:f5753053`), built
+  `~/Develop/atl-fixcov` with `rig -r mini build --worktree ...`, then ran
+  `mfc01` (8 improved / 0 regressed), `mfc02` (10-app check) and `mfc03`
+  (full, 0 improved / 0 regressed vs `mfc01`). That found the aarch64-only
+  `HorizontalScrollView.computeScroll` NPE, fixed in `44897c0d`. Mini is left
+  installed with `local:44897c0d`. Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
