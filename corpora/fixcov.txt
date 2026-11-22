@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Fix-coverage corpus: chosen to actually exercise the audit fixes staged on
+# the fork's `local-fixes` branch (D17). The 52-app base corpus is mostly
+# Fossify + small utilities and never touches the widget/state/animation code
+# those fixes changed, so gates showed "0 improved" for nearly all of them.
+# Each app below is View-based (not Compose — Compose renders blank under ATL)
+# and pure Java in the F-Droid index (no native ABI constraint on x86_64).
+#
+# ProgressBar/SeekBar android:max+progress (c3b2684b), color animation,
+# playback progress bars:
+org.billthefarmer.tuner
+org.billthefarmer.siggen
+org.billthefarmer.melodeon
+org.billthefarmer.scope
+org.schabi.newpipe
+player.phonograph.plus
+org.akanework.gramophone
+de.danoeh.antennapod
+# Material widgets, StateListDrawable/ripple state, Theme.applyStyle,
+# Context.getColor, compound drawables, Settings.Secure.getString:
+org.fdroid.fdroid
+org.fdroid.basic
+me.zhanghai.android.files
+com.kunzisoft.keepass.libre
+org.kde.kdeconnect_tp
+# Lists + compound drawables + dialogs + editing widgets:
+it.feio.android.omninotes.foss
+org.billthefarmer.diary
+org.billthefarmer.editor
+# Large preference screens (SeekBarPreferences, SwitchPreferences), connectivity
+# capabilities (NetworkCapabilities VALIDATED), Color.colorToHSV (colour pickers):
+nodomain.freeyourgadget.gadgetbridge
+# RTL layout (drawableStart/Right gravity fallbacks, TextView drawable L/R):
+org.justquran.app
+# DrawableContainer bounds (level-list icons, state animators) + tick charts:
+de.smasi.tickmate

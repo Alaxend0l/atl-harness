@@ -108,6 +108,7 @@ with `javac -h`; commit the regenerated header with any new native method.
 
 ## Results to know
 - Fossify suite (`corpora/fossify.txt`): **13/16 work** on the phone; Phone (telecom), Launcher (app widgets), Camera (no camera) don't. 13 are on the phone's home screen ("… (ATL)"), via `rig desktop-apps`.
+- **Fix-coverage corpus (`corpora/fixcov.txt`, 2026-11-22, +19 apps, DB now 71)**: picked because the base corpus never exercises the staged widget/state/animation fixes. On main: 9 CRASH / 9 ALIVE / 1 EXITED. Against `local-fixes`: same outcomes, and KeePass loses the `Path.addCircle` stub signature — first live app confirming that fix. The crashes are all **new** causes (identical on both builds): framework `ActionBar` (empty class) kills billthefarmer tuner/siggen/editor; missing `RotateDrawable` kills zhanghai Files; `ViewGroup.LayoutParams` copy ctor kills Omni Notes; `MediaSessionManager$OnActiveSessionsChangedListener` kills kdeconnect; `nativeCreateFromTypeface[long,int]` kills Gramophone; tickmate NPEs in onCreate (findViewById null); diary hits `<merge/>` inflate restriction. The four small ones are queued in `local-queue.json` (source `live run fixcov-*`) for tonight's loop; the Gramophone/tickmate/diary cases need investigation first. Note: gates now cover all 71 apps, and `compare` scores outcome only — signature deltas need the `failures`-table diff (see this session's transcript).
 - Messages opens but can't send/receive: no default-SMS role, no telephony backend (owner decision pending).
 - microG: template + A/B tooling work (`--data-template`), no app reaches Play Services yet. ATL bug: microG native libs path (`<apk file>_` vs `<package>_`).
 - Owner's wishlist app **Flow** (YouTube client): starts, then exits on missing `AppWidgetManager.getInstalledProviders()`.
@@ -187,6 +188,10 @@ Say here which runner you're using for builds/gates, and clear it when done.
   (tip `2ea23604`) instead of `main`, and `main` was rewound to
   `7cb4cd2b`. Left bazzite installed with clean main `7cb4cd2b`
   (nothing agent-branch-specific). Released.
+- **opencode (this session, 2026-11-22, later): `bazzite`** — fix-coverage
+  corpus (`corpora/fixcov.txt`): fetched 19 apps, ran them against main
+  (`fixcov-main`) and `local-fixes` (`fixcov-lf`), fed 4 new queue items from
+  the crashes. Left bazzite installed with clean main `7cb4cd2b`. Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
