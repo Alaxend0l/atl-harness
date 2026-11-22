@@ -314,9 +314,12 @@ Say here which runner you're using for builds/gates, and clear it when done.
 - **opencode (this session, 2026-11-22, fifth): `oneplus12`** — over the LAN
   (`waffle.local`) because USB networking won't enumerate here. Built
   `~/Develop/atl-fixcov` on the phone and installed `local:44897c0d`, fetched
-  the fixcov APKs into its corpus, ran `pfc01` (sandbox on, unusable) and
-  `pfc02` (`--no-sandbox`). Nothing outside `/home/phone`, no kernel/system
-  changes. Phone left installed with `local:44897c0d`. Released.
+  the fixcov APKs into its corpus, ran `pfc01` (sandbox on, unusable there),
+  `pfc02` (`--no-sandbox`) and `pfc03` (after adding `config.phone.toml`,
+  `sandbox = false`, selected for that runner in `runners.toml`; `pfc02 ->
+  pfc03` 0 improved / 0 regressed). Nothing outside `/home/phone`, no
+  kernel/system changes. Phone left installed with `local:44897c0d`.
+  Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

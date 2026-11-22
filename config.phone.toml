@@ -1,0 +1,69 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# OnePlus 12 runner (oneplus12, bwrap rootfs). Identical to
+# config.aarch64.toml except [atl].sandbox: the phone's host has no TUN, so
+# atl-sandbox's filtered networking cannot start there at all
+# (`Failed to open() /dev/net/tun` -> `atl-sandbox: pasta failed (1)`, and
+# every app is recorded CRASH with 0 signatures). Keep everything else in
+# sync with config.aarch64.toml; see docs/sandbox.md before changing this.
+[paths]
+# Corpus, logs, screenshots and the sqlite db live here (relative to this file).
+work_dir = "work"
+
+[corpus]
+index_url = "https://f-droid.org/repo/index-v2.json"
+repo_url = "https://f-droid.org/repo"
+# ABIs this box can load. APKs without native code always qualify.
+# ARM64 box: ["arm64-v8a"]; x86_64 box: ["x86_64"].
+allowed_abis = ["arm64-v8a"]
+include_native = true
+
+[atl]
+# {apk} and {pkg} are substituted. -w/-h must match the Xvfb screen below so
+# the window fills it. Without -l, ATL picks the launcher activity itself.
+command = ["android-translation-layer", "{apk}", "-w", "1080", "-h", "1920"]
+# Seconds to let the app start before screenshotting and killing it.
+settle_s = 25
+# Extra env vars for ATL (e.g. LIBGL_ALWAYS_SOFTWARE = "1").
+# Optional: seed each app's ATL data dir, e.g. with microG (docs/usage.md).
+# data_template = "~/src/atl-data/microg"
+# Media library every app sees (ATL's MediaStore): the fixed test library made
+# by scripts/runner/make-test-media.sh (rig bootstrap runs it).
+media_dir = "work/test-media"
+# NOT sandboxed, and that is deliberate: the phone's kernel/host has no
+# /dev/net/tun (no `tun` in /proc/misc, kernel 7.4.0-rc3-fap-waffle+), so
+# pasta cannot make its tap device and a sandboxed run fails for every app.
+# Runs here isolate nothing beyond the bwrap rootfs; don't compare their
+# signatures 1:1 with a sandboxed runner's without saying so.
+sandbox = false
+[atl.env]
+# GTK may pick GLX on X11, which breaks ATL's EGL code (upstream README).
+# Upstream says GDK_DEBUG=gl-egl; GTK >= 4.16 replaced that with GDK_DISABLE.
+GDK_DISABLE = "glx"
+
+[display]
+xvfb_args = ["-screen", "0", "1080x1920x24"]
+# ATL draws a 50px title bar even over a blank app; skip it when scoring.
+crop_top_px = 50
+# ATL's light window frame lifts a blank dark app's score; skip it.
+crop_border_px = 6
+
+[classify]
+# VERIFY: tune to what ATL actually logs for unimplemented framework methods.
+stub_patterns = ['(?i)\bstub\b', '(?i)not implemented', '(?i)unimplemented']
+# Screenshot std-dev (0..1) below this counts as a blank screen.
+# Truly blank screens score 0 once the frame is cropped; sparse real UIs
+# (Fossify Notes) score ~0.016, so keep this low. Calibrated 2026-11-21.
+blank_stddev_threshold = 0.005
+
+[agent]
+# Run inside an ATL git worktree. {prompt} = prompt text, {prompt_file} = path.
+# The phone never runs agents (AGENTS.md); this block is here because the
+# config struct denies unknown fields.
+command = ["opencode", "run", "{prompt}"]
+# command = ["claude", "-p", "{prompt}"]
+atl_repo = "~/src/android_translation_layer"
+aosp_frameworks = "~/src/aosp/frameworks/base"
+
+[interact]
+# Per-app interaction scripts: interactions/<pkg>.txt (see src/interact.rs).
+dir = "interactions"

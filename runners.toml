@@ -26,7 +26,9 @@ notes = "Fedora 44 aarch64 Lima VM on the M4 Mac mini; run/screenshot target onl
 ssh = "atl-oneplus12"
 bwrap_root = "atl-root"
 arch = "aarch64"
-config = "config.aarch64.toml"
+# not config.aarch64.toml: the phone host has no /dev/net/tun, so sandboxed
+# runs fail for every app there (docs/sandbox.md)
+config = "config.phone.toml"
 jobs = 3
 make_jobs = 6
-notes = "OnePlus 12 (waffle) on Fedora from fedora-atomic-phone, USB networking; rootfs in ~/atl-root via bwrap (root partition is 8 GiB); nothing outside /home/phone"
+notes = "OnePlus 12 (waffle) on Fedora from fedora-atomic-phone; rootfs in ~/atl-root via bwrap (root partition is 8 GiB); nothing outside /home/phone. Reached over USB networking when that gadget enumerates, otherwise over LAN (waffle.local, see docs/setup.md). Runs unsandboxed: config.phone.toml"

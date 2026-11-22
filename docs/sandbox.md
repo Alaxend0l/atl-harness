@@ -51,18 +51,22 @@ a filtered policy refuses to start rather than falling back to full access.
 On the phone, `passt`/`nftables` come with the next `rig -r oneplus12 rootfs
 --from mini` (in scripts/runner/packages.txt).
 
-**Runner exception (2026-11-22): `oneplus12` cannot do filtered networking.**
-The phone's host has no TUN: `/dev/net/tun` doesn't exist and `tun` is not in
-`/proc/misc` (kernel `7.4.0-rc3-fap-waffle+`), so `pasta` cannot create its
-tap device: `Failed to open() /dev/net/tun` → `atl-sandbox: pasta failed (1)`
-and the app is recorded CRASH with **0 signatures** (nothing from ATL, which
-is the tell). Same ATL, same corpus: `run --run-id pfc01` (sandbox on) lost
-antennapod, omninotes, files, diary, siggen, fdroid.basic, fdroid, justquran,
-kdeconnect, newpipe, phonograph; `run --run-id pfc02 --no-sandbox` gave 15
-ALIVE / 2 BLANK / 2 CRASH / 1 EXITED, matching mini. So runs on that runner
-must pass `--no-sandbox` and are **not** sandboxed; fixing it means the phone
-kernel providing TUN (a `fedora-atomic-phone` change, out of this project's
-scope: nothing outside `$HOME` on that machine).
+**Runner exception (2026-11-22): `oneplus12` runs unsandboxed.** It has its own
+`config.phone.toml` (`[atl].sandbox = false`, everything else identical to
+`config.aarch64.toml`), selected in `runners.toml`, so its runs need no flag.
+The reason it cannot be sandboxed: the phone's host has no TUN —
+`/dev/net/tun` doesn't exist and `tun` is not in `/proc/misc` (kernel
+`7.4.0-rc3-fap-waffle+`), so `pasta` cannot create its tap device:
+`Failed to open() /dev/net/tun` → `atl-sandbox: pasta failed (1)` and the app
+is recorded CRASH with **0 signatures** (nothing from ATL, which is the tell).
+Same ATL, same corpus: `run --run-id pfc01` (`--sandbox`) lost antennapod,
+omninotes, files, diary, siggen, fdroid.basic, fdroid, justquran, kdeconnect,
+newpipe, phonograph; `run --run-id pfc02 --no-sandbox` gave 15 ALIVE / 2 BLANK
+/ 2 CRASH / 1 EXITED, matching mini. Making the phone sandboxable means the
+phone kernel providing TUN — a `fedora-atomic-phone` change, out of this
+project's scope (nothing outside `$HOME` on that machine). Until then,
+compare phone signatures against another **unsandboxed** run, not a sandboxed
+one.
 
 ## Policy files
 On the phone each app has `~/atl-apps/<pkg>.policy.json`, written from the
