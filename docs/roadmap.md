@@ -100,6 +100,12 @@ Play Store terms-of-service caveats discussed 2026-11-21).
 - `fetch` loads the whole F-Droid index into memory (tens of MB; fine).
 - Long runs: `rig atlh --detach NAME ...` (jobs survive ssh drops).
 - New Xvfb per app costs ~1 s; fine for now.
+- The sandbox is unusable on `oneplus12` (the phone's host has no
+  `/dev/net/tun`, so `pasta` cannot start; see docs/sandbox.md): runs there
+  need `--no-sandbox` and are not isolated. Two harness gaps this exposed,
+  still open: `atlh run` records such an app as `CRASH` with **0 signatures**
+  instead of a `sandbox:` signature, and `scripts/runner/doctor.sh` says
+  nothing about `[atl].sandbox` being unusable on that runner.
 
 ## Fork work queue (targets from census1, 2026-11-21)
 Every failure recorded so far is in upstream ATL too: the fork is upstream

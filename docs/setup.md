@@ -150,6 +150,15 @@ over USB networking (`172.16.42.1`, user `phone`, ssh alias `atl-oneplus12`
 with `HostKeyAlias oneplus12`). Follow the phone project's safety rules: one
 actor on the phone, nothing outside `$HOME`.
 
+2026-11-22: USB networking does not come up from this workstation — the phone
+enumerates once as the `fedora-atomic-phone` "ramboot debug shell" gadget and
+then fails (`device descriptor read/64, error -71`, `Device not responding to
+setup address`), so `172.16.42.1` never answers. Until that link is fixed,
+`~/.ssh/config` points `atl-oneplus12` at the phone's LAN mDNS name
+(`waffle.local`, same sshd/key); `rig -r oneplus12 doctor` is green either
+way. Set `HostName 172.16.42.1` back when the USB gadget enumerates. Runs on
+the phone need `--no-sandbox` (no `/dev/net/tun`, see docs/sandbox.md).
+
 ## First-run checklist
 
 Everything here was written before ATL was run on the box, so these

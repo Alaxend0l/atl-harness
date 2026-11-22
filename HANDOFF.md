@@ -172,6 +172,29 @@ BLANK (found by the gate, fixed before merge).
     `fillViewport`, `fullScroll` and the GtkScrolledWindow mapping are still
     missing, so those audit items stay open in `fixed.txt` terms).
 
+ 17. **Phone runner (`oneplus12`) brought to the fixcov tip + corpus,
+     2026-11-22** — USB networking is not coming up from this workstation
+     (the phone enumerates once as the `fedora-atomic-phone` "ramboot debug
+     shell" gadget, then `device descriptor read/64, error -71`), so
+     `~/.ssh/config` now points `atl-oneplus12` at `waffle.local` (LAN, same
+     sshd; docs/setup.md). `rig -r oneplus12 build --worktree
+     ~/Develop/atl-fixcov` installed `local:44897c0d` (was
+     `local:7cb4cd2b-dirty`); `atlh fetch --pkg-file corpora/fixcov.txt` added
+     the fixcov APKs (DB 35 → 54 apps, 691 MB). First run (`pfc01`) lost 11
+     of 19 apps as `CRASH (0 signatures)`: the phone has no `/dev/net/tun`, so
+     `atl-sandbox` cannot start pasta (`docs/sandbox.md`) — with
+     `--no-sandbox` (`pfc02`) the phone matches mini: 15 ALIVE, 2 BLANK
+     (diary, editor), `me.zhanghai.android.files` CRASH, phonograph EXITED.
+     Phone-only: `org.billthefarmer.siggen` **SIGSEGV** (`SEGV_MAPERR` fault
+     addr 0x20, thread `pool-1-thread-1`, no backtrace printed) where mini and
+     bazzite say ALIVE, and phonograph's EXITED signature is
+     `IllegalStateException @ android.app.Activity.nativeStartActivity`
+     instead of the PagerAdapter one — both queued. Side finding while
+     checking the phone's dex: ATL dexes with `dx --incremental`, so a runner
+     that builds repeatedly keeps stale class defs in `api-impl.jar` (mini 9.2
+     MB / 1710 defs vs the phone's clean 3.3 MB / 1696 defs) — harmless for
+     lookups, but jar size is not a usable sanity check.
+
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
 regressions but no visible startup change. Gates now run with `--jobs 6` on
@@ -288,6 +311,12 @@ Say here which runner you're using for builds/gates, and clear it when done.
   (full, 0 improved / 0 regressed vs `mfc01`). That found the aarch64-only
   `HorizontalScrollView.computeScroll` NPE, fixed in `44897c0d`. Mini is left
   installed with `local:44897c0d`. Released.
+- **opencode (this session, 2026-11-22, fifth): `oneplus12`** — over the LAN
+  (`waffle.local`) because USB networking won't enumerate here. Built
+  `~/Develop/atl-fixcov` on the phone and installed `local:44897c0d`, fetched
+  the fixcov APKs into its corpus, ran `pfc01` (sandbox on, unusable) and
+  `pfc02` (`--no-sandbox`). Nothing outside `/home/phone`, no kernel/system
+  changes. Phone left installed with `local:44897c0d`. Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

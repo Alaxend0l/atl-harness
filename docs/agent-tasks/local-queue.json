@@ -1108,19 +1108,55 @@
       "why_local": "Not yet actionable: needs the appintro source and a focused repro before any ATL change is honest."
     },
     {
-      "id": "2026-11-22-gramophone-mediafile-reflect",
-      "kind": "atl-java",
-      "tier": "B",
-      "area": "android.media.* + reflection: android.media.MediaFile missing; kotlin-reflect on View.layoutInternal",
-      "pkg": "org.akanework.gramophone",
-      "sig": "java.lang.ClassNotFoundException: android.media.MediaFile; java.lang.NoSuchFieldException @ android.view.View.layoutInternal",
-      "apps": [
-        "org.akanework.gramophone"
-      ],
-      "source": "runner mini (aarch64) runs mfc01/mfc03, after the StorageVolume fix (2026-11-22-gramophone-storagemodel); these signatures only appear in the aarch64 DB",
-      "note": "The app is ALIVE: both are swallowed reflection failures on its MediaStore metadata path. MediaFile is a framework-internal class (AOSP media/java/android/media/MediaFile.java) whose column-name constants apps read; first grep the run log for which members are touched, then add what the app needs as AOSP defines it. layoutInternal is a private field of View (framework View.java; the fork's stub has no such field) reached by kotlin-reflect: on 7.1 the lookup succeeds, so either carry the field like the framework does or note in code why ATL cannot.",
-      "status": "queued",
-      "difficulty": "M"
+      "source": "live runs mfc01/mfc03 (runner mini, corpora/fixcov.txt)",
+      "title": "android.media.MediaFile is missing, so gramophone's MediaStore metadata reflection fails with ClassNotFoundException",
+      "file": "",
+      "line": 0,
+      "category": "unimplemented_method",
+      "area": "other-java",
+      "evidence": "mfc01/mfc03 failure for org.akanework.gramophone (ALIVE, so the failure is swallowed by the app): `java.lang.ClassNotFoundException: android.media.MediaFile`, logged right after the StorageVolume getters landed, on the app's MediaStore metadata path. The class is framework-internal in AOSP (media/java/android/media/MediaFile.java) and the fork has no such file; it holds the media-type table and column-name constants that apps read reflectively.",
+      "android_behavior": "On 7.1 `android.media.MediaFile` exists in the framework jar (hidden API): `Class.forName(\"android.media.MediaFile\")` succeeds and its public static fields (the file-type/column constants) and `hasAttribute(int type, int attribute)` work as AOSP defines them.",
+      "impact": "The app's metadata read/write path for MediaStore files is dead; gramophone survives, but any app that resolves MediaFile reflectively loses that feature or crashes if it does not guard.",
+      "suggested_fix": "add src/api-impl/android/media/MediaFile.java with the constants and members the app actually touches (find them in the run log before writing the class); list it in src/api-impl/meson.build srcs",
+      "severity": "medium",
+      "user_impact": "low",
+      "est_lines": 60,
+      "fix_hint": "First get the exact members from the evidence, not from AOSP wholesale: `scripts/rig -r mini sh \"grep -a -n -B4 -A20 'MediaFile' ~/atl-harness/work/runs/mfc03/org.akanework.gramophone.log\"` and grep the same log for the column names it asks for. Then create android/media/MediaFile.java ported from AOSP 7.1 media/java/android/media/MediaFile.java, keeping the constant names and values identical (apps read them reflectively, so wrong values are worse than the class missing). Add the new file to the explicit `srcs` list in src/api-impl/meson.build and verify it reaches the dex on the runner before claiming it works.",
+      "why_local": "Self-contained: one new Java class ported from AOSP, no native code, and the members needed are recorded in the run log. Gate with a full-corpus run (the app is already ALIVE, so the gate proves only that nothing regresses); verify the class resolves by rerunning gramophone and checking the ClassNotFoundException is gone."
+    },
+    {
+      "source": "live runs mfc01/mfc03 (runner mini, corpora/fixcov.txt)",
+      "title": "kotlin-reflect on View's private `layoutInternal` field fails: the fork's View has no such field",
+      "file": "src/api-impl/android/view/View.java",
+      "line": 0,
+      "category": "needs_investigation",
+      "area": "view",
+      "evidence": "mfc01/mfc03 failure for org.akanework.gramophone: `java.lang.NoSuchFieldException @ android.view.View.layoutInternal`. AOSP 7.1 View.java declares `void layoutInternal(...)`-style internal layout helpers; gramophone (or a library it uses) reflects on the field. The fork's View.java has no member with that name.",
+      "android_behavior": "On 7.1 the field exists as a private member of android.view.View, so `View.class.getDeclaredField(\"layoutInternal\")` returns it; reflection over private framework fields is normal for animation/instrumentation libraries.",
+      "impact": "The reflecting library falls back or throws; gramophone stays ALIVE but its custom layout/animation path is not exercised.",
+      "suggested_fix": "identify what reflects on it, then decide: carry a field with the framework's name and semantics, or document why ATL cannot",
+      "severity": "low",
+      "user_impact": "low",
+      "est_lines": 10,
+      "fix_hint": "Do not add a dummy private field just to satisfy getDeclaredField - that is a fake fix. First find the caller: grep the gramophone log around the NoSuchFieldException for the library frame (kotlin-reflect / a layout manager). Then compare with AOSP 7.1 framework/core/java/android/view/View.java: if the field backs behaviour ATL implements elsewhere (GTK layout), say so in a comment and return what Android returns when the lookup fails is NOT the answer - the lookup succeeds on Android. If ATL genuinely cannot model it, record the gap in the commit body instead of inventing state.",
+      "why_local": "Small and well-scoped, needs the log to identify the caller and one comparison against AOSP View.java; no native work unless the caller turns out to need real layout state, in which case hand it back."
+    },
+    {
+      "source": "live runs pfc01/pfc02 (runner oneplus12, ATL local:44897c0d)",
+      "title": "org.billthefarmer.siggen dies with SIGSEGV (null+0x20) in a worker thread on the phone, while the same build leaves it ALIVE on mini and bazzite",
+      "file": "",
+      "line": 0,
+      "category": "native_mismatch",
+      "area": "other-java",
+      "evidence": "work/runs/pfc02/org.billthefarmer.siggen.log:162 on oneplus12: `Fatal signal 11 (SIGSEGV), code 1 (SEGV_MAPERR) fault addr 0x20`, `Thread: 11418 \"pool-1-thread-1\"`, ATL's signal handler printed an empty `Backtrace:` (no unwinder data in the phone rootfs). siggen is ALIVE with 0 signatures in mini mfc03 and bazzite fc07 at the same commit, and was never run on this phone before, so nothing in the fixcov chain caused it. siggen starts its tone service from the activity, so the first thing it does off the main thread is ATL's audio path.",
+      "android_behavior": "On Android an app's audio worker talks to AudioTrack/AudioFlinger and never faults; a null-struct dereference in that path is an ATL bug, not app behaviour.",
+      "impact": "siggen (and probably other tone/audio apps) cannot run on the phone runner at all, which keeps audio apps unmeasurable on aarch64 hardware.",
+      "suggested_fix": "reproduce under gdb inside the phone rootfs and fix the null dereference (find the object, do not guard the crash)",
+      "severity": "medium",
+      "user_impact": "low",
+      "est_lines": 0,
+      "fix_hint": "Repro: `scripts/rig -r oneplus12 atlh run --run-id chk --pkg org.billthefarmer.siggen --no-sandbox` (the phone needs --no-sandbox, docs/sandbox.md). Then run the same command under gdb inside the rootfs (`scripts/rig -r oneplus12 sh \"gdb --args android-translation-layer ~/atl-harness/work/apks/<siggen apk> -w 1080 -h 1920\"`, `run`, `bt`) to get the frame; fault addr 0x20 means a null pointer + member offset 0x20. Suspect src/api-impl-jni audio (OpenSL/AudioTrack) taking a null output/device handle when the rootfs has no sound server - confirm by checking whether the crash disappears with the audio path stubbed, and fix the handle, not the symptom.",
+      "why_local": "It is a single null dereference once located, and the phone is set up for it; but it needs gdb on the runner and might land in native ATL audio code that the local model has not touched, so keep it small: report the frame and the one-line cause, hand back if the fix is architectural."
     }
   ],
   "updated": "2026-11-22"
