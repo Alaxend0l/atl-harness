@@ -571,7 +571,7 @@
    "category": "other",
    "area": "app-content-os",
    "evidence": "stopTimeInFuture = SystemClock.elapsedRealtime() + millisInFuture;\nhandler.postDelayed(tickRunnable, countDownInterval);",
-   "android_behavior": "AOSP start() sends the first message immediately, so onTick(\u2248millisInFuture) fires right away and then every interval.",
+   "android_behavior": "AOSP start() sends the first message immediately, so onTick(≈millisInFuture) fires right away and then every interval.",
    "impact": "Countdown UIs (timers, OTP resend, workout apps) show nothing or a stale value for the first interval and get one tick fewer than on Android.",
    "suggested_fix": "Use handler.post(tickRunnable) for the first tick (and account for onTick execution time like AOSP).",
    "severity": "low",
@@ -1036,7 +1036,7 @@
    "severity": "medium",
    "user_impact": "low",
    "est_lines": 40,
-   "fix_hint": "In src/api-impl/android/text/TextUtils.java: (1) htmlEncode(String s): build a StringBuilder, replacing '<' with \"&lt;\", '>' with \"&gt;\", '&' with \"&amp;\", '\\'' with \"&#39;\" (AOSP uses &#39;) and '\"' with \"&quot;\", and copying every other char unchanged. (2) ellipsize(CharSequence text, TextPaint p, float avail, TruncateAt where): if `p.measureText(text, 0, text.length()) <= avail` return text unchanged. Otherwise, with ellipsis \"\u2026\": for END (and MARQUEE), find the longest prefix such that measureText(prefix + ellipsis) <= avail and return prefix + ellipsis. For START, return ellipsis + the longest fitting suffix. For MIDDLE, keep a prefix and a suffix of about equal length around the ellipsis. If not even the ellipsis fits, return \"\". Use a simple loop that shrinks the kept length; do not add new native code.",
+   "fix_hint": "In src/api-impl/android/text/TextUtils.java: (1) htmlEncode(String s): build a StringBuilder, replacing '<' with \"&lt;\", '>' with \"&gt;\", '&' with \"&amp;\", '\\'' with \"&#39;\" (AOSP uses &#39;) and '\"' with \"&quot;\", and copying every other char unchanged. (2) ellipsize(CharSequence text, TextPaint p, float avail, TruncateAt where): if `p.measureText(text, 0, text.length()) <= avail` return text unchanged. Otherwise, with ellipsis \"…\": for END (and MARQUEE), find the longest prefix such that measureText(prefix + ellipsis) <= avail and return prefix + ellipsis. For START, return ellipsis + the longest fitting suffix. For MIDDLE, keep a prefix and a suffix of about equal length around the ellipsis. If not even the ellipsis fits, return \"\". Use a simple loop that shrinks the kept length; do not add new native code.",
    "why_local": "Both methods are small and pure Java with clear AOSP semantics. htmlEncode is trivial. ellipsize can loop over Paint.measureText, which is only approximate in ATL, but the code is still correct by inspection."
   },
   {
@@ -1735,6 +1735,38 @@
    "fix_hint": "pure-Java constants class inside the existing MediaStore stub",
    "suggested_fix": "pure-Java constants class inside the existing MediaStore stub",
    "why_local": "constants-only port, no native work; ATL's ATLMediaStore backend decides query behaviour"
+  },
+  {
+   "source": "code-probe 2026-11-22",
+   "title": "MediaCodec audio output: swr_convert writes into a fixed 16 KiB Java buffer with no capacity check",
+   "file": "src/api-impl-jni/media/android_media_MediaCodec.c",
+   "line": 380,
+   "category": "native_mismatch",
+   "area": "media",
+   "evidence": "src/api-impl/android/media/MediaCodec.java:59 `outputBuffers[i] = ByteBuffer.allocate(16384)`; native_dequeueOutputBuffer then does `int outSamples = swr_convert(ctx->audio.swr, &raw_buffer, frame->nb_samples, ...)` straight into that NIO buffer and reports `_SET_INT_FIELD(buffer_info, \"size\", outSamples * 2 * nb_channels)` - capacity never checked. A 4608-sample FLAC frame (LibFLAC default block size) is 18432 bytes > 16384. The album the phone owner plays uses 4096-sample blocks = exactly 16384 bytes (zero margin), ffprobe -show_frames on Taishi - InPhant - 05 Coalescence.flac: 6450 frames of 4096 samples.",
+   "android_behavior": "MediaCodec sizes its output buffers from the codec's largest output frame; dequeueOutputBuffer never writes past the buffer capacity and BufferInfo.size is always <= capacity.",
+   "impact": "Streams whose decoder frame exceeds 16 KiB lose the tail of every frame (audible gaps/stutter), and the write runs off the end of a Java heap byte[] obtained through GetPrimitiveArrayCritical - heap corruption, not just bad audio.",
+   "suggested_fix": "Size audio output buffers from the format in MediaCodec.java (>= max frame bytes, e.g. 64 KiB or sample-rate/4 frames), and in C clamp the conversion to the destination capacity: cap_frames = capacity/(2*channels), want = min(frame->nb_samples, cap_frames); call swr_convert in a loop (it keeps the remainder internally) and return the leftover for the next dequeue.",
+   "severity": 40,
+   "est_lines": 25,
+   "fix_hint": "clamp in native_dequeueOutputBuffer + grow outputBuffers for audio in MediaCodec.java",
+   "why_local": "mechanical capacity clamp plus buffer sizing, no GTK or ART work"
+  },
+  {
+   "source": "owner-report phone 2026-11-22",
+   "title": "Gramophone on the phone: FLAC stutters on the new MediaCodec FLAC path",
+   "file": "src/api-impl-jni/media/android_media_MediaCodec.c",
+   "line": 0,
+   "category": "needs_investigation",
+   "area": "media",
+   "evidence": "Owner on oneplus12: 'Coalescence' (Taishi - InPhant, FLAC 44.1 kHz/16-bit stereo, 1055 kbps) stutters in Gramophone; opus ('Cubensis Lenses') and Fossify Music Player play fine. Scripted repro exists: work/config-coal.toml (media_dir = music-taishi, settle_s = 70) + interactions-mp script tapping the Coalescence play icon at 64 401 (runs coal3 = library screenshot, coal4 = playback). coal4 log: `MediaCodec.configure({sample-rate=44100, mime=audio/flac, channel-count=2, max-input-size=15327, csd-0=...})` then 3x `E/DecoderAudioRenderer: Audio sink error / AudioSink$InitializationException: AudioTrack init failed 0 Config(44100, 12, 2, 44100)` (stack goes through org.akanework.gramophone.logic.utils.PostAmpAudioSink.handleBuffer). In that run AudioTrack.write was never reached (no write-probe output, no XRUN). Before fork 9690cf54 (FLAC added to MediaCodecList) the owner's session logged 'No audio track selected' 3x and FLAC never played at all, so the stutter lives in the new decode path rather than being an older regression. Gramophone's hificore NativeTrack hidden-API path fails separately (NoSuchFieldException mNativeTrackInJavaObj) and falls back.",
+   "android_behavior": "media3 DefaultAudioSink builds one AudioTrack per format; a STATE_UNINITIALIZED track is an InitializationException that tears the sink down and rebuilds it, which sounds like a gap/stutter.",
+   "impact": "FLAC is audibly broken (stutter) in Gramophone on the phone; the same sink-churn or decoder-gap cause may affect other players.",
+   "suggested_fix": "Decide between (a) decoder-side gaps - see the 16 KiB output-buffer item; (b) sink-rebuild churn: why the track reports STATE_UNINITIALIZED in coal4 when the PCM device opened fine ('PCM state: PREPARED') - note the phone's ALSA device is ATL's own alsa_playback.android-translation-layer plugin, which intermittently refused the open ('Host is down', fixed for the crash in fork 9e4abf80); (c) period/buffer cadence of that plugin (getMinBufferSize returns 4096 bytes = 1024-frame period). Re-add the write_frames counters (calls, avg time, xrun/short/err, avail) and per-dequeue counters, then A/B a 4608-block FLAC (ffmpeg -block_size 4608).",
+   "severity": 40,
+   "est_lines": 0,
+   "fix_hint": "measure first: write_frames counters + MediaCodec dequeue counters, then A/B block sizes on the phone",
+   "why_local": "measurement-driven A/B on the phone runner with the scripted repro already committed"
   }
  ],
  "updated": "2026-11-22"

@@ -59,3 +59,5 @@ MediaSession.sendSessionEvent missing (Gramophone play crash)
 android.media.Rating missing (media-session callbacks, Gramophone UI freeze)
 AudioTrack paused-write/flush/stop stubs + start_threshold + failed-open SIGSEGV
 MediaCodecList had no FLAC decoder (skip-to-next on lossless stopped the player)
+AccelerateDecelerateInterpolator + PathInterpolator linear stubs, PathMeasure.getLength()=100 (real AOSP maths + native GskPath flattening)
+AudioTrack/AudioRecord getMinBufferSize probed an unopened ALSA handle (SIGSEGV on the ExoPlayer playback thread, phone)

@@ -27,6 +27,11 @@ avoids the OpenSSH per-source penalties that locked the mini's VM out twice.
 
 ## ATL fork: what's merged on `main`
 All gated with the corpus (52 apps on bazzite) unless noted:
+
+**Update 2026-11-22**: items 15–26 (the `local-fixes` line, tip `cd4d0a78`)
+merged into `main` as `4a97b41b` on the owner's go-ahead, gated by full-corpus
+`fc26` vs `fc25` (74 apps, 0 regressions) with both runners installed at
+`local:cd4d0a78`.
 1. SoundPool `load(String,int)`, 1-based IDs, load callbacks; `setShowWhenLocked`/`setTurnScreenOn` (Fossify Camera no longer crashes; blank = no camera).
 2. Exceptions from app code: lifecycle → uncaught handler + exit 10 like Android; callbacks → logged as `W/ATL: swallowed exception in <fn>`, cleared (was: CheckJNI aborts). +6 apps.
 3. TextView honours `android:gravity`/`setGravity` (Calculator labels centered).
@@ -451,6 +456,56 @@ with `javac -h`; commit the regenerated header with any new native method.
      - Phone rebuild + owner re-test of skip/seek on the desktop is
        pending; queue also picked up the `MediaStore$Audio$Playlists` CNFE
        seen in the phone Gramophone log.
+26. **Gramophone on the phone: resume symptom, a real SIGSEGV, FLAC
+     stutter (gate `fc26`), 2026-11-22** — owner's re-test after item 25:
+     "Skipping successfully moves to the next song but doesn't play it,
+     pressing play makes the song play, pressing pause makes the song stop,
+     but pressing play after this one more time does not start the song
+     again", and later "Coalescence by Taishi is stuttering during playback"
+     (FLAC 44.1/16 stereo; opus "Cubensis Lenses" and Fossify Music Player fine).
+     - The resume part did **not** reproduce as a resume bug: scripted
+       play→pause→resume on the phone with temporary ALSA-state probes showed
+       clean transitions (pause → `PAUSED`, resume → `start=0` → `RUNNING`;
+       the `unpause=-77`/EINVAL is the unconditional `snd_pcm_pause(FALSE)`
+       after a successful start, harmless). What the probes did find is the
+       *crash* that had been masquerading as it: `Error calling snd_pcm_open:
+       Host is down` then `Fatal signal 11 (SIGSEGV), fault addr 0xbd10,
+       Thread: "ExoPlayer:Playb"` — both `AudioTrack.getMinBufferSize` and
+       `AudioRecord.getMinBufferSize` logged the open failure and then probed
+       the unopened `snd_pcm_t *` (the constructors had the same shape:
+       garbage `period_size` feeding `sw_params`, and AudioRecord dividing by
+       zero). Fork `9e4abf80` returns Android's negative error / no-handle and
+       closes the handle. Witness on the phone runner: same script, `pres2` =
+       CRASH (`signal: SIGSEGV`) → `pres3` = ALIVE with no `Fatal signal`.
+       bazzite cannot reach that path (its ALSA device never refuses an open).
+     - **FLAC stutter: open, two leads** (queue items 103–104). (a) The
+       `MediaCodec` Java shim hands the decoder four 16384-byte buffers and
+       `native_dequeueOutputBuffer` `swr_convert`s into one with no capacity
+       check — a 4608-sample FLAC frame is 18432 bytes, so the tail of every
+       frame is lost and the write runs off the end of a Java heap array (the
+       owner's album uses 4096-sample blocks = exactly 16384, zero margin).
+       (b) In the scripted repro (runs `coal3`/`coal4`, `work/config-coal.toml`
+       + tap on the Coalescence play icon at 64 401) media3 tore its sink down
+       3× with `AudioSink$InitializationException: AudioTrack init failed 0
+       Config(44100, 12, 2, 44100)` — sink rebuild churn is audible as
+       stutter, and there `AudioTrack.write` was never reached. For whoever
+       picks it up: the phone's PCM device is ATL's own
+       `alsa_playback.android-translation-layer` plugin, and the harness keeps
+       only a trimmed log, so read `~/.local/state/atl/
+       org.akanework.gramophone.log` from the last `=== <ts> atl-app` marker.
+     - Also landed (not audio): `cd4d0a78` real
+       `AccelerateDecelerateInterpolator` (AOSP cosine) and `PathInterpolator`
+       (AOSP sampling + the `IllegalArgumentException` checks) plus a native
+       GskPath-flattening `PathMeasure` replacing the `getLength() = 100` stub.
+       Witness is numeric, not app-level: `fdroid.basic` builds
+       `PathInterpolator(0f, 1.1f, 0f, 1f)`, sampled x=0.5 → 1.0013443 and
+       x=0.25 → 0.9751814 (the analytic cubic; old stub gave 0.5). No corpus
+       app is known to use `PathMeasure`, so a trim-path VectorDrawable app is
+       still owed as its witness. `Path.approximate()` left for later.
+     - Gate `fc26` (full corpus, 74 apps) vs `fc25` on bazzite: 0 regressed,
+       0 improved; both runners installed at `local:cd4d0a78`. On that verdict
+       the owner-authorized merge landed: fork `main` = `4a97b41b`
+       (merge of `local-fixes`/`fix/fixcov-crashes`), mirror pushed.
 
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
@@ -491,7 +546,12 @@ a photo). `interactions/org.fossify.musicplayer.txt` checks albums, tracks and
 ## Waiting on the owner
 - Telephony/SMS design for Messages and Phone.
 - Merging the two fedora-atomic-phone branches (`plasma-mobile-spectacle`, `oneplus12-flatpak-home`); both are already applied on the phone by hand.
-- **Phone music playback check** (roadmap step "phone gate"): phone ATL is still at `8a511be7`; it needs `rig -r oneplus12 build --pull` (fork main `7cb4cd2b`), then open Fossify Music and play a track — I inspect `~/.local/state/atl/org.fossify.musicplayer.log` on the phone afterwards (audio may stay silent: Phone 12 raw-HW path caveat).
+- **Phone music playback check** (roadmap step "phone gate"): largely done —
+  the phone is built to `local:cd4d0a78` and the owner has been playing music
+  there (Gramophone reports drove HANDOFF items 25–26). Still owed by the
+  owner: a re-listen after the `main` merge — does the resume symptom ("play
+  after pause does not start again") still happen, and is the FLAC stutter
+  still there (our side: queue items 103–104).
 
 ## Done by the owner (2026-11-21)
 - Spectacle installed on the phone; `scripts/phone-shot` verified (3/3 captures).
@@ -632,6 +692,19 @@ Say here which runner you're using for builds/gates, and clear it when done.
   to that tip started (`rig -r oneplus12 build --worktree ~/Develop/atl-fixcov
   --detach`); owner re-test of skip/seek pending. Bazzite left installed with
   a clean `local:9690cf54` (= `local-fixes` tip). Released.
+- **opencode (this session, 2026-11-22, fourteenth): `bazzite` +
+  `oneplus12`** — Gramophone audio follow-ups (HANDOFF item 26). Phone:
+  builds of the `atl-fixcov` worktree (`build-atl`) and the audio repros —
+  scripted play/pause/resume runs `pres1`–`pres3` (the SIGSEGV witness pair)
+  and the FLAC-stutter repro runs `coal1`–`coal4` under
+  `work/config-coal.toml` (real Taishi album in `work/music-taishi`, tap on
+  the Coalescence play icon); temporary ALSA-state and write-path probes were
+  added and removed in the same worktree, never committed. Bazzite:
+  `build-atl` plus full-corpus gate `fc26` (74 apps) vs `fc25`. Fork commits
+  `9e4abf80` (failed-open SIGSEGV) and `cd4d0a78` (PathMeasure/
+  PathInterpolator/AccelerateDecelerateInterpolator) on `local-fixes`, both
+  runners left installed at a clean `local:cd4d0a78`. Checked `rig job status`
+  on both before starting; no other agent's jobs were running. Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

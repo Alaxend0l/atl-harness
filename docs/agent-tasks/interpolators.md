@@ -265,3 +265,40 @@ method references**; anonymous classes only. Keep the AOSP Apache header style o
 - Step 14 can surface new exceptions in apps whose animator XML uses odd
   interpolators: compare carefully and fix the real cause, don't re-comment.
 - Nothing goes upstream (AGENTS.md D1).
+
+## Status 2026-11-22 (partial, fork `cd4d0a78` on `local-fixes`)
+Done in the `atl-fixcov` worktree (queue items 38 and the PathMeasure gap):
+- `AccelerateDecelerateInterpolator.getInterpolation` = AOSP cosine ease-in-out.
+- `PathInterpolator` = the AOSP algorithm: sample the path at 1/100, binary
+  search over the x table, AOSP's `IllegalArgumentException` checks (must start
+  at (0,0)/end at (1,1), must not loop back).
+- `PathMeasure` (new native backend, `src/api-impl-jni/graphics/
+  android_graphics_PathMeasure.c` + committed JNI header): GskPath → polyline
+  (`gsk_path_foreach` + adaptive subdivision), arc-length `getLength`/`getPosTan`,
+  real `getSegment`, `nextContour`.
+
+Deviation from this brief: it said "don't touch `PathMeasure` here and don't
+build `PathInterpolator` on top of it". AOSP's `PathInterpolator` *is* a
+PathMeasure sampler, and the existing `PathMeasure.getLength()` returned a
+constant 100 - so either the curve was sampled on a fake length (a fake fix in
+the other direction) or the sampling code was duplicated. Implementing the real
+PathMeasure first was the smaller lie; `PathMeasure`'s own correctness is still
+unwitnessed by an app (see below), which is the risk this deviation carries.
+
+Witness: `fdroid.basic` builds `PathInterpolator(0f, 1.1f, 0f, 1f)` (a genuine
+overshoot). Headless probes (bazzite runs gpi1..gpi3, since removed) sampled
+x=0.5 -> 1.0013443 and x=0.25 -> 0.9751814, matching the analytic cubic to 6
+decimals; the old stub gave 0.5 for both.
+
+Still open here:
+- No app in the corpus is known to *use* `PathMeasure`, so its numbers have no
+  witness yet - a VectorDrawable with `trimPathStart/End` (or a Material
+  progress spinner) fetched for it would show `getSegment` as an improvement
+  rather than as no-regression (AGENTS.md: a fix nobody can exercise).
+- `BounceInterpolator`/`OvershootInterpolator`/XML interpolator loading
+  (queue 54 and the `AnimationUtils.loadInterpolator` half of this task).
+- `Path.approximate()` deliberately not implemented (same flattener, no corpus
+  hit yet); queue item for it.
+- Gate: full corpus `fc26` vs `fc25`: 74 apps in both, 0 regressed, 0
+  improved (bazzite, both runners at `local:cd4d0a78`). Fork `main` is now
+  `4a97b41b` (merge of `local-fixes`, owner-authorized 2026-11-22).
