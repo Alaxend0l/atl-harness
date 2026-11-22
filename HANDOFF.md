@@ -195,14 +195,40 @@ BLANK (found by the gate, fixed before merge).
      MB / 1710 defs vs the phone's clean 3.3 MB / 1696 defs) — harmless for
      lookups, but jar size is not a usable sanity check.
 
+On the phone: ATL `local:44897c0d` (the fixcov tip, 2026-11-22; see item 17)
+is installed; `rig -r oneplus12 doctor` shows the current commit. Note for
+fork commits: the build regenerates `src/api-impl-jni/generated_headers/*.h`
+with `javac -h`; commit the regenerated header with any new native method.
+
+ 18. **`scripts/atl-gaps` + queue refill + 4 more queue fixes (gate
+     `fc07 -> fc08`), 2026-11-22**: `scripts/atl-gaps` (docs/usage.md) is the
+     static counterpart of `atlh missing-apis`: it classifies every method
+     body in `src/api-impl` (empty/unsupported/const-return/log-only/log+const/
+     stub-call/commented-out/native-missing/todo/print-in-body/hook) and joins
+     each gap with runtime hits (sqlite), corpus dex references, and
+     queue/fixed dedupe; `--emit-queue N` refills `local-queue.json`. Scan of
+     `44897c0d`: 3390 reported gaps (empty=1631, const-return=812,
+     native-missing=410 — of which 307 are GLES declarations the C layer does
+     not implement, unsupported=125…); 3383 have **no runtime coverage**, so
+     fetching apps that use them is the prerequisite for most of it
+     (`atl-gaps.json/md` saved under git-ignored `work/gaps/2026-11-22/`).
+     Refilled the queue with its top 10 (now 78 items). Fixed the first four
+     live queue items on `fix/fixcov-crashes` -> `local-fixes` tip `7f906b29`
+     (pushed, `main` untouched): `<include android:visibility>` (LayoutInflater
+     parseInclude), Intent copy-ctor/putExtras Bundle copy+merge (getExtras
+     still returns the live bundle — noted in the commit), View scrollTo ->
+     onScrollChanged + OnScrollChangeListener, Window setFlags/addFlags/
+     clearFlags on the window attrs + `FLAG_KEEP_SCREEN_ON=0x80` (was 0) +
+     5-arg LayoutParams ctor storing type/flags/format. Gate `fc07 -> fc08`:
+     0 improved / 0 regressed (outcome-neutral by nature; proves no breakage).
+     `fixed.txt` now also covers those four, so the overnight loop skips them
+     (queue audit: items 0–20 were already fixed on the branch, the queue
+     just predates the fixes).
+
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
 regressions but no visible startup change. Gates now run with `--jobs 6` on
 bazzite (8 jobs + strata ran one app out of memory once).
-
-On the phone: ATL `main` at `8a511be7` (everything above) is installed; `rig -r oneplus12 doctor` shows the current commit. Note for
-fork commits: the build regenerates `src/api-impl-jni/generated_headers/*.h`
-with `javac -h`; commit the regenerated header with any new native method.
 
 ## Results to know
 - Fossify suite (`corpora/fossify.txt`): **13/16 work** on the phone; Phone (telecom), Launcher (app widgets), Camera (no camera) don't. 13 are on the phone's home screen ("… (ATL)"), via `rig desktop-apps`.
@@ -320,6 +346,12 @@ Say here which runner you're using for builds/gates, and clear it when done.
   pfc03` 0 improved / 0 regressed). Nothing outside `/home/phone`, no
   kernel/system changes. Phone left installed with `local:44897c0d`.
   Released.
+- **opencode (this session, 2026-11-22, sixth): `bazzite`** — built
+  `~/Develop/atl-fixcov` with the four queue fixes (queue items 21–24) and
+  ran the gate `fc08` (71 apps, 0 improved / 0 regressed vs `fc07`).
+  `local-fixes` tip now `7f906b29`, pushed; `main` untouched (D17). Bazzite
+  left installed with the `local-fixes` tip `7f906b29` (dirty at build time,
+  commits came after). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
@@ -344,7 +376,7 @@ workstation: `scripts/agent-loop --hours 8`; review
 to `docs/audit/fixed.txt`.
 
 ## Tools added today (all in docs/rig.md)
-`rig` (runners, sync, atlh, jobs, bootstrap, rootfs, build, smoke, desktop-apps, doctor), `rig build --worktree` (2–7 s edit→installed, parsed errors), bounded waits (exit 124 timeout / 125 stalled / 126 unreachable; every subprocess has a time limit), `atlh missing-apis`, `scripts/phone-shot`, `corpora/*.txt`, microG data templates.
+`rig` (runners, sync, atlh, jobs, bootstrap, rootfs, build, smoke, desktop-apps, doctor), `rig build --worktree` (2–7 s edit→installed, parsed errors), bounded waits (exit 124 timeout / 125 stalled / 126 unreachable; every subprocess has a time limit), `atlh missing-apis`, `scripts/phone-shot`, `corpora/*.txt`, microG data templates, `scripts/atl-gaps` (static stub extractor + queue refills, docs/usage.md).
 
 ## Lessons (cost time today)
 - `pkill -f PATTERN` from a shell whose command line contains PATTERN kills that shell itself (exit 144/255). Use `pgrep` + exact PIDs.
