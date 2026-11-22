@@ -60,6 +60,13 @@ Start with `HANDOFF.md` (current state), then `README.md` and `docs/roadmap.md`.
 ## ATL fork gotchas
 - `src/api-impl` is dexed with `dx`: no lambdas or method references
   (invokedynamic), use anonymous classes.
+- **A new Java class must be added to the explicit `srcs` list in
+  `src/api-impl/meson.build`.** A file that is not listed and not referenced by
+  a listed source is silently left out of `api-impl.jar` (javac only pulls it
+  in through `-sourcepath`), and the only symptom is the app still dying with
+  the `ClassNotFoundException` you just fixed. Verify with
+  `python3 -c "import zipfile;print(zipfile.ZipFile('/usr/local/lib64/java/dex/android_translation_layer/api-impl.jar').read('classes.dex').count(b'android/widget/SearchView'))"`
+  on the runner (0 = not compiled in).
 - New Java `native` methods: commit the JNI header in
   `src/api-impl-jni/generated_headers/` (worktree builds may not regenerate
   it; copy the format of an existing header).

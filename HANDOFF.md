@@ -97,6 +97,54 @@ BLANK (found by the gate, fixed before merge).
     owner review — `main` was rewound to `7cb4cd2b` and all 20 fixes now live
     on `local-fixes`; merge decisions there are the owner's.
 
+16. **Fixcov batch: the 9 fixcov crashes, staged on `local-fixes` (tip
+    `1aed7fe5`), 2026-11-22** — 12 commits from branch `fix/fixcov-crashes`
+    (worktree `~/Develop/atl-fixcov`), one full-corpus gate per step:
+    `fcbase -> fc01` 6 improved / 0 regressed (tickmate, omninotes, siggen,
+    tuner, kdeconnect `CRASH -> ALIVE`, diary `CRASH -> BLANK`),
+    `fc02 -> fc03` and `fc03 -> fc04` 0 regressed, `fc01 -> fc02` +1
+    (gramophone), `fc03 -> fc04` +1 (editor `CRASH -> BLANK`).
+    Fixes: `setContentView` inflates into the window content ViewGroup with
+    `attachToRoot=true` (diary `<merge/>`); `ListActivity` binds
+    `@android:id/empty` in `onContentChanged()` and forwards
+    `onListItemClick` (tickmate — AOSP's `AdapterView` never auto-binds the
+    empty view, the fork had the `setEmptyView()` call commented `// FIXME`);
+    `ViewGroup.LayoutParams(LayoutParams)` + `copyFrom` (omninotes); real
+    `android.app.ActionBar` + `Window.getActionBar()` on a shared
+    `Toolbar` (`internal R.id.action_bar`) (billthefarmer tuner/siggen/editor);
+    `MediaSessionManager.getActiveSessions()` +
+    `OnActiveSessionsChangedListener` + the `media_session` service
+    (kdeconnect — ATL has no media-session broker, said in the code);
+    `RotateDrawable` + `<rotate>` in `Drawable.createFromXmlInner` (zhanghai
+    — `Drawable.setLevel()` is a final no-op in ATL so the level arc cannot
+    animate, documented); `StorageVolume` getters
+    (`getUuid/getState/getPathFile/getDirectory/isEmulated/
+    getMediaStoreVolumeName`) that MediaStoreCompat reflects on (gramophone);
+    `View.getFitsSystemWindows()` keeps real state parsed from
+    `android:fitsSystemWindows` (was hardcoded `true`, which made Gramophone's
+    `enableEdgeToEdgePaddingListener` assert and abort);
+    `ScrollView`/`HorizontalScrollView.smoothScrollTo/smoothScrollBy` +
+    `computeScroll()` with an `OverScroller` (diary; the framework declares
+    these on the scroll views, not on `View`);
+    `android.widget.SearchView` + `android.view.CollapsibleActionView`
+    (billthefarmer editor — verifying any class that implements
+    `SearchView.OnQueryTextListener` aborted at activity construction);
+    and `api-impl/meson.build` must list new classes: an unlisted file that
+    nothing references is **silently left out of api-impl.jar** — SearchView
+    was in the tree, built, and still `ClassNotFoundException` until listed
+    (RotateDrawable had only slipped in because `Drawable` references it).
+    Result on the 19 fixcov apps vs `main` (`fixcov-main` → `fc04`): 8 of the
+    9 crashes gone (7 `ALIVE`, diary and editor `BLANK` — both are empty
+    content, not a failure: the diary has no entries in a fresh data dir and
+    the editor opens an empty buffer). Still broken: zhanghai Files (NPE in
+    R8-obfuscated app code, `ap3.a`) and phonograph intro (appintro
+    `AppIntroViewPager` count desync) — both queued with evidence in
+    `local-queue.json`, together with the menu action-view gap
+    (`MenuItemImpl.expandActionView` throws `UnsupportedOperationException`).
+    Partial also: audit M72/M74 (the scroll views now animate, but
+    `fillViewport`, `fullScroll` and the GtkScrolledWindow mapping are still
+    missing, so those audit items stay open in `fixed.txt` terms).
+
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
 regressions but no visible startup change. Gates now run with `--jobs 6` on
@@ -108,7 +156,7 @@ with `javac -h`; commit the regenerated header with any new native method.
 
 ## Results to know
 - Fossify suite (`corpora/fossify.txt`): **13/16 work** on the phone; Phone (telecom), Launcher (app widgets), Camera (no camera) don't. 13 are on the phone's home screen ("… (ATL)"), via `rig desktop-apps`.
-- **Fix-coverage corpus (`corpora/fixcov.txt`, 2026-11-22, +19 apps, DB now 71)**: picked because the base corpus never exercises the staged widget/state/animation fixes. On main: 9 CRASH / 9 ALIVE / 1 EXITED. Against `local-fixes`: same outcomes, and KeePass loses the `Path.addCircle` stub signature — first live app confirming that fix. The crashes are all **new** causes (identical on both builds): framework `ActionBar` (empty class) kills billthefarmer tuner/siggen/editor; missing `RotateDrawable` kills zhanghai Files; `ViewGroup.LayoutParams` copy ctor kills Omni Notes; `MediaSessionManager$OnActiveSessionsChangedListener` kills kdeconnect; `nativeCreateFromTypeface[long,int]` kills Gramophone; tickmate NPEs in onCreate (findViewById null); diary hits `<merge/>` inflate restriction. The four small ones are queued in `local-queue.json` (source `live run fixcov-*`) for tonight's loop; the Gramophone/tickmate/diary cases need investigation first. Note: gates now cover all 71 apps, and `compare` scores outcome only — signature deltas need the `failures`-table diff (see this session's transcript).
+- **Fix-coverage corpus (`corpora/fixcov.txt`, 2026-11-22, +19 apps, DB now 71)**: picked because the base corpus never exercises the staged widget/state/animation fixes. On main: 9 CRASH / 9 ALIVE / 1 EXITED; the crashes were all **new** causes (identical on both builds) and are now fixed on `local-fixes` (HANDOFF item 16): 8 of the 9 crashes gone (`tickmate`, `omninotes`, `siggen`, `tuner`, `kdeconnect`, `gramophone` ALIVE; `diary` and `editor` BLANK = empty content, no entries / empty buffer). Left: `me.zhanghai.android.files` CRASH (NPE in obfuscated app code) and `player.phonograph.plus` EXITED (appintro ViewPager count desync), both queued with evidence. Note: gates now cover all 71 apps, and `compare` scores outcome only — signature deltas need the `failures`-table diff (see this session's transcript).
 - Messages opens but can't send/receive: no default-SMS role, no telephony backend (owner decision pending).
 - microG: template + A/B tooling work (`--data-template`), no app reaches Play Services yet. ATL bug: microG native libs path (`<apk file>_` vs `<package>_`).
 - Owner's wishlist app **Flow** (YouTube client): starts, then exits on missing `AppWidgetManager.getInstalledProviders()`.
@@ -192,6 +240,14 @@ Say here which runner you're using for builds/gates, and clear it when done.
   corpus (`corpora/fixcov.txt`): fetched 19 apps, ran them against main
   (`fixcov-main`) and `local-fixes` (`fixcov-lf`), fed 4 new queue items from
   the crashes. Left bazzite installed with clean main `7cb4cd2b`. Released.
+- **opencode (this session, 2026-11-22, third): `bazzite`** — fixed the fixcov
+  crashes on worktree `~/Develop/atl-fixcov`, branch `fix/fixcov-crashes`
+  (off `local-fixes`); gates `fcbase`→`fc01`→`fc02`→`fc03`→`fc04`, each step
+  0 regressions (see HANDOFF item 16). `local-fixes` fast-forwarded to
+  `1aed7fe5` and pushed; `main` untouched at `7cb4cd2b` (D17). Bazzite is left
+  installed with that tip (`local:1aed7fe5`, built from `atl-fixcov`) because
+  the agent-loop defaults to `local-fixes` — say so before building over it.
+  `mini` untouched (still `local:f5753053` from 2026-11-21). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
