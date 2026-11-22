@@ -77,8 +77,11 @@ class Queue(unittest.TestCase):
                     self.assertIn(it["fix_hint"], p)
 
     def test_audit_queue_still_works(self):
+        # fixed.txt deliberately shrinks this list as fixes land (139
+        # confirmed at 2026-11-21); the floor catches a skip pattern so
+        # broad it swallows the whole queue.
         items = self.loop("audit").queue()
-        self.assertGreater(len(items), 100)
+        self.assertGreater(len(items), 50)
         self.loop("audit").prompt_for(items[0])
 
 
