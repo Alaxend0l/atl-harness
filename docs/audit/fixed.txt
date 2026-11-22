@@ -42,3 +42,5 @@ Framework PopupMenu Menu methods throw UnsupportedOperationException
 Framework PopupMenu MenuItem methods throw UnsupportedOperationException
 ConnectivityManager.getRestrictBackgroundStatus() missing
 ClassNotFoundException for its own DavDocumentsProvider
+Vibrator has no vibrate(VibrationEffect)
+ContentResolver.registerContentObserver/notifyChange are no-ops

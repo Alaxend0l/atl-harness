@@ -307,6 +307,28 @@ with `javac -h`; commit the regenerated header with any new native method.
      exception (separate item). Live queue: Vibrator (28), ContentResolver
      observers (29), then the low-impact tail.
 
+ 21. **Silent-behaviour batch: Vibrator + ContentObservers
+     (gate `fc14`), 2026-11-22**:
+     - `e9265516` queue-28 `Vibrator.vibrate(VibrationEffect[,
+       AudioAttributes])` + `VibrationEffect` storing timings/repeat/
+       duration (+ createPredefined/DEFAULT_AMPLITUDE/getDuration);
+       repeat index now loops from `repeat` until cancel, and a new
+       pattern cancels the old one. hasAmplitudeControl false (native
+       input-event vibrator is duration-only).
+     - `755e604d` queue-29 `ContentResolver` observer registry with
+       AOSP URI-tree matching (ancestor+descendants flag, observers
+       below the changed URI always notified, deliverSelfNotifications,
+       null-uri matches all, copy-before-iterate), `notifyChange(uri,
+       observer, flags)` overload, and ATLMediaContentProvider now
+       firing notifyChange after MediaStore insert/update/delete.
+     Verification honestly recorded in both commits: 48/60 of 74 apps
+     reference these APIs in dex but none crashed on them, so no
+     witness signature exists - gate `fc13 -> fc14` 0/0 (74 apps) is
+     no-breakage only; the runnerup.free 3->4 signature count blip is
+     stub-log noise (AssetManager.destroy), same real signatures both
+     sides. Methods dex-verified. Bazzite installed `local:3a438448-
+     dirty` (= `755e604d` tree).
+
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
 regressions but no visible startup change. Gates now run with `--jobs 6` on
@@ -444,6 +466,10 @@ Say here which runner you're using for builds/gates, and clear it when done.
   `3a438448` (ConnectivityManager, PopupMenu, DocumentsProvider port).
   Bazzite left installed with `local:c75de5c0-dirty`, which is the
   `local-fixes` tip `3a438448` tree. Released.
+- **opencode (this session, 2026-11-22, ninth): `bazzite`** — gate
+  `fc14` and the Vibrator/ContentObserver fixes through `755e604d`.
+  Bazzite left installed with `local:3a438448-dirty`, which is the
+  `local-fixes` tip `755e604d` tree. Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
