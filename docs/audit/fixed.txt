@@ -30,3 +30,5 @@ selectDrawable(-1) keeps showing the previous child
 withEndAction/withStartAction are never cleared
 Button.setText(null) shows "null"
 PropertyValuesHolder ignores the evaluator
+ProgressBar/SeekBar ignore android:max
+DrawableContainer.setBounds skips super
