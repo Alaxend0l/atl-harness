@@ -19,6 +19,14 @@ Start with `HANDOFF.md` (current state), then `README.md` and `docs/roadmap.md`.
   so in a comment.
 - Apps run sandboxed (`docs/sandbox.md`); don't widen a sandbox policy to
   make an app work without recording why.
+- **A fix nobody can exercise needs an app fetched for it.** If the issue you
+  are fixing has zero hits in the current corpus (`apps`/`dex` columns of
+  `scripts/atl-gaps` or `atlh missing-apis` say 0), a 0-regression gate
+  proves nothing about it. Where possible, fetch an F-Droid app that does
+  hit it (`atlh fetch --pkg PKG` on a runner; add the package to a
+  `corpora/<name>.txt` list) and A/B it on the old and new build so the fix
+  shows as an improvement, not just as no breakage. If no suitable app
+  exists, say so in HANDOFF/commit instead of implying the fix was verified.
 
 ## Environment
 - A Linux **workstation** with this clone, and **runners** on the LAN
