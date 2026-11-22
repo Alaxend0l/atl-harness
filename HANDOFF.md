@@ -329,6 +329,27 @@ with `javac -h`; commit the regenerated header with any new native method.
      sides. Methods dex-verified. Bazzite installed `local:3a438448-
      dirty` (= `755e604d` tree).
 
+ 22. **Biggest shared signature killed: `native_addView` NoSuchMethod
+     (gate `fc15`), 2026-11-22**:
+     - `083e0c4e` `View.getViewRootImpl()` + minimal `ViewRootImpl` +
+       `View$AttachInfo` (new meson srcs entry). The signature
+       `NoSuchMethodException @ android.view.ViewGroup.native_addView`
+       (15/74 apps in fc14 — fdroid, k9, tasks, kdeconnect, davdroid...)
+       is androidx WindowInsetsCompat$Impl20.loadReflectionField failing:
+       it wants `getViewRootImpl` + `View$AttachInfo.mVisibleInsets` +
+       `ViewRootImpl.mAttachInfo`, all absent in ATL. Handled by androidx
+       (apps stayed ALIVE) but counted as a failure. Semantics kept
+       AOSP-faithful: null for detached views; attached views get the
+       per-window stand-in whose visible insets are the whole window
+       frame (ATL windows have no system bars — exactly the state AOSP
+       reports that value for).
+     - Runtime-verified, no fetch needed: gate `fc14 -> fc15` (74 apps)
+       removed the signature from all 15 apps (15 -> 0; corpus total
+       147 -> 127), `Failed to get visible insets` in the fdroid log
+       1 -> 0, 0 regressed, zero new signatures in those apps.
+     - Queue item 59 (dispatchApplyWindowInsets/WindowInsets surface) is
+       adjacent but NOT done — this fix covers only the reflection chain.
+
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
 regressions but no visible startup change. Gates now run with `--jobs 6` on
@@ -470,6 +491,10 @@ Say here which runner you're using for builds/gates, and clear it when done.
   `fc14` and the Vibrator/ContentObserver fixes through `755e604d`.
   Bazzite left installed with `local:3a438448-dirty`, which is the
   `local-fixes` tip `755e604d` tree. Released.
+- **opencode (this session, 2026-11-22, tenth): `bazzite`** — gate
+  `fc15` and the ViewRootImpl/getViewRootImpl fix `083e0c4e`. Bazzite
+  left installed with `local:755e604d-dirty`, which is the `local-fixes`
+  tip `083e0c4e` tree. Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

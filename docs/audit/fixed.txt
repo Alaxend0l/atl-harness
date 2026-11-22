@@ -44,3 +44,4 @@ ConnectivityManager.getRestrictBackgroundStatus() missing
 ClassNotFoundException for its own DavDocumentsProvider
 Vibrator has no vibrate(VibrationEffect)
 ContentResolver.registerContentObserver/notifyChange are no-ops
+View.getViewRootImpl missing, no ViewRootImpl / View$AttachInfo
