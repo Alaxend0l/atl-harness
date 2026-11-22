@@ -32,6 +32,8 @@ Button.setText(null) shows "null"
 PropertyValuesHolder ignores the evaluator
 ProgressBar/SeekBar ignore android:max
 DrawableContainer.setBounds skips super
+AudioManager reports ringer mode SILENT
+AccountManager.addOnAccountsUpdatedListener(listener, handler, boolean)
 <include> ignores android:visibility
 Intent copy constructor and putExtras alias Bundles
 scrollTo/setScrollX/setScrollY never call onScrollChanged

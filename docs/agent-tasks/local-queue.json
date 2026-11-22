@@ -571,7 +571,7 @@
       "category": "other",
       "area": "app-content-os",
       "evidence": "stopTimeInFuture = SystemClock.elapsedRealtime() + millisInFuture;\nhandler.postDelayed(tickRunnable, countDownInterval);",
-      "android_behavior": "AOSP start() sends the first message immediately, so onTick(≈millisInFuture) fires right away and then every interval.",
+      "android_behavior": "AOSP start() sends the first message immediately, so onTick(\u2248millisInFuture) fires right away and then every interval.",
       "impact": "Countdown UIs (timers, OTP resend, workout apps) show nothing or a stale value for the first interval and get one tick fewer than on Android.",
       "suggested_fix": "Use handler.post(tickRunnable) for the first tick (and account for onTick execution time like AOSP).",
       "severity": "low",
@@ -1036,7 +1036,7 @@
       "severity": "medium",
       "user_impact": "low",
       "est_lines": 40,
-      "fix_hint": "In src/api-impl/android/text/TextUtils.java: (1) htmlEncode(String s): build a StringBuilder, replacing '<' with \"&lt;\", '>' with \"&gt;\", '&' with \"&amp;\", '\\'' with \"&#39;\" (AOSP uses &#39;) and '\"' with \"&quot;\", and copying every other char unchanged. (2) ellipsize(CharSequence text, TextPaint p, float avail, TruncateAt where): if `p.measureText(text, 0, text.length()) <= avail` return text unchanged. Otherwise, with ellipsis \"…\": for END (and MARQUEE), find the longest prefix such that measureText(prefix + ellipsis) <= avail and return prefix + ellipsis. For START, return ellipsis + the longest fitting suffix. For MIDDLE, keep a prefix and a suffix of about equal length around the ellipsis. If not even the ellipsis fits, return \"\". Use a simple loop that shrinks the kept length; do not add new native code.",
+      "fix_hint": "In src/api-impl/android/text/TextUtils.java: (1) htmlEncode(String s): build a StringBuilder, replacing '<' with \"&lt;\", '>' with \"&gt;\", '&' with \"&amp;\", '\\'' with \"&#39;\" (AOSP uses &#39;) and '\"' with \"&quot;\", and copying every other char unchanged. (2) ellipsize(CharSequence text, TextPaint p, float avail, TruncateAt where): if `p.measureText(text, 0, text.length()) <= avail` return text unchanged. Otherwise, with ellipsis \"\u2026\": for END (and MARQUEE), find the longest prefix such that measureText(prefix + ellipsis) <= avail and return prefix + ellipsis. For START, return ellipsis + the longest fitting suffix. For MIDDLE, keep a prefix and a suffix of about equal length around the ellipsis. If not even the ellipsis fits, return \"\". Use a simple loop that shrinks the kept length; do not add new native code.",
       "why_local": "Both methods are small and pure Java with clear AOSP semantics. htmlEncode is trivial. ellipsize can loop over Paint.measureText, which is only approximate in ATL, but the code is still correct by inspection."
     },
     {
@@ -1327,6 +1327,40 @@
       "est_lines": 10,
       "fix_hint": "src/api-impl/android/content/res/Resources.java:1379. Kind: todo (XXX note that for now we only work with compiled XML files.). Verify with a full-corpus gate (0 regressions) and confirm the class reaches api-impl.jar (src/api-impl/meson.build srcs list).",
       "why_local": "Localised to one method body; needs the AOSP behaviour, no native work."
+    },
+    {
+      "source": "fc12 gate (work/runs/fc12/at.bitfire.davdroid.log)",
+      "title": "ConnectivityManager.getRestrictBackgroundStatus() missing: davdroid crash chain continues after IntentFilter.dump",
+      "file": "src/api-impl/android/net/ConnectivityManager.java",
+      "line": 71,
+      "category": "missing_api",
+      "area": "net",
+      "evidence": "NoSuchMethodError: No virtual method getRestrictBackgroundStatus()I in class Landroid/net/ConnectivityManager; thrown on davdroid's DebugInfoCrashHandler path (uncaught -> System.exit(10)); the next signature after the IntentFilter.dump fix (fc11 -> fc12).",
+      "android_behavior": "AOSP returns RESTRICT_BACKGROUND_STATUS_DISABLED(1) / ENABLED(2) / WHITELISTED(3); without data saver it is DISABLED.",
+      "impact": "davdroid (and any app querying background-data restriction) dies on the missing method.",
+      "suggested_fix": "Constants + public int getRestrictBackgroundStatus() returning RESTRICT_BACKGROUND_STATUS_DISABLED (1): ATL has no data saver, DISABLED is what Android answers by default.",
+      "severity": "medium",
+      "user_impact": "medium",
+      "est_lines": 4,
+      "fix_hint": "In src/api-impl/android/net/ConnectivityManager.java add RESTRICT_BACKGROUND_STATUS_INVALID=0, _DISABLED=1, _ENABLED=2, _WHITELISTED=3 (AOSP values) and `public int getRestrictBackgroundStatus() { return RESTRICT_BACKGROUND_STATUS_DISABLED; }` with a comment. Return type int, NOT boolean.",
+      "why_local": "One method + three constants, values from AOSP."
+    },
+    {
+      "source": "fc11/fc12 runs (work/runs/fc12/at.bitfire.davdroid.log)",
+      "title": "at.bitfire.davdroid: ClassNotFoundException for its own DavDocumentsProvider during content-provider load",
+      "file": "src/api-impl/android/atl/ATLProvider.java",
+      "line": 37,
+      "category": "needs_investigation",
+      "area": "classloading",
+      "evidence": "'Loading content provider at.bitfire.davdroid.provider.webdav(at.bitfire.davdroid.webdav.DavDocumentsProvider)' then 'ClassNotFoundException: at.bitfire.davdroid.webdav.DavDocumentsProvider' from ATLProvider.getContentProvider -> atlLoadedApp.loadClass(provider.className). The class belongs to the app itself; davdroid works on real Android, so ATL's lookup or the dex layout is at fault (multi-dex? class missing after R8?).",
+      "android_behavior": "Android instantiates manifest-declared providers from the app's own classloader; a truly missing provider class would crash on real Android too.",
+      "impact": "davdroid CRASHes; this signature survives every other fix in its chain.",
+      "suggested_fix": "Investigate, do not guess: (1) scan the APK's every classes*.dex for the descriptor at/bitfire/davdroid/webdav/DavDocumentsProvider; (2) if present, trace atlLoadedApp.loadClass (LoadedApp.c) - which dex files it opened; (3) fix the loader only after the root cause.",
+      "severity": "medium",
+      "user_impact": "high",
+      "est_lines": 0,
+      "fix_hint": "On bazzite: python3 + zipfile over work/apks/<davdroid>.apk, look for b'at/bitfire/davdroid/webdav/DavDocumentsProvider' in each *.dex entry. If found, the bug is ATL's classloader scope (compare LoadedApp.c). Do NOT swallow the CNFE - the provider must load.",
+      "why_local": "Binary grep + targeted C reading first; the fix size depends on the finding."
     }
   ],
   "updated": "2026-11-22"

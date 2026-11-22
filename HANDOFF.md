@@ -225,6 +225,51 @@ with `javac -h`; commit the regenerated header with any new native method.
      (queue audit: items 0–20 were already fixed on the branch, the queue
      just predates the fixes).
 
+ 19. **Fixes verified by their own crash signatures, and the first
+     fetch-an-app-for-a-gap batch (gates `fc09`–`fc12`), 2026-11-22**:
+     new AGENTS.md hard rule: if a gap has zero corpus hits, fetch an
+     F-Droid app that does hit it and A/B, otherwise the gate proves
+     nothing. On `fix/fixcov-crashes` -> `local-fixes` tip `c75de5c0`
+     (pushed, `main` untouched):
+     - queue items 25+26 (`599f54b7`): AudioManager ringer mode
+       NORMAL + per-stream volume table; AccountManager 3-arg
+       addOnAccountsUpdatedListener + listener list, new
+       `android.content.SyncStatusObserver` (added to meson.build srcs,
+       confirmed in the dex by string count), ContentResolver
+       SYNC_OBSERVER_TYPE_* (AOSP 1<<0..1<<3) + add/removeStatusChangeListener
+       (no sync service in ATL: the handle never fires, commented).
+       Gate `fc08 -> fc09` 0 improved / 0 regressed, but org.tasks'
+       three AccountManager/SyncStatusObserver signatures were gone.
+     - `de7a228b` LocationManager.removeUpdates(PendingIntent) (AOSP
+       null->IllegalArgumentException; nothing to remove since ATL never
+       registers PI updates) + removeUpdates(LocationListener) finally
+       removes from the set. Gate `fc09 -> fc10` 0/0; org.tasks moved
+       to the next cause.
+     - verification batch `corpora/verify-batch.txt` (fossify.clock,
+       best.deskclock, antennapod, davdroid, k9; 3 newly fetched):
+       A/B `vbase` (build `44897c0d`) vs `vtip` - same outcomes, so
+       fixed.txt got 25/26 and the loop can skip them.
+     - `e5a75917` Context.registerReceiver(receiver, filter, flags)
+       (API 33 variant; ATL broadcasts are app-local);
+       `cc1dc294` Settings$System.DEFAULT_ALARM_ALERT_URI +
+       RingtoneManager TYPE_* and getDefaultUri mapping (AOSP
+       circularity, ATL's provider URIs) - **com.best.deskclock
+       CRASH -> ALIVE with 0 signatures** (the fetched alarm app is
+       the witness for the item-25 audio area);
+       `c75de5c0` IntentFilter.dump(Printer,String): AOSP has no
+       dump on IntentFilter; the call site resolves to the **void**
+       descriptor (`dump(ZLL)` in the dex was not enough - ART said
+       so; verified with a minimal dex parser, which also showed the
+       incremental builddir keeping stale defs next to new ones).
+       Gate `fc10 -> fc11` (74 apps incl. the new batch): **org.tasks
+       CRASH -> ALIVE**, 0 regressed. Gate `fc11 -> fc12`: 0/0, the
+       dump signature gone, org.tasks 3->2 signatures.
+     - davdroid stays CRASH on its own provider class (queue:
+       `at.bitfire.davdroid ... DavDocumentsProvider`
+       needs_investigation) plus `getRestrictBackgroundStatus` (queue);
+       K-9 ALIVE (2 sigs), Antennapod/Fossify Clock ALIVE.
+     Queue now 80 items; fixed.txt covers 25/26 too.
+
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
 regressions but no visible startup change. Gates now run with `--jobs 6` on
@@ -352,6 +397,11 @@ Say here which runner you're using for builds/gates, and clear it when done.
   `local-fixes` tip now `7f906b29`, pushed; `main` untouched (D17). Bazzite
   left installed with the `local-fixes` tip `7f906b29` (dirty at build time,
   commits came after). Released.
+- **opencode (this session, 2026-11-22, seventh): `bazzite`** — gates
+  `fc09`–`fc12`, the verify-batch fetch/A-B (`vbase`/`vtip`) and the
+  queue fixes through `c75de5c0`. Bazzite left installed with the
+  `local-fixes` tip `c75de5c0` (dirty at build time, commits came
+  after). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

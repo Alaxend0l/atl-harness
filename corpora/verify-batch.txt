@@ -1,0 +1,7 @@
+# verification batch for the 21-26 queue fixes (2026-11-22):
+# ringer mode/volumes + window flags (alarms/clock), AccountManager (DAVx5, K-9)
+org.fossify.clock
+com.best.deskclock
+de.danoeh.antennapod
+at.bitfire.davdroid
+com.fsck.k9
