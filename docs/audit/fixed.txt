@@ -53,3 +53,4 @@ moveTaskToBack and setFinishOnTouchOutside are package-private
 IntentFilter.match discards the action-mismatch result
 BounceInterpolator missing
 AnticipateOvershootInterpolator
+Notification.extras never initialized, Builder setExtras/addExtras drop the bundle

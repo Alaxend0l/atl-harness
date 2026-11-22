@@ -375,6 +375,39 @@ with `javac -h`; commit the regenerated header with any new native method.
        signatures (SSL handshake, forkAndExec) are environmental.
      - Commits pushed; `local-fixes` = `7ccb4a77`.
 
+ 24. **Fossify Music media-notification crash (gates `fc19`–`fc20`),
+     2026-11-22**:
+     - Source was NOT the queue: the user ran `org.fossify.musicplayer` on
+       the phone desktop (19:02); the launcher log
+       (`~/.local/state/atl/org.fossify.musicplayer.log`) showed ATL
+       swallowing `NullPointerException @ Bundle.putParcelable` — on real
+       Android the app dies. Decompiled the APK frames with androguard
+       (venv `/tmp/dexvenv` on bazzite): `iq2.g` reads
+       `Notification.extras` and putParcelables the `"android.mediaSession"`
+       token — the androidx.media `MediaNotificationManager` pattern.
+     - Repro attempts on bazzite (scratch `work/config-mp.toml` +
+       `work/interactions-mp/`, runs `mpnpe1`/`mpnpe2`, play+pause+next)
+       start playback but never reach that callback path pre-fix — the
+       trigger is desktop-session-specific (likely the controller
+       callbacks tied to the session bus/MPRIS bridge). Crash witness =
+       the phone log; bazzite evidence is the unblocked deeper path.
+     - `3b241aa9` Notification: constructor and `Action()` create `extras`
+       (AOSP `init()`), `setExtras` replaces / `addExtras` merges (were
+       empty stubs). Gate `fc18 -> fc19`: 0 regressed; musicplayer
+       signatures 2->6 — the unblocked chain exposed
+       `NoSuchMethodError: Context.startForegroundService`.
+     - `a0ac74ca` `Context.startForegroundService` (abstract on `Context`,
+       `ContextWrapper` delegates, `ContextImpl` -> `startService`; AOSP's
+       ActiveServices foreground timeout has no ATL counterpart, commented).
+       Gate `fc19 -> fc20`: 0 regressed; musicplayer 6->4 signatures — the
+       NoSuchMethodError and the swallowed-exception rows are gone.
+     - Phone A/B pending: after the next phone build, a Fossify Music play
+       in the desktop session should show no NPE in its log.
+     - Follow-ups: atl-gaps never queued either bug (missing field init +
+       empty builder stubs are invisible to it) — a scan for public
+       reference fields never assigned in constructors would help; queue
+       item 61 (NotificationChannel) is adjacent and still open.
+
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
 regressions but no visible startup change. Gates now run with `--jobs 6` on
@@ -530,7 +563,9 @@ Say here which runner you're using for builds/gates, and clear it when done.
   build OK (17s incremental), phone runner now installed with
   `local:7ccb4a77` = `local-fixes` tip (was `local:44897c0d`). No
   reboot or restart needed — each app run spawns a fresh ATL process.
-  Phone runs still need `--no-sandbox`.
+  Phone runs still need `--no-sandbox`. (Update: `local-fixes` advanced
+  to `a0ac74ca` right after — the phone is two commits behind; rerunning
+  the same build command brings it current.)
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
