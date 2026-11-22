@@ -15,6 +15,7 @@ org.billthefarmer.scope
 org.schabi.newpipe
 player.phonograph.plus
 org.akanework.gramophone
+com.io7m.exfilac.main
 de.danoeh.antennapod
 # Material widgets, StateListDrawable/ripple state, Theme.applyStyle,
 # Context.getColor, compound drawables, Settings.Secure.getString:

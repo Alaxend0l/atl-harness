@@ -66,3 +66,52 @@ Drawable caches' shouldInvalidateEntry throws, so Resources.updateConfiguration 
 ViewGroup.offsetChildrenTopAndBottom is an empty FIXME, but GridView depends on it
 Debug System.out.println in hot paths
 TextView.setHint is empty and getHint() returns the literal "HINT"
+android.media.SoundPool.load(String path, int priority) prints on every call
+android.media.MediaFile
+MenuItemImpl.expandActionView
+MediaStore$Audio$Playlists class missing
+isInEditMode
+android.content.Intent.Intent() is empty
+MediaStore$Video$Thumbnails.getThumbnail
+AccelerateDecelerateInterpolator
+onBackPressed() prints
+View.unscheduleDrawable
+Context.deleteFile(String) and android.util.LogPrinter missing
+Toast: no setText/setDuration/getDuration
+NotificationChannel stores nothing
+getContentResolver() returns a constant
+android.view.View.getWindowToken() returns a constant instead of state
+android.view.View.setContentDescription
+android.view.View.setFocusable(int focusable) is empty
+android.view.View.setAccessibilityDelegate
+android.view.View$AccessibilityDelegate.sendAccessibilityEvent
+android.view.View.setWillNotDraw
+android.view.View.sendAccessibilityEvent
+android.view.View.clearFocus
+android.view.View.setLayoutDirection
+android.app.Activity.getDisplay
+android.view.View.getDisplay
+Canvas.drawPoint, drawARGB and drawColor
+LayerDrawable.setColorFilter is commented out
+WebViewClient callbacks use non-AOSP signatures
+View.dispatchApplyWindowInsets missing, setOnApplyWindowInsetsListener
+AccountManager.addOnAccountsUpdatedListener
+android.view.View.layout(int l, int t, int r, int b) is marked TODO/FIXME
+Canvas.drawText(char[]
+attachViewToParent adds a view twice
+openFileOutput ignores MODE_APPEND
+getSuggestedMinimumWidth/Height ignore the background
+DateFormat.getDateFormat returns a date+time
+unscheduleDrawable is a no-op
+getClipToPadding()/getClipChildren() return false
+InputFilter.LengthFilter.filter always returns
+TextUtils.htmlEncode returns its input unescaped
+android.app.Activity.getParent() returns a constant instead of state
+ThumbnailUtils.extractThumbnail stretches
+phonograph plus exits: appintro
+android.app.Activity.setVisible(boolean visible) is empty
+android.view.View.canScrollVertically(int value) returns a constant
+# stale (66): no kotlin-reflect "no such field" failure in any fc run; AOSP View has no layoutInternal field either
+kotlin-reflect on View's private `layoutInternal` field
+# stale (77): Theme.obtainStyledAttributes(AttributeSet,int[],int,int) is fully implemented via getAssets().applyStyle
+Resources$Theme.obtainStyledAttributes(AttributeSet set, int[] attrs, int defStyleAttr, int defStyleRes) is marked

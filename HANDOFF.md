@@ -556,7 +556,82 @@ with `javac -h`; commit the regenerated header with any new native method.
        `71b502f5` (TextView actually stores/returns/paints its hint —
        `getHint()` returned the literal "HINT", `setHint` was empty;
        EditText untouched, it uses the GTK placeholder). Gate `fc29` vs
-       `fc28` covers both.
+       `fc28` (74 apps): 0 regressed, 0 improved.
+     - Queue staleness note: item "SoundPool.load prints on every
+       call" (index 73) is **stale** — no such print exists in the
+       current tree (SoundPool was reworked earlier); skip it.
+28. **Fix-loop marathon: queue items → `fc29`..`fc37`, 2026-11-22 night** —
+     same fix loop, `fix/fixcov-crashes` (= `local-fixes`), all gates on
+     bazzite, every gate 0 regressions.
+     - 21 audit-queue fixes `940749c9..37a8a579` (see `git log`):
+       drawable scheduling tokens, getSuggestedMinimum*, DateFormat,
+       LengthFilter, onBackPressed print, attachViewToParent double-add,
+       drawText(char[]) count, Context file API + clip + htmlEncode/
+       ellipsize, MediaFile type table (witness: gramophone CNFE gone in
+       `fc32`), NotificationChannel/Group getters, Toast state,
+       deleteFile/ContentResolver cache + LogPrinter (witness:
+       com.vermont.possin CRASH→ALIVE in `fc33`), state for
+       description/focusable/delegate/tokens, Canvas point family,
+       Drawable tint/filter + LayerDrawable propagation, WebViewClient
+       signatures, OnApplyWindowInsetsListener dispatch.
+     - Item 64 (phonograph intro ViewPager ISE): fork `37a8a579` —
+       View.getWindowToken() returned a token from the first instant;
+       AOSP returns null until the tree is attached after onCreate, and
+       androidx ViewPager.populate() uses exactly that as its guard
+       before the count check (viewpager 1.0.0 sources; AppIntro 6.3.1
+       addSlide sets offscreenPageLimit before notifyDataSetChanged).
+       ATL proxy: first window-driven (JNI layoutInternal) layout marks
+       attached; getWindowToken walks the parent chain. Witnessed in
+       `fc36`: the ViewPager IllegalStateException is gone, phonograph
+       now crashes deeper (see next).
+     - phonograph round 2 (found in `fc36`): "LifecycleOwner ... is
+       attempting to register while current state is STARTED" —
+       root cause: the fork never fired Fragment.onActivityCreated, and
+       androidx lifecycle 2.11's (framework-)ReportFragment dispatches
+       Lifecycle ON_CREATE exactly there; the registry jumped
+       INITIALIZED→STARTED at onStart and replayed ON_CREATE *after*
+       publishing STARTED, tripping ActivityResultRegistry.register's
+       check inside phonograph's deferred launcher delegates. Fix
+       `3afca7d6`: dispatchFragmentsActivityCreated() from C between
+       onCreate and onActivityPostCreated, AOSP performCreate order.
+     - Also fixed: item 83 Activity.setVisible state (`b0d7b392`),
+       item 99 View.canScroll* + ScrollView compute* overrides
+       (`91de247e`), item 50 ThumbnailUtils centre-crop (`abbfd3d5`) —
+       all no-regression verified (no corpus app calls them at startup).
+     - Stale / deferred queue items recorded in `docs/audit/fixed.txt`
+       skip-lines rather than code: items 36/39/44–48/53/60/82 were
+       already fixed by earlier commits (title lines added), 73
+       SoundPool print gone, 68/69 ActionMode.setSubtitle stale (the
+       fork's ActionMode methods are abstract, no concrete impl; the
+       real gap is View.startActionMode returning null — bigger separate
+       gap), 74 android.gesture GestureStore deferred (useless without
+       the whole Gesture/GestureList/GestureLibraries framework), 66
+       kotlin-reflect layoutInternal stale (no kotlin-reflect failure in
+       any fc run's logs; fork View has the *method*, and AOSP has no
+       such field either), 77 Theme.obtainStyledAttributes stale (it is
+       fully implemented through `getAssets().applyStyle`, no TODO).
+     - Gates: `fc30`..`fc36` (74 apps each) vs previous: 0 regressed;
+       improvements: fc32 (gramophone MediaFile), fc33 (possin
+       LogPrinter). `fc36` also progressed phonograph's crash signature
+       without flipping its status (compare scores status only).
+       `fc37` (tree `abbfd3d5`) vs `fc36`: **0 regressed, 2 improved** —
+       phonograph plus EXITED→ALIVE (witnesses `3afca7d6`), and
+       com.nitulshah.nudge CRASH→BLANK. The nudge flip is a *timing*
+       side-effect, not its root cause: nudge's own class extending
+       `android.accessibilityservice.AccessibilityService` still fails
+       to resolve (fork has no such class); the exception now surfaces
+       inside a swallowed callback instead of the lifecycle dispatch.
+       Real fix = the accessibility-service class family — queued
+       context here, not yet done.
+     - After fc37 (uncommitted at write time, gate `fc38` owed): item 49
+       VectorDrawable android:fillType now parsed and applied
+       (`Path.FillType.getMapFillType` + renderPath copy onto
+       mRenderPath), item 51 Ringtone.getTitle resolved through
+       MediaStore with a URI-name fallback (RingtoneManager keeps
+       context+URI; MediaStore.Audio.Media gains TITLE/ARTIST constants).
+     - Item 63 (me.zhanghai.android.files NPE) not yet root-caused:
+       R8 frames in fc04 logs need de-obfuscation; workstation lacks
+       androguard/baksmali.
 
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
@@ -767,6 +842,15 @@ Say here which runner you're using for builds/gates, and clear it when done.
   (`rig -r oneplus12 build`) but unreachable: `waffle.local` does not
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
+- **opencode (this session, 2026-11-22, sixteenth): `bazzite`** — fix-loop
+  continuation (HANDOFF item 28): `build-atl` x2 and full-corpus gates
+  `fc30`..`fc37` (74 apps each, each vs its predecessor; fc30–fc36 all 0
+  regressed / fc36 also 0 improved but progressed phonograph's signature).
+  Fork commits `940749c9`..`abbfd3d5` (21 queue fixes + getWindowToken +
+  fragment onActivityCreated dispatch) pushed to `fix/fixcov-crashes` +
+  `local-fixes`. Added `com.io7m.exfilac.main` to `corpora/fixcov.txt`.
+  Checked `rig -r bazzite job list` before starting; no other agent's jobs.
+  Bazzite left installed with the `abbfd3d5` tree. Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
