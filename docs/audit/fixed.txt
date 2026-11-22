@@ -115,3 +115,6 @@ android.view.View.canScrollVertically(int value) returns a constant
 kotlin-reflect on View's private `layoutInternal` field
 # stale (77): Theme.obtainStyledAttributes(AttributeSet,int[],int,int) is fully implemented via getAssets().applyStyle
 Resources$Theme.obtainStyledAttributes(AttributeSet set, int[] attrs, int defStyleAttr, int defStyleRes) is marked
+VectorDrawable ignores android:fillType
+Ringtone.getTitle returns a visible placeholder string
+android.app.Activity.dispatchKeyEvent(KeyEvent event) returns a constant

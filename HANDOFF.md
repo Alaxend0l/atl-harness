@@ -623,15 +623,29 @@ with `javac -h`; commit the regenerated header with any new native method.
        inside a swallowed callback instead of the lifecycle dispatch.
        Real fix = the accessibility-service class family — queued
        context here, not yet done.
-     - After fc37 (uncommitted at write time, gate `fc38` owed): item 49
-       VectorDrawable android:fillType now parsed and applied
-       (`Path.FillType.getMapFillType` + renderPath copy onto
-       mRenderPath), item 51 Ringtone.getTitle resolved through
-       MediaStore with a URI-name fallback (RingtoneManager keeps
-       context+URI; MediaStore.Audio.Media gains TITLE/ARTIST constants).
-     - Item 63 (me.zhanghai.android.files NPE) not yet root-caused:
-       R8 frames in fc04 logs need de-obfuscation; workstation lacks
-       androguard/baksmali.
+     - After fc37, gated and clean: `fc38` (tree `00d1c8d1`: item 49
+       VectorDrawable android:fillType parsed+applied via
+       `Path.FillType.getMapFillType`, item 51 Ringtone.getTitle
+       resolved through MediaStore with URI-name fallback) and `fc39`
+       (tree `9a22a650`: item 96 Activity.dispatchKeyEvent real window
+       chain + Window.superDispatchKeyEvent + AOSP KeyEvent.Callback
+       defaults) — both **0 improved, 0 regressed** vs their
+       predecessors (no corpus witness; no-regression only, said so in
+       the commit messages).
+     - Item 63 (me.zhanghai.android.files NPE): root cause is that ATL
+       implements no SAF document providers at all
+       (`com.android.externalstorage.documents` etc. absent); the app
+       resolves storage roots through DocumentsContract, gets nothing,
+       NPEs in its loader chain (fc37 stack: all R8 frames). This is a
+       subsystem-sized feature (writing real DocumentProviders), not a
+       queue-item-sized fix — left open, recorded here as roadmap
+       context.
+     - Queue refreshed after fc39: `atl-gaps --emit-queue 15` on
+       bazzite against the `9a22a650` tree + fc39 sqlite → queue now
+       119 items; the new 15 are View state/graphics gaps with dex
+       references but **no runtime hits** (atl-gaps reports 3302/3303
+       gaps without runtime coverage — gates for these prove only
+       no-regression, per AGENTS).
 
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
@@ -843,14 +857,17 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x2 and full-corpus gates
-  `fc30`..`fc37` (74 apps each, each vs its predecessor; fc30–fc36 all 0
-  regressed / fc36 also 0 improved but progressed phonograph's signature).
-  Fork commits `940749c9`..`abbfd3d5` (21 queue fixes + getWindowToken +
-  fragment onActivityCreated dispatch) pushed to `fix/fixcov-crashes` +
-  `local-fixes`. Added `com.io7m.exfilac.main` to `corpora/fixcov.txt`.
-  Checked `rig -r bazzite job list` before starting; no other agent's jobs.
-  Bazzite left installed with the `abbfd3d5` tree. Released.
+  continuation (HANDOFF item 28): `build-atl` x4 and full-corpus gates
+  `fc30`..`fc39` (74 apps each, each vs its predecessor; all 0
+  regressed; `fc37` 2 improved: phonograph EXITED->ALIVE, nudge
+  CRASH->BLANK). Fork commits `940749c9`..`9a22a650` (21 queue fixes +
+  getWindowToken + fragment onActivityCreated dispatch + fillType +
+  Ringtone + dispatchKeyEvent) pushed to `fix/fixcov-crashes` +
+  `local-fixes`. Added `com.io7m.exfilac.main` to `corpora/fixcov.txt`;
+  refreshed the queue with `atl-gaps --emit-queue 15` after `fc39`
+  (queue now 119). Checked `rig -r bazzite job list` before starting; no
+  other agent's jobs. Bazzite left installed with the `9a22a650` tree
+  (= `local-fixes` tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
