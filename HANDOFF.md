@@ -525,6 +525,12 @@ Say here which runner you're using for builds/gates, and clear it when done.
   interpolator fixes through `7ccb4a77`. Bazzite left installed with
   `local:ed3f2760-dirty`, which is the `local-fixes` tip `7ccb4a77`
   tree. Released.
+- **Phone state, 2026-11-22 18:53:** user ran
+  `rig -r oneplus12 build --worktree ~/Develop/atl-fixcov --detach`;
+  build OK (17s incremental), phone runner now installed with
+  `local:7ccb4a77` = `local-fixes` tip (was `local:44897c0d`). No
+  reboot or restart needed — each app run spawns a fresh ATL process.
+  Phone runs still need `--no-sandbox`.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
