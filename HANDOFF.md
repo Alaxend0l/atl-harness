@@ -507,6 +507,57 @@ with `javac -h`; commit the regenerated header with any new native method.
        the owner-authorized merge landed: fork `main` = `4a97b41b`
        (merge of `local-fixes`/`fix/fixcov-crashes`), mirror pushed.
 
+27. **MediaCodec audio output-buffer overflow fixed (gate `fc27`), plus
+     two audit fixes (gate `fc28`), 2026-11-22** — fix-loop session on
+     `fix/fixcov-crashes` (= `local-fixes`).
+     - Fork `709f7b66` (queue item "MediaCodec audio output: swr_convert
+       writes into a fixed 16 KiB Java buffer with no capacity check"):
+       the lead (a) from item 26 was a real bug. Audio codecs got four
+       16384-byte output buffers while `native_dequeueOutputBuffer`
+       `swr_convert`s a whole AVFrame in with no capacity check — a
+       4608-sample stereo FLAC frame is 18432 B, so 2 KiB ran past a
+       `GetPrimitiveArrayCritical` Java array and `BufferInfo.size`
+       exceeded the ByteBuffer capacity, which media3 rejects. Witness
+       pair on bazzite (scratch library `work/media-103`: stereo 44.1 kHz
+       FLAC, 143 frames x 4608 samples; scratch config
+       `work/config-103.toml`, tap the play icon at 67 300): pre-fix
+       `mcpre4` = `IllegalArgumentException at java.nio.Buffer.limit` in
+       `MediaCodecRenderer.drainOutputBuffer` → `playerFailed
+       [mediaPos=0.00]`, AudioTrack never played; post-fix `mcpost1` =
+       same script reaches `calling AudioTrack.play()`, zero
+       Buffer/playerFailed lines. Fix = 32768-byte audio output buffers
+       in MediaCodec.java (primary, witnessed) + capacity clamp and
+       drain-on-next-dequeue in the C shim (defence-in-depth, no corpus
+       witness — logged as "tail deferred" if it ever fires).
+       Tooling follow-up owed: the gate's Beta FLAC album is *mono*
+       4608-block (9216 B, fits) — make it stereo in
+       `scripts/runner/make-test-media.sh` so the corpus covers this.
+     - Queue 104 (phone FLAC stutter) finding while triaging: the
+       `Config(44100, 12, 2, 44100)` in the coal4 sink failures is
+       channelConfig 12 (stereo) + encoding 2 (PCM_16BIT) — **not** a
+       24-bit encoding, an earlier suspicion was wrong. The reopens
+       fail because ATL's own `alsa_playback.android-translation-layer`
+       plugin intermittently refuses them ("Host is down"); initial
+       trigger still unknown, repro needs the phone.
+     - Fork `a9c384e1` (Resources drawable-cache `shouldInvalidateEntry`
+       → `Configuration.needNewResources`, matching AOSP and this
+       package's own ConfigurationBoundResourceCache) and `c5024620`
+       (ViewGroup.offsetChildrenTopAndBottom offsets its children —
+       GridView's seven gap-correction call sites were no-ops). Both are
+       compile + no-regression verified only: no corpus app reaches
+       those paths in the scripted gates (checked every run's signatures;
+       ~20 APKs reference `updateConfiguration` but none hit the prune
+       path). Real witnesses still owed.
+     - Gates on bazzite: `fc27` (74 apps, tree `709f7b66`) vs `fc26`:
+       0 regressed, 0 improved. `fc28` (74 apps, tree `c5024620`) vs
+       `fc27`: 0 regressed, 0 improved.
+     - Same session, queued behind fc28: fork `a3c8388a` (drop the
+       per-frame `updateTintFilter` and PopupMenu debug prints) and
+       `71b502f5` (TextView actually stores/returns/paints its hint —
+       `getHint()` returned the literal "HINT", `setHint` was empty;
+       EditText untouched, it uses the GTK placeholder). Gate `fc29` vs
+       `fc28` covers both.
+
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
 regressions but no visible startup change. Gates now run with `--jobs 6` on
@@ -705,6 +756,17 @@ Say here which runner you're using for builds/gates, and clear it when done.
   PathInterpolator/AccelerateDecelerateInterpolator) on `local-fixes`, both
   runners left installed at a clean `local:cd4d0a78`. Checked `rig job status`
   on both before starting; no other agent's jobs were running. Released.
+- **opencode (this session, 2026-11-22, fifteenth): `bazzite`** — fix-loop
+  session (HANDOFF item 27): scratch witness runs `mcpre1`–`mcpre4` /
+  `mcpost1` under `work/config-103.toml` with the scratch stereo 4608-block
+  library `work/media-103` (new dir, keep for future MediaCodec work),
+  `build-atl` x4, full-corpus gates `fc27` vs `fc26` (0/0), `fc28` vs
+  `fc27` (0/0) and `fc29` vs `fc28`. Fork commits `709f7b66`, `a9c384e1`,
+  `c5024620`, `a3c8388a`, `71b502f5` pushed to `fix/fixcov-crashes` +
+  `local-fixes`. Phone attempted
+  (`rig -r oneplus12 build`) but unreachable: `waffle.local` does not
+  resolve (phone asleep/off mDNS). Bazzite left installed with
+  the `71b502f5` tree. Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
