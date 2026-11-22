@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Gramophone: playback, pause and skip-to-next from the Songs list.
+# - The androidx.media3 session posts events on play; ATL's
+#   MediaSession.sendSessionEvent used to be missing (NoSuchMethodError killed
+#   Gramophone via its own crash handler - witnessed on the phone desktop log,
+#   2026-11-22, and reproduced with this script as bazzite run gpre1, fixed
+#   run gpost1).
+# - The skip step (opus -> FLAC library item) exercises the AudioTrack
+#   pause/flush/stalled-write fixes and the FLAC decoder: before those,
+#   Gramophone's onTracksChanged saw an unselected track group and stopped the
+#   player (witness bazzite gpost7/gpost11; verified fixed in gpost12).
+# Needs the harness test library ([atl] media_dir,
+# scripts/runner/make-test-media.sh); on runners without it this just fails
+# the taps harmlessly. 1080x1920 screen.
+wait 3
+expect-text "Songs"
+tap 64 336      # play icon on the first song row (Alpha Song 1, opus)
+wait 6
+shot playing
+tap 64 336      # same icon is pause while playing
+wait 3
+shot paused
+tap 610 401     # Beta Tune 1 (FLAC): skip starts it; must show pause icon
+wait 4
+shot after_skip
+tap 610 401     # pause Beta
+wait 2
+tap 610 401     # resume Beta: sink re-prepare must complete
+wait 3
+shot after_resume

@@ -82,6 +82,12 @@ Start with `HANDOFF.md` (current state), then `README.md` and `docs/roadmap.md`.
   them pink): use `snapshot_transform_android_matrix` (fork doc/Shaders.md).
 - Debugging: `ATL_BINDER_TRACE=1`, `ATL_DUMP_NODES=DIR`,
   `scripts/runner/jdb-app.sh`, `atlh missing-apis`.
+- When an app's own logic is in question, **read its source before its dex**:
+  nearly everything on F-Droid is open source and lists its upstream repo in
+  the app description (and `SourceCode` in the fdroiddata metadata). Clone it
+  and check out the release matching the installed APK (match `versionCode`
+  in e.g. `app/build.gradle*`); dex-scanning (androguard) is the fallback,
+  not the first step.
 
 ## Working on the code
 - New files start with `SPDX-License-Identifier: AGPL-3.0-or-later` (LICENSING.md).

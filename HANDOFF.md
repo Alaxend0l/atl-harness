@@ -407,6 +407,50 @@ with `javac -h`; commit the regenerated header with any new native method.
        empty builder stubs are invisible to it) — a scan for public
        reference fields never assigned in constructors would help; queue
        item 61 (NotificationChannel) is adjacent and still open.
+25. **Gramophone crash → frozen UI → dead playback chain (gates
+     `fc22`–`fc24`), 2026-11-22** — the owner ran Gramophone on the phone
+     desktop; three stacked causes, fixed in order, each with a witness:
+     - `22111b88` `MediaSession.sendSessionEvent` was missing: the moment
+       androidx.media3 1.8.0 posted a session event Gramophone died with
+       `NoSuchMethodError` (phone desktop log). A no-op + log matches what
+       AOSP does for an abandoned session. Gate `fc21 -> fc22`: 0
+       regressions.
+     - `465bb53b` `android.media.Rating` port (concrete styles as static
+       inner classes + `newHeartRating(boolean)`): its absence made the UI
+       freeze after the crash-handler path ("Music works now, excellent" —
+       owner confirmed on the phone). Gate `fc22 -> fc23`: 0 regressions.
+     - Skip-to-next showed the next song but never played it, and the seek
+       bar died. Root causes (bazzite scratch runs `gpost*`, ALSA null
+       device for reproducible timing, backup evidence `work/remote/
+       bazzite/runs/gpost7`): (a) `AudioTrack.write` on a **paused** track
+       returns 0 forever under ALSA (Android buffers it) → media3
+       `handleStalledWrite` spins on 40-frame silence, playback thread
+       dead; (b) `flush()`/`stop()` were stubs and the head position could
+       go negative (`head w=14048 delay=16096`); (c) `start_threshold` =
+       whole buffer delayed consumption until media3's watchdog fired
+       `audioTrackUnderrun`; (d) a failed `snd_pcm_open` (phone ssh session,
+       "Host is down") kept a garbage handle → **SIGSEGV on the ExoPlayer
+       thread** (phone scratch run `pgram0`). Fixed in `b858fdff` (buffered
+       paused writes, `flush`/`stop` via `native_flush`=`snd_pcm_drop`,
+       head clamp, `STATE_UNINITIALIZED` on open failure + NULL guards).
+     - The other half of "shows the next song but doesn't start it" was in
+       the **app**: cloning the source (github.com/FoedusProgramme/
+       Gramophone, tag `1.1.2` = versionCode 24 — clone the app's listed
+       repo before decompiling, AGENTS.md) shows `onTracksChanged` calls
+       `controller.stop()` whenever Tracks are non-empty but *unselected*;
+       with no FLAC decoder in ATL's `MediaCodecList` a skip onto the FLAC
+       test album could never select a format, so Gramophone itself stopped
+       the player (witness `gpost11` + thread dumps: playback looper idle,
+       codec released, nothing rebuilt). `9690cf54` adds flac (ffmpeg has
+       the decoder; `configure()` routes to `native_configure_audio`).
+       Verified headlessly: `gpost12` shows the full skip rebuild
+       (configure flac → new AudioTrack → play), zero underrun/stalled
+       signatures, screenshots show Beta Tune 1 playing; pause/resume
+       re-prepares cleanly. Gate `fc23 -> fc24` (19 fixcov apps) and
+       full-corpus `fc23 -> fc25` (74 apps): 0 regressions both.
+     - Phone rebuild + owner re-test of skip/seek on the desktop is
+       pending; queue also picked up the `MediaStore$Audio$Playlists` CNFE
+       seen in the phone Gramophone log.
 
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
@@ -426,8 +470,8 @@ bazzite (8 jobs + strata ran one app out of memory once).
 brief updated with root cause: `UserHandle.getCallingUserId()` uid mismatch,
 see HANDOFF item 13): tapping a track now loads the player ("Alpha Song 1")
 and the interaction script passes on mini and in the bazzite gate. Follow-ups
-left: AudioTrack `stop()`/`flush()` stubs (harness flags
-`stub: STUB: AudioTrack.flush()`), `getTimestamp` returns false,
+left: ~~AudioTrack `stop()`/`flush()` stubs~~ done in `b858fdff` (HANDOFF
+item 25), `getTimestamp` returns false,
 `AnimationUtils.loadInterpolator` returning null (crashes Music's progress
 indicator), and mini's Lima audio device failing `snd_pcm_hw_params`
 (VM config, audible audio untested there). Phone gate with the new main not
@@ -566,6 +610,28 @@ Say here which runner you're using for builds/gates, and clear it when done.
   Phone runs still need `--no-sandbox`. (Update: `local-fixes` advanced
   to `a0ac74ca` right after — the phone is two commits behind; rerunning
   the same build command brings it current.)
+- **opencode (this session, 2026-11-22, twelfth): `bazzite` + `oneplus12`** —
+  speedups (bazzite `jobs` 6 validated by gate `fc21`, ccache installed on
+  all three runners incl. the phone rootfs via file copy from mini;
+  bazzite builddir re-set up with the ccache launcher, clean rebuild
+  17s→7s), then the Gramophone chain (HANDOFF item 25): gates `fc22`
+  (sendSessionEvent) and `fc23` (Rating), both 0 regressions; scratch
+  single-app runs `gpre*`/`gpost*` under `work/config-mp.toml`. Phone
+  rebuilt twice by the user (`22111b88`, then `22111b88-dirty` = tip
+  `465bb53b` tree, 19:58). Both runners released; bazzite installed with
+  the `465bb53b` tree (= `local-fixes` tip).
+- **opencode (this session, 2026-11-22, thirteenth): `bazzite`** — finished
+  the Gramophone audio chain (HANDOFF item 25): scratch runs `gpost1`–
+  `gpost12` under `work/config-mp.toml` (a temporary `~/.asoundrc` null ALSA
+  device gave reproducible timing for the stalled-write repro; it was removed
+  before the gates so the gate environment matches the `fc23` baseline — no
+  asoundrc). Fork commits `b858fdff` (AudioTrack) + `9690cf54` (FLAC
+  decoder); gates `fc24` (19 fixcov apps, and it exercised the extended
+  gramophone interaction script) and full-corpus `fc25` (74 apps) vs `fc23`:
+  0 regressions both. `local-fixes` pushed through `9690cf54`. Phone rebuild
+  to that tip started (`rig -r oneplus12 build --worktree ~/Develop/atl-fixcov
+  --detach`); owner re-test of skip/seek pending. Bazzite left installed with
+  a clean `local:9690cf54` (= `local-fixes` tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

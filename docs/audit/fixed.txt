@@ -54,3 +54,8 @@ IntentFilter.match discards the action-mismatch result
 BounceInterpolator missing
 AnticipateOvershootInterpolator
 Notification.extras never initialized, Builder setExtras/addExtras drop the bundle
+Context.startForegroundService missing (NoSuchMethodError)
+MediaSession.sendSessionEvent missing (Gramophone play crash)
+android.media.Rating missing (media-session callbacks, Gramophone UI freeze)
+AudioTrack paused-write/flush/stop stubs + start_threshold + failed-open SIGSEGV
+MediaCodecList had no FLAC decoder (skip-to-next on lossless stopped the player)
