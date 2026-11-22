@@ -61,6 +61,27 @@ After an install, `~/src/logs/atl-installed.txt` records what is installed
 (`<sha>[-dirty]` or `local:<git describe>`); `rig doctor` shows it. Use
 `rig smoke`/`rig atlh run` right after to test the build.
 
+Builds use ccache when it is installed (bootstrap packages): the launcher is
+baked in at the first `meson setup`, so existing builddirs pick it up at
+their next `CLEAN=1` build. ccache keys on preprocessed source + compiler
+signature, so objects are bit-identical — it never changes what a gate tests.
+
+## Gating a change (two tiers)
+1. **Targeted witness runs while iterating**: `rig -r NAME atlh run --run-id
+   tag --pkg PKG` (keep scratch configs/scripts under `work/` — sync rsyncs
+   with `--delete` but excludes `work/`, so those files survive; files in
+   tracked dirs do not). Cheap, and it exercises the exact fix — full-corpus
+   runs often never reach the crashing path.
+2. **One full-corpus gate per pushed batch**: `rig -r bazzite atlh --detach
+   fcNNrun run --run-id fcNN` then `rig -r bazzite atlh compare fcNN-1 fcNN`
+   (exit 1 = any app got worse; 0 regressions required before pushing to
+   `local-fixes`). Keep the fixed settle time for gates: tuning it changes
+   baselines and breaks like-for-like comparison.
+
+`atlh run` skips apps already recorded under the run id (only `--force`
+re-runs), so an interrupted or stalled gate is resumed by re-running the same
+command, not restarted.
+
 ## Apps on a runner's own screen
 `rig desktop-apps install --pkg PKG…` (APKs from the runner's corpus) adds a
 "Name (ATL)" launcher per app to `~/.local/share/applications` with the

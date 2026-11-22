@@ -30,7 +30,18 @@ meson_build() { # dir [setup args...]
   cd "$dir" || return 1
   if [ "$CLEAN" = 1 ]; then rm -rf builddir; fi
   if [ ! -f builddir/build.ninja ]; then
-    meson setup builddir --prefix=/usr/local "$@" || return 1
+    # Compiler launchers are baked in at first `meson setup` (meson refuses
+    # changing the compiler on reconfigure), so wire ccache there. ccache
+    # keys on preprocessed source + compiler signature; objects are
+    # bit-identical. Existing builddirs pick it up on their next CLEAN
+    # build. NOCACHE=1 skips it.
+    if command -v ccache >/dev/null 2>&1 && [ -z "${NOCACHE:-}" ]; then
+      CCACHE_DIR=${CCACHE_DIR:-$HOME/.ccache} CCACHE_MAXSIZE=${CCACHE_MAXSIZE:-10G} \
+        CC="${CC:-ccache gcc}" CXX="${CXX:-ccache g++}" \
+        meson setup builddir --prefix=/usr/local "$@" || return 1
+    else
+      meson setup builddir --prefix=/usr/local "$@" || return 1
+    fi
   fi
   meson compile -C builddir -j "$MAKE_JOBS" || return 1
   if [ "$INSTALL" = 1 ]; then

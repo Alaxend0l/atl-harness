@@ -9,7 +9,7 @@ ssh = "atl-box"
 distrobox = "atl"
 arch = "x86_64"
 config = "config.toml"
-jobs = 4
+jobs = 6  # 16 cpus / 91 GB; box is shared with strata, so keep headroom
 notes = "x86_64 Bazzite box, shared with strata; Fedora 44 distrobox"
 
 [runners.mini]

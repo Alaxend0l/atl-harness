@@ -62,3 +62,4 @@ ffmpeg-free
 passt
 nftables
 pipewire-alsa
+ccache
