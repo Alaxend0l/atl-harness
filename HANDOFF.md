@@ -68,6 +68,29 @@ triage.md. Deliberately NOT called from `layout()`: `onLayout()` — the GTK
 pass already runs it, and double-dispatching RecyclerView made RunnerUp go
 BLANK (found by the gate, fixed before merge).
 
+15. **Overnight-loop batch, merged 2026-11-22 (`66ff04af`)**: 18 audit fixes
+    from loop `20261121-185746` (branch `agent/overnight`), all reviewed
+    against their fix_hints (no fake fixes; the two lint flags — Settings
+    `return null`, selectDrawable `return false` — are correct Android
+    behaviour): setPaddingRelative; ImageView setImageBitmap/setImageResource
+    tint path + setColorFilter; Color.colorToHSV/HSVToColor; attach-state
+    listener list; TextView compound drawables (XML attrs + setters);
+    Context.getColor(theme); ArgbEvaluator singleton; Path.addCircle;
+    StateListDrawable theme inflate; Theme cache key; TextPaint copy
+    ctor/set; NetworkCapabilities VALIDATED + NetworkInfo.isAvailable;
+    Settings null-not-sentinel + hex android_id; selectDrawable(-1) clears;
+    ViewPropertyAnimator one-shot actions; Button/EditText setText(BufferType);
+    PropertyValuesHolder evaluator (task 20, finished by hand: the loop died
+    mid-gate, its run `agent-20261121-185746-20` is unusable — ATL was
+    restored to main mid-run — redone as `-20b`). Gate chain
+    base->-19->-20b on bazzite: 0 regressed at every step. Two loop
+    rejections NOT merged, both diagnosed, better fix hints in
+    `local-queue.json`: ProgressBar `android:max/progress` (virtual
+    setProgress from the constructor → ClassCastException in Material's
+    LinearProgressIndicator, Fossify FileManager CRASH, run -12) and
+    DrawableContainer.setBounds (musicplayer CRASH SIGABRT in Jit thread
+    pool, cause unconfirmed — possibly flaky, run -17).
+
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
 regressions but no visible startup change. Gates now run with `--jobs 6` on
@@ -84,7 +107,7 @@ with `javac -h`; commit the regenerated header with any new native method.
 - Owner's wishlist app **Flow** (YouTube client): starts, then exits on missing `AppWidgetManager.getInstalledProviders()`.
 
 ## Next steps (roadmap has the full queue)
-1. **Audit fixes**: `docs/audit/2026-11-21-atl-audit.md` (139 confirmed, 41 high; leniently verified, re-check each). Done: password masking, EditText/Enter, compound button clicks, SharedPreferences listeners, layer-list state, drawRect stroke. Next suggested: gradient shaders (`<shape><gradient>` draws solid black), Bitmap pixel channel swap / `getPixel` exiting the process, TextView `maxLines`/`ellipsize`, dialogs (`setView`, `setCancelable`), Theme cache key, locale in AssetManager.
+1. **Audit fixes**: `docs/audit/2026-11-21-atl-audit.md` (139 confirmed, 41 high; leniently verified, re-check each). Done: password masking, EditText/Enter, compound button clicks, SharedPreferences listeners, layer-list state, drawRect stroke. Next suggested: gradient shaders (`<shape><gradient>` draws solid black), Bitmap pixel channel swap / `getPixel` exiting the process, TextView `maxLines`/`ellipsize`, dialogs (`setView`, `setCancelable`), locale in AssetManager. (Theme cache key: merged in the overnight batch.) The two loop-rejected retries (ProgressBar max/progress, DrawableContainer.setBounds) are re-queued with corrected hints in `local-queue.json`.
 0. **Fossify Music playback** — **done 2026-11-21** (fork main >= `9a2cd6c4`,
 brief updated with root cause: `UserHandle.getCallingUserId()` uid mismatch,
 see HANDOFF item 13): tapping a track now loads the player ("Alpha Song 1")
@@ -149,6 +172,12 @@ Say here which runner you're using for builds/gates, and clear it when done.
   (claimed but not used) `oneplus12`; all released 2026-11-21. bazzite and
   mini have fork main `7cb4cd2b` installed (`rig build --worktree
   ~/Develop/atl-albumart`, tree identical to what was merged).
+- **opencode (this session, 2026-11-21 night): `oneplus12`** — ATL build +
+  owner music-playback check (task: phone gate). Not shared.
+- **opencode (this session, 2026-11-22): `bazzite`** — finished overnight
+  task 20 (build + gate `agent-20261121-185746-20b`), merged
+  `agent/overnight` into fork main (`66ff04af`), left bazzite installed with
+  clean main `66ff04af` (nothing agent-branch-specific). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
@@ -156,8 +185,11 @@ items small enough for the local model (with precise fix hints, in
 `docs/agent-tasks/local-queue.json`, which agent-loop now uses by default), 91
 for Claude. Trial 3 of the loop: 2 commits; the null-listener fix was right
 (merged), `Builder.setView` was plausible but wrong (needs a slot in the native
-dialog layout; tag `agent-trial3` in the agent clone keeps it). The agent
-branch was reset to the fork's main afterwards.
+dialog layout; tag `agent-trial3` in the agent clone keeps it). Full overnight
+run `20261121-185746`: 18 fixes reviewed and merged 2026-11-22 (fork item 15);
+the two gate-rejected tasks (ProgressBar max/progress,
+DrawableContainer.setBounds) are re-queued with corrected hints in
+`local-queue.json`. The agent branch was reset to the fork's main afterwards.
 
 ## Overnight agent (opencode + strata)
 `scripts/agent-loop` ([docs/agent-loop.md](docs/agent-loop.md)): the local

@@ -12,3 +12,21 @@ sharedpreferences change listeners never fire
 native drawrect ignores paint.style.stroke
 drawrect ignores paint.style.stroke
 AlertDialog button with null listener
+setPaddingRelative() is empty
+setImageBitmap and setImageResource (bitmap path)
+ImageView.setColorFilter(...) overloads are all empty
+Color.colorToHSV and HSVToColor give wrong results
+addOnAttachStateChangeListener keeps only one listener
+TextView.setCompoundDrawablesWithIntrinsicBounds
+Context.getColor/getColorStateList resolve without the context theme
+ArgbEvaluator.getInstance() returns null
+Path.addCircle is a logging stub
+StateListDrawable inflates items without the theme
+Theme.applyStyle/setTo never update ThemeKey
+TextPaint(Paint), TextPaint(int flags) and TextPaint.set() drop the source paint
+NetworkCapabilities never includes NET_CAPABILITY_VALIDATED
+Settings.Secure/Global.getString return sentinel strings
+selectDrawable(-1) keeps showing the previous child
+withEndAction/withStartAction are never cleared
+Button.setText(null) shows "null"
+PropertyValuesHolder ignores the evaluator
