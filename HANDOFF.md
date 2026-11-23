@@ -639,6 +639,34 @@ with `javac -h`; commit the regenerated header with any new native method.
        CRASH→ALIVE (witnesses the isLaidOut fix, see next). `fc41`
        (tree `5f900c6d`, TextView isSingleLine): 0 improved, 0
        regressed (the probe fix is inside an already-ALIVE app).
+     - Queue batch 119–133 (View transform/clip/outline/window state,
+       BoringLayout, Activity config/focus), fork `f10231e1`..
+       `43519051`: rotation/rotationX/Y state; clipBounds +
+       clipToOutline + outlineProvider state (invalidateOutline
+       documented: ATL draws no outlines, nothing to recompute);
+       nested-scroll flag, window system-UI visibility,
+       requestApplyInsets re-dispatch, pointer icon state;
+       BoringLayout.isBoring real detection (the fork's two variants
+       lied in opposite directions); View.hasWindowFocus via new
+       nativeHasWindowFocus (GTK4 `gtk_window_is_active`) + attach.
+       **Gate `fc42` FAILED — first regression caught: item 131
+       Activity.hasWindowFocus as AOSP-accurate state (initial false,
+       JNI-set on every onWindowFocusChanged) regressed
+       me.zhanghai.android.files ALIVE→CRASH.** Reproduced as a timing
+       race (3 smoke runs: 1 crash on the committed tree, 6/6 clean
+       with initial state true): an androidx path in the app (string
+       in the dex, not in the app's open source) reads hasWindowFocus
+       before ATL's first focus callback; false sent it into a branch
+       re-running the item-63 loader chain against null members
+       (bisected View-half vs Activity-half by targeted smoke). Fix
+       `f5e48a44`: keep initial true (the value the fork always
+       guaranteed), field stays real state afterwards. Gate `fc43` vs
+       `fc41`: **0 improved, 0 regressed**. Item 132
+       getChangingConfigurations recorded stale: ATL restarts no
+       activities on config change and never dispatches
+       onConfigurationChanged to them, so AOSP's 0 is faithful.
+       (Note: `f5e48a44`'s message has a cosmetic "abe939e5..." typo
+       for `abe937e5` — left as pushed.)
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -873,23 +901,25 @@ Say here which runner you're using for builds/gates, and clear it when done.
   (`rig -r oneplus12 build`) but unreachable: `waffle.local` does not
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
-- **opencode (this session, 2026-11-22, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x8 and full-corpus gates
-  `fc30`..`fc41` (74 apps each, each vs its predecessor; all 0
-  regressed; `fc37` 2 improved: phonograph EXITED->ALIVE, nudge
+- **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
+  continuation (HANDOFF item 28): `build-atl` x10 and full-corpus gates
+  `fc30`..`fc43` (74 apps each, each vs its predecessor; all 0
+  regressed except `fc42` which FAILED on the item-131 regression and
+  was fixed; `fc37` 2 improved: phonograph EXITED->ALIVE, nudge
   CRASH->BLANK; `fc40` 1 improved: me.zhanghai.android.files
-  CRASH->ALIVE). Fork commits `940749c9`..`5f900c6d` (21 queue fixes +
+  CRASH->ALIVE). Fork commits `940749c9`..`f5e48a44` (21 queue fixes +
   getWindowToken + fragment onActivityCreated dispatch + fillType +
   Ringtone + dispatchKeyEvent + View state batch + TextView
-  isSingleLine) pushed to `fix/fixcov-crashes` + `local-fixes`. Added
-  `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
-  with `atl-gaps --emit-queue 15` after `fc39` (queue now 119). Used
-  `rig smoke` + single-hunk builds to bisect the item-63 witness to
-  the isLaidOut fix. Checked `rig -r bazzite job status` before
-  starting; no other agent's jobs. Phone still unreachable (`rig -r
-  oneplus12 doctor` FAIL ssh), phone items 67/103 stayed parked.
-  Bazzite left installed with the `5f900c6d` tree (= `local-fixes`
-  tip). Released.
+  isSingleLine + batch 119-133 + hasWindowFocus fixup) pushed to
+  `fix/fixcov-crashes` + `local-fixes`. Added `com.io7m.exfilac.main`
+  to `corpora/fixcov.txt`; refreshed the queue with `atl-gaps
+  --emit-queue 15` after `fc39` (119 items) and after `fc41` (134
+  items). Used `rig smoke` + single-hunk builds to bisect the item-63
+  witness and the item-131 regression. Checked `rig -r bazzite job
+  status` before starting; no other agent's jobs. Phone still
+  unreachable (`rig -r oneplus12 doctor` FAIL ssh), phone items 67/103
+  stayed parked. Bazzite left installed with the `f5e48a44` tree (=
+  `local-fixes` tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

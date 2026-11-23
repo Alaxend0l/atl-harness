@@ -139,3 +139,19 @@ android.view.View.hasFocus() returns a constant
 android.view.View.isLaidOut() returns a constant
 android.view.View.setLayerType(int layerType, Paint paint) is empty
 android.view.View.getRootWindowInsets() returns a constant
+android.text.BoringLayout.isBoring(CharSequence source, TextPaint paint) returns a constant
+android.view.View.invalidateOutline() is empty
+android.view.View.setRotation(float rotation) is empty
+android.view.View.setRotationX(float deg) is empty
+android.view.View.setRotationY(float deg) is empty
+android.view.View.setClipBounds(Rect clipBounds) is empty
+android.view.View.setPointerIcon(PointerIcon pointerIcon) is empty
+android.view.View.isNestedScrollingEnabled() returns a constant
+android.view.View.getWindowSystemUiVisibility() returns a constant
+android.view.View.requestApplyInsets() is empty
+android.view.View.setClipToOutline(boolean clipToOutline) is empty
+android.view.View.setOutlineProvider(ViewOutlineProvider provider) is empty
+android.app.Activity.hasWindowFocus() returns a constant
+android.view.View.hasWindowFocus() returns a constant
+# stale (132): AOSP getChangingConfigurations = bitmask of the config change that restarted the activity; ATL restarts no activities on config change and never dispatches onConfigurationChanged to them (only a NativeActivity stub), so 0 is the faithful value for every ATL activity
+android.app.Activity.getChangingConfigurations() returns a constant
