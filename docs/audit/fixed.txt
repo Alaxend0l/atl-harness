@@ -484,3 +484,54 @@ android.view.View.getDrawingCache() returns a constant
 # fixed (268): flag stored + getter declared, and performHapticFeedback now honours AOSP's first gate
 # - observable here because ATL's vibrator is real (item 136) (fork d85493e4)
 android.view.View.setHapticFeedbackEnabled(boolean hapticFeedbackEnabled) is empty
+# stale (269): Context's declaration is abstract; ContextImpl implements it fully (self / primary
+# app / "android" shortcut / package load through ATLLoadedAppManager)
+android.content.Context.createPackageContext(String packageName, int flags) is empty
+# fixed (270): printed and delivered nothing; now sendBroadcast's in-process delivery + AOSP's
+# guaranteed final resultReceiver delivery. **Gap: ordered broadcast plumbing** - no priority
+# ordering, result plumbing, permission check, handler scheduler (fork 14bb29ce)
+android.content.Context.sendOrderedBroadcast(Intent intent, String receiverPermission, BroadcastReceiver resultReceiver, Handler handler, int flags, String extra, Bu) only logs
+# stale (271): AOSP's NotFoundException() ctor is literally empty too (verified android16-release) -
+# the fork matches AOSP exactly
+android.content.res.Resources$NotFoundException.NotFoundException() is empty
+# fixed (272): the args overload returned false doing nothing though the managed-dialog map exists;
+# now AOSP's flow + AOSP's args hook pair (defaults call the plain ones); showDialog(id) delegates
+# as AOSP does (fork 1fb41181)
+android.app.Activity.showDialog(int id, Bundle args) returns a constant instead of state
+# recorded (273): drawing-cache gap recorded last batch at setDrawingCacheEnabled (AOSP renders with
+# its own software renderer; ATL draws via GTK) (fork d85493e4)
+android.view.View.buildDrawingCache(boolean autoScale) is empty
+# recorded (274): nothing was ever built, nothing to destroy (same gap) (fork eefdea6c)
+android.view.View.destroyDrawingCache() is empty
+# fixed+recorded (275): flag pair stored (AOSP mViewFlags shape) + is…Enabled getters declared;
+# +Vertical sibling covered. **Gap: edge effect/scrollbar drawing in ATL** - GTK path paints no
+# fading edges (fork eefdea6c)
+android.view.View.setHorizontalFadingEdgeEnabled(boolean horizontalFadingEdgeEnabled) is empty
+# fixed honest (276): returned true having moved nothing; ATL has no task concept at all and Android
+# returns false when the task cannot be moved - callers' fallbacks now reachable. **Gap: activity
+# task stack** (fork 185dc61c)
+android.app.Activity.moveTaskToBack(boolean nonroot) returns a constant instead of state
+# fixed (277): listener stored (AOSP ListenerInfo) - interface method was a TODO stub; ATL has no
+# system bars so visibility can never change, nothing can fire it (fork 3a3510b7)
+android.view.View.setOnSystemUiVisibilityChangeListener(OnSystemUiVisibilityChangeListener l) is empty
+# fixed (278): AOSP walks it up to ViewRootImpl which re-dispatches insets - exactly what the fork's
+# working requestApplyInsets does (AOSP's requestApplyInsets calls requestFitSystemWindows); routed
+# there (fork 3a3510b7)
+android.view.View.requestFitSystemWindows() is empty
+# stale (279): ContextImpl answers from the wallpaper service and returns null when there is no
+# wallpaper data and no wallpaper component - ATL has no wallpaper host, exactly that null case
+# (comment added, fork 7f28b7aa)
+android.content.Context.getWallpaper() returns a constant instead of state
+# fixed (280): constant 0; now AOSP's sum over the fields an IntentFilter matches on (mIdentifier has
+# no counterpart in this Intent) (fork d617b94a)
+android.content.Intent.filterHashCode() returns a constant instead of state
+# stale (281): AOSP's Activity.onKeyLongPress default is literally false (comment added, fork 7f28b7aa)
+android.app.Activity.onKeyLongPress(int keyCode, KeyEvent event) returns a constant instead of state
+# partial+recorded (282): null-parent gate now AOSP's explicit answer via the manifest
+# (getParentActivityIntent, item 209); declared-parent branches need the task walk
+# (navigateUpTo/shouldUpRecreateTask/taskAffinity) ATL lacks - **gap: activity task stack**
+# (fork 185dc61c)
+android.app.Activity.onNavigateUp() returns a constant instead of state
+# fixed (283): style now stored (AOSP SCROLLBARS_STYLE_MASK, default INSIDE_INSET); **gap: scrollbar
+# drawing in ATL** stays recorded; AOSP's getter is @hide (fork eefdea6c)
+android.view.View.setScrollBarStyle(int style) is empty
