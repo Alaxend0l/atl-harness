@@ -1235,6 +1235,26 @@ with `javac -h`; commit the regenerated header with any new native method.
        gate verified, not witnessed; `Dialog$Builder` still lacks
        AOSP's `setTitle`/`setMessage`/.../`create()` (flagged in
        fixed.txt for a later batch). Gate `fc68` vs `fc67`: 0/0.
+     - Queue batch 434–448 (fork `bd6c1804`..`f52ecb55`, gates `fc69`
+       and `fc70` both 0/0): 10 stale flags (`Uri` abstract
+       declarations incl. `buildUpon()`, the `Spanned.
+       nextSpanTransition` interface declaration, four `OpaqueUri`
+       nulls — all AOSP verbatim, android16-release) and five real
+       ones: `Bitmap.compress` wrote the literal bytes "fixme
+       Bitmap.compress JPEG" into the app's OutputStream for JPEG/WEBP
+       — corrupt-file garbage; now false with nothing written
+       (Android's encode-failure answer; ATL's Cairo layer has no
+       JPEG/WEBP encoder) plus AOSP's NPE/IllegalArgumentException
+       pre-checks; `setDensity`/`getDensity` kept no state — density
+       stored per AOSP and `getScaledWidth/Height(int)` got AOSP's
+       `scaleFromDensity` formula and the `DENSITY_NONE` constant;
+       `setCancelable` and `setOnKeyListener` were empty — state now
+       stored per AOSP and `DialogInterface.OnKeyListener.onKey`
+       declaration added (it was an empty marker), dispatch points
+       have no native counterpart in this fork so they are documented,
+       not called; `requestWindowFeature` now delegates to
+       `Window.requestFeature` like AOSP/Activity (behaviourally
+       neutral, the item-208 no).
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -1470,8 +1490,8 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x64 and full-corpus gates
-  `fc30`..`fc68` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x67 and full-corpus gates
+  `fc30`..`fc70` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
   was fixed, and `fc48`/`fc52` which FAILED on the canary's flake (see
   the batch 179–193 and 224–238 entries: cleared by `fc49`, 0/0 vs
@@ -1481,12 +1501,13 @@ Say here which runner you're using for builds/gates, and clear it when done.
   same canary CRASH->ALIVE after the harness masked `/etc/group` from
   the sandbox (D18, killed the JNI flake mode); `fc64` 1 improved: the
   canary's other (NPE) flake mode cleared again, CRASH->ALIVE. Fork
-  commits `940749c9`..`03b8eadc` (21 queue fixes + getWindowToken + fragment
+  commits `940749c9`..`f52ecb55` (21 queue fixes + getWindowToken + fragment
   onActivityCreated dispatch + fillType + Ringtone + dispatchKeyEvent +
   View state batch + TextView isSingleLine + batches 119-133, 134-148,
   149-163, 164-178, 179-193, 194-208, 209-223, 224-238, 239-253,
   254-268, 269-283, 284-298, 299-313, 314-328, 329-343, 344-358 +
-  hasWindowFocus fixup, 359-373, 374-388, 389-403, 404-418 and 419-433)
+  hasWindowFocus fixup, 359-373, 374-388, 389-403, 404-418,
+  419-433 and 434-448)
   pushed to `fix/fixcov-crashes` + `local-fixes`. Added
   `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
   with `atl-gaps --emit-queue
@@ -1495,7 +1516,8 @@ Say here which runner you're using for builds/gates, and clear it when done.
   `fc53` (254), `fc54` (269), `fc55` (284), `fc58` (299), `fc59` (314),
   `fc61` (329), after 314-328 (344), `fc62` (359), `fc63` (374) and
   `fc64` (389), `fc65` (404), `fc66` (419), `fc67` (434) and
-  `fc68` (449).
+  `fc68` (449); the loop was stopped before the `fc69`/`fc70` refresh,
+  with 434–448 of the 449-item queue consumed.
   Used `rig smoke` + single-hunk builds to
   bisect the item-63 witness and the item-131 regression, and repeated
   forced single-app runs (5 at `433b2354`, 8 at the new tip) to show the
@@ -1513,7 +1535,8 @@ Say here which runner you're using for builds/gates, and clear it when done.
   job status` before starting; no other agent's
   jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
   phone items 67/103 stayed parked. Bazzite left installed with the
-  `03b8eadc` tree (= `local-fixes` tip; `fc68` ran on it). Released.
+  `f52ecb55` tree (= `local-fixes` tip; `fc69`/`fc70` ran on it).
+  Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
