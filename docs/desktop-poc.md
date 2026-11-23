@@ -33,7 +33,7 @@ podman create --name atl-desktop \
   -e WAYLAND_DISPLAY -e XDG_RUNTIME_DIR \
   docker.io/library/fedora:44 sleep infinity
 podman start atl-desktop
-podman exec atl-desktop dnf install -y sudo git   # bootstrap.sh uses sudo
+podman exec atl-desktop dnf install -y sudo git procps-ng   # bootstrap.sh uses sudo; pkill for restarts
 podman cp scripts/runner atl-desktop:/src/harness/scripts/runner
 podman exec atl-desktop bash -c 'cd /root/src && git clone --branch v5.8.2-stable --depth 1 \
   https://github.com/wolfSSL/wolfssl.git wolfssl && \
@@ -64,10 +64,19 @@ Notes learned on the way:
 - Audio: install `pipewire-alsa` in the container (it's in
   `scripts/runner/packages.txt`) and mount `$XDG_RUNTIME_DIR`; ALSA's
   `default` PCM is then the host's PipeWire.
-- The media-key path (capture-phase window controller,
-  `atlDispatchMediaKey`) is key-compositor-dependent: it needs the ATL
-  window focused and the compositor not grabbing the keys first; witnessed
-  so far only under X11/Xvfb (harness `key media-*`).
+- Media keys on Wayland work through the same capture-phase window
+  controller as on X11 - **witnessed 2026-11-23**: `atlDispatchMediaKey`
+  lines for PLAY_PAUSE (resumed at 59 s) and NEXT (origKey=87,
+  handled=true -> flush/release/new `AudioTrack.play()`, next track
+  playing, position advancing), and the resume fix holds on the desktop.
+  The catch is the **compositor**, not ATL: umbriel (the owner's session
+  runs `umbriel` wrapping `noctalia`) binds `XF86AudioPlay/Next/Prev` to
+  `noctalia msg media ...` (MPRIS) by default, so the keys never reach
+  any client. Commenting those three binds in
+  `~/.config/umbriel/config.toml` makes them flow to the focused window.
+  A temporary `g_printerr` probe in the C controller proved the routing
+  (typed keys fired the capture controller, media keys did not - until
+  the binds were off).
 
 ## What this does NOT change
 

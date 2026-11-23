@@ -1597,10 +1597,17 @@ Say here which runner you're using for builds/gates, and clear it when done.
   Wayland + PipeWire sockets mounted): native window, MediaStore scanned
   `~/Music` read-only (4852 files probed), playback resumed mid-track and
   played through the laptop speakers (state PLAYING, position advancing,
-  one `AudioTrack.play()` at start). Media-key press-through on the
-  desktop (physical key -> focused window -> `atlDispatchMediaKey`) not
-  yet witnessed; noctalia binds no media keys itself, so it should work
-  with the ATL window focused.
+  one `AudioTrack.play()` at start). **Media-key press-through on the
+  desktop witnessed too** (dispatch origKey=85/87, next -> re-primed
+  track, resume fix holds): the catch was the compositor - the owner's
+  session is **umbriel wrapping noctalia**, and umbriel binds
+  XF86Audio* to `noctalia msg media ...` (MPRIS) by default; with those
+  three binds commented out the keys reach the window and ATL's
+  capture-phase controller (verified with a temporary C probe). Config
+  restored after the test. PoC gotcha: an ATL instance killed without
+  procps (no pkill in fedora:44 base image) keeps running as a zombie
+  whose audio/queue confuses what the new window shows - `dnf install
+  procps-ng` first.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
