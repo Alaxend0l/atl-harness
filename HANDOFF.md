@@ -1208,6 +1208,33 @@ with `javac -h`; commit the regenerated header with any new native method.
        corpus witness for commit()/onTouchEvent (no coverage),
        compile + no-regression only; dialogs do open in the corpus,
        so the println removals are gate-covered.
+     - Queue batch 419–433 (fork `df6208da`..`03b8eadc`): mostly stale
+       flags plus four real dialog/fragment fixes. Stale: 3 more `Uri`
+       abstract declarations, 3 `Spanned` interface declarations, and
+       `Uri$Builder.Builder() {}` / `OpaqueUri.getPath()`/`getAuthority()`
+       returning null — all AOSP verbatim (android16-release
+       `Uri.java`). `executePendingTransactions()` → the flag wanted
+       "state", but AOSP's signature is boolean and `false` is its
+       answer with an empty queue (this shim applies operations in
+       `add()`) — commented. Real: `hide()`/`Dialog$Builder` println
+       noise removed; `setOnCancelListener` was an empty method AND
+       `DialogInterface.OnCancelListener` was an empty marker with no
+       `onCancel` to invoke — interface method added (AOSP shape),
+       listener stored and dispatched on `cancel()` (main looper,
+       before dismiss' close, never on plain `dismiss()`), compile
+       error it exposed fixed; `findFragmentByTag` always null because
+       `FragmentTransaction.add(fragment, tag)` threw the tag away —
+       `Fragment.mTag` set and scanned newest-first per AOSP
+       `FragmentManagerImpl`; and the six `Window.Callback` menu hooks
+       on `Dialog` threw `UnsupportedOperationException` — replaced
+       with AOSP's Dialog defaults (oreo-release; onMenuItemSelected
+       false, onCreatePanelView null, onPreparePanel true, panel menu
+       via the now-present public `onCreateOptionsMenu`/
+       `onPrepareOptionsMenu` hooks). The menu-hook path is not yet
+       wired to dialog windows in this fork, so that part is compile +
+       gate verified, not witnessed; `Dialog$Builder` still lacks
+       AOSP's `setTitle`/`setMessage`/.../`create()` (flagged in
+       fixed.txt for a later batch). Gate `fc68` vs `fc67`: 0/0.
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -1443,8 +1470,8 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x61 and full-corpus gates
-  `fc30`..`fc67` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x64 and full-corpus gates
+  `fc30`..`fc68` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
   was fixed, and `fc48`/`fc52` which FAILED on the canary's flake (see
   the batch 179–193 and 224–238 entries: cleared by `fc49`, 0/0 vs
@@ -1454,12 +1481,12 @@ Say here which runner you're using for builds/gates, and clear it when done.
   same canary CRASH->ALIVE after the harness masked `/etc/group` from
   the sandbox (D18, killed the JNI flake mode); `fc64` 1 improved: the
   canary's other (NPE) flake mode cleared again, CRASH->ALIVE. Fork
-  commits `940749c9`..`958cc8d7` (21 queue fixes + getWindowToken + fragment
+  commits `940749c9`..`03b8eadc` (21 queue fixes + getWindowToken + fragment
   onActivityCreated dispatch + fillType + Ringtone + dispatchKeyEvent +
   View state batch + TextView isSingleLine + batches 119-133, 134-148,
   149-163, 164-178, 179-193, 194-208, 209-223, 224-238, 239-253,
   254-268, 269-283, 284-298, 299-313, 314-328, 329-343, 344-358 +
-  hasWindowFocus fixup, 359-373, 374-388, 389-403 and 404-418)
+  hasWindowFocus fixup, 359-373, 374-388, 389-403, 404-418 and 419-433)
   pushed to `fix/fixcov-crashes` + `local-fixes`. Added
   `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
   with `atl-gaps --emit-queue
@@ -1467,7 +1494,8 @@ Say here which runner you're using for builds/gates, and clear it when done.
   `fc46` (179), `fc47` (194), `fc49` (209), `fc50` (224), `fc51` (239),
   `fc53` (254), `fc54` (269), `fc55` (284), `fc58` (299), `fc59` (314),
   `fc61` (329), after 314-328 (344), `fc62` (359), `fc63` (374) and
-  `fc64` (389), `fc65` (404), `fc66` (419) and `fc67` (434).
+  `fc64` (389), `fc65` (404), `fc66` (419), `fc67` (434) and
+  `fc68` (449).
   Used `rig smoke` + single-hunk builds to
   bisect the item-63 witness and the item-131 regression, and repeated
   forced single-app runs (5 at `433b2354`, 8 at the new tip) to show the
@@ -1485,7 +1513,7 @@ Say here which runner you're using for builds/gates, and clear it when done.
   job status` before starting; no other agent's
   jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
   phone items 67/103 stayed parked. Bazzite left installed with the
-  `958cc8d7` tree (= `local-fixes` tip; `fc67` ran on it). Released.
+  `03b8eadc` tree (= `local-fixes` tip; `fc68` ran on it). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

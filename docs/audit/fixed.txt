@@ -883,3 +883,40 @@ android.app.Dialog.dismiss() is marked TODO/FIXME
 # length", oreo-release SpannableStringBuilder line 705) on the invalid-zero-length-span error
 # path; setSpan does the real span work
 android.text.SpannableStringBuilder.setSpan(boolean send, Object what, int start, int end, int flags, boolean enforceParagraph) prints on every call
+# stale (419, 426, 432): abstract declarations on the abstract Uri (AOSP shape) - false
+# positives; StringUri parses/caches path/authority/pathSegments, OpaqueUri answers them
+android.net.Uri.getPath() is empty
+android.net.Uri.getAuthority() is empty
+android.net.Uri.getPathSegments() is empty
+# stale (420, 421, 427): Spanned is an interface (AOSP shape) - declarations, not stubs;
+# SpannableStringBuilder carries the real implementations
+android.text.Spanned.getSpanStart(Object tag) is empty
+android.text.Spanned.getSpanEnd(Object tag) is empty
+android.text.Spanned.getSpanFlags(Object tag) is empty
+# recorded (422): false IS AOSP's answer - the signature is boolean (oreo FragmentManager:
+# "public abstract boolean executePendingTransactions()", impl returns execPendingActions()),
+# and this shim applies operations in FragmentTransaction.add() so nothing is ever pending
+android.app.FragmentManager.executePendingTransactions() returns a constant instead of state
+# recorded (423, 428): OpaqueUri.getPath()/getAuthority() returning null is AOSP verbatim
+# (checked against android16-release core/java/android/net/Uri.java)
+android.net.Uri$OpaqueUri.getPath() returns a constant instead of state
+android.net.Uri$OpaqueUri.getAuthority() returns a constant instead of state
+# fixed (424): hide() println noise over a real body (nativeClose); AOSP prints nothing (fork df6208da)
+android.app.Dialog.hide() prints on every call
+# fixed (425): setOnCancelListener dropped its listener and DialogInterface.OnCancelListener was
+# an empty marker (no onCancel to invoke); now stored and dispatched on cancel() (main looper,
+# before dismiss' close) - never on plain dismiss(), per AOSP oreo Dialog (fork 22c0fc19)
+android.app.Dialog.setOnCancelListener(OnCancelListener onCancelListener) is empty
+# fixed (430): Builder ctor println noise (the rest of Builder has no methods; unfixed gap noted,
+# AOSP Builder carries setTitle/setMessage/.../create) (fork df6208da)
+android.app.Dialog$Builder.Builder(Context context) only logs
+# fixed (431): findFragmentByTag always null - FragmentTransaction.add(fragment, tag) discarded
+# the tag; Fragment.mTag now set, newest-first scan per AOSP FragmentManagerImpl (fork 03b8eadc)
+android.app.FragmentManager.findFragmentByTag(String tag) returns a constant instead of state
+# fixed (433): onMenuItemSelected threw UnsupportedOperationException (so did its five
+# Window.Callback neighbours); replaced with AOSP Dialog defaults + the public
+# onCreateOptionsMenu/onPrepareOptionsMenu hooks (oreo-release Dialog.java; path not yet wired
+# to dialog windows in this fork, so compile + gate verified) (fork 22c0fc19)
+android.app.Dialog.onMenuItemSelected(int featureId, MenuItem item) throws UnsupportedOperationException
+# recorded (429): AOSP verbatim - android16-release Uri.java has literally `public Builder() {}`
+android.net.Uri$Builder.Builder() is empty
