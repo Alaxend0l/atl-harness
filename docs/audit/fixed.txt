@@ -920,3 +920,39 @@ android.app.FragmentManager.findFragmentByTag(String tag) returns a constant ins
 android.app.Dialog.onMenuItemSelected(int featureId, MenuItem item) throws UnsupportedOperationException
 # recorded (429): AOSP verbatim - android16-release Uri.java has literally `public Builder() {}`
 android.net.Uri$Builder.Builder() is empty
+# stale (434, 438, 440, 443, 445): abstract declarations on the abstract Uri (AOSP shape,
+# buildUpon is `public abstract Builder buildUpon()` too) - StringUri/OpaqueUri/HierarchicalUri
+# carry the real bodies (verified against android16-release Uri.java)
+android.net.Uri.getFragment() is empty
+android.net.Uri.getQuery() is empty
+android.net.Uri.buildUpon() is empty
+android.net.Uri.getEncodedPath() is empty
+android.net.Uri.getHost() is empty
+# stale (435): Spanned interface declaration; SpannableStringBuilder.nextSpanTransition
+# (line 1082) is the real span-tree walk
+android.text.Spanned.nextSpanTransition(int start, int limit, Class type) is empty
+# recorded (439, 444, 447, 448): OpaqueUri answering null for query/encodedPath/
+# lastPathSegment/host is AOSP verbatim (android16-release Uri.java)
+android.net.Uri$OpaqueUri.getQuery() returns a constant instead of state
+android.net.Uri$OpaqueUri.getEncodedPath() returns a constant instead of state
+android.net.Uri$OpaqueUri.getLastPathSegment() returns a constant instead of state
+android.net.Uri$OpaqueUri.getHost() returns a constant instead of state
+# fixed (436): JPEG/WEBP wrote "fixme Bitmap.compress <fmt>" bytes into the caller's stream;
+# now false with nothing written (Android's encode-failure answer; ATL's Cairo layer has no
+# JPEG/WEBP encoder), plus AOSP's NPE/IllegalArgumentException pre-checks (fork 45c2c952)
+android.graphics.Bitmap.compress(Bitmap.CompressFormat format, int quality, OutputStream stream) is marked TODO/FIXME
+# fixed (437): setCancelable now stores mCancelable (AOSP default true); the window re-arm
+# (updateWindowForCancelable) has no native counterpart in this fork - documented (fork bd6c1804)
+android.app.Dialog.setCancelable(boolean cancelable) is empty
+# fixed (441): setOnKeyListener stored nothing and DialogInterface.OnKeyListener was an empty
+# marker; listener kept + AOSP's onKey(DialogInterface,int,KeyEvent) declaration added (the
+# fork's native dialog has no key routing yet, so the dispatch point is documented, not called)
+android.app.Dialog.setOnKeyListener(OnKeyListener onKeyListener) is empty
+# fixed (442): setDensity/getDensity kept no state (constant DENSITY_DEFAULT); density now
+# stored per AOSP, getScaledWidth/Height use AOSP's scaleFromDensity ((size*td+(sd>>1))/sd,
+# DENSITY_NONE passthrough) and Bitmap.DENSITY_NONE added (fork 45c2c952)
+android.graphics.Bitmap.setDensity(int density) is empty
+# fixed (446): requestWindowFeature answered false directly; AOSP delegates to the Window -
+# now getWindow().requestFeature(featureId), the same documented item-208 no (behaviourally
+# neutral; compile + gate fc70 0/0) (fork f52ecb55)
+android.app.Dialog.requestWindowFeature(int featureId) returns a constant instead of state
