@@ -38,7 +38,7 @@ fork merge `56206f55` on `local-fixes`); P2–P4 planned (owner proposal
   (968,1899) 40x31, match 1 of 6, win (0,0)`. A failed find fails the
   step **and lists the app's exposed elements** in the run record.
   Parser, matcher and geometry unit-tested (25 tests).
-- Witness (P1 exit criterion) **passed** on oneplus12, run `p1w10`,
+- Witness (P1 exit criterion) **passed** on oneplus12, run `p1w11`,
   `interact_ok=1`, app `org.fossify.musicplayer` (v18; its bottom tabs
   are Playlists / Folders / Artists / Albums / Tracks; media library is
   the phone's `~/Music` — King Gizzard "Nonagon Infinity" — so this
@@ -48,12 +48,22 @@ fork merge `56206f55` on `local-fixes`); P2–P4 planned (owner proposal
   **Albums** (2.67 %), then **Tracks** again (2.72 %) — every step finds
   the element fresh after the previous one changed the whole layout;
   then `find "Big Fig Wasp"` + `tap $el` starts playback **and**
-  navigates to the Now Playing screen (3.67 % changed) and
-  `expect-text "Big Fig Wasp"` passes. Gramophone itself was *not*
-  witnessable this way: its UI is Compose (one opaque
-  `AndroidComposeView` node), which needs the P3 accessibility pass.
+  navigates to the Now Playing screen (3.67 % changed; screenshot shows
+  the playing track, position 04:54 total, pause icon) and the final
+  `wait-find "Bilayer"` matches the "Next: Bilayer • Taishi" queue row.
+  (Run `p1w10` was identical up to the last step, which was
+  `expect-text "Big Fig Wasp"` — that **fails**: Fossify renders the
+  track name only *inside the rotating album cover art* (OCR saw it
+  rotated 90°, unreadable) and its title TextView marquees off-screen,
+  so the title is never plain text on that screen. The assertion became
+  element-based instead — another argument for P1 over OCR.)
+  Gramophone itself was *not* witnessable this way: its UI is Compose
+  (one opaque `AndroidComposeView` node), which needs the P3
+  accessibility pass.
   The script (`work/interactions-p1/org.fossify.musicplayer.txt`,
-  re-create with scp to the runner if lost — `rig sync` skips `work/`):
+  re-create with scp to the runner if lost — `rig sync` skips `work/`;
+  the fork merge message `56206f55` names `p1w10`/`expect-text` — the
+  accurate pass record is this script and `p1w11`):
 
   ```
   shot boot
@@ -74,7 +84,7 @@ fork merge `56206f55` on `local-fixes`); P2–P4 planned (owner proposal
   wait 1.5
   shot now_playing
   expect-changed
-  expect-text "Big Fig Wasp"
+  wait-find "Bilayer" timeout=10   # "Next: Bilayer • Taishi" queue row
   ```
 - Follow-ups seen during the witness:
   - Tapping a Fossify track-row **subline** TextView (album • count)

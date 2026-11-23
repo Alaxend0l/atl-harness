@@ -229,7 +229,7 @@ docs/agent-tasks/element-addressed-interaction.md.
 Status 2026-11-23: **P0** (semantic media keys) done; **P1** done — the
 fork's env-gated `ATLElementDump` (`local-fixes` `56206f55`) plus harness
 `find`/`wait-find`/`tap $el`/`long-press $el`, witnessed end-to-end on
-`org.fossify.musicplayer` (oneplus12 run `p1w10`, `interact_ok=1`) and
+`org.fossify.musicplayer` (oneplus12 run `p1w11`, `interact_ok=1`) and
 gated clean (`fc75`: 0/0). P2 (convert tracked scripts), P3 (accessibility
 pass so Compose apps expose elements) and P4 (`swipe`) remain.
 

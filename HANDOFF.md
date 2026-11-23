@@ -1654,11 +1654,17 @@ Say here which runner you're using for builds/gates, and clear it when done.
   kept as `elements.json`; 25 unit tests, clippy clean. Runner use:
   `rig build --worktree ~/Develop/atl-desktop-poc` + gate **fc75**
   (bazzite, corpora/fixcov.txt): **0 improved / 0 regressed** vs fc73;
-  witness on **oneplus12**: run **p1w10** `interact_ok=1` on
+  witness on **oneplus12**: run **p1w11** `interact_ok=1` on
   `org.fossify.musicplayer` — tab taps by element name (2.4–2.7% screen
   changes) then `tap $el` on track "Big Fig Wasp" starts playback and
-  opens Now Playing (`expect-text` passes). Both runners left installed
-  with `local:0b1c3695` (identical code to merged `local-fixes`),
+  opens Now Playing, final assertion `wait-find "Bilayer"` matches the
+  "Next: …" queue row (`p1w10` was the same run ending in
+  `expect-text "Big Fig Wasp"` — fails, because Fossify draws the title
+  only inside the **rotating album cover**, its title TextView marquees
+  off-screen; lesson: OCR assertions fail on decorated text, prefer
+  element finds. The fork merge message `56206f55` still names
+  p1w10/expect-text; the accurate record is this brief + p1w11). Both
+  runners left installed with `local:0b1c3695` (identical code to merged `local-fixes`),
   released. Follow-ups in the brief: Fossify row **subline** TextView
   taps register but do nothing (title taps work — parent-handled rows,
   fork `performClick` hits the leaf only); Gramophone is Compose and
