@@ -917,6 +917,43 @@ with `javac -h`; commit the regenerated header with any new native method.
        `isLayoutDirectionResolved` (the fork resolves direction at
        inflation and answers LTR). No regression from the new
        long-clickable side.
+     - Queue batch 254–268 (fork `00f9cac2`..`33f1fedd`, gate `fc55` =
+       **0 improved, 0 regressed vs `fc54`**): real behaviour fixes this
+       time. `isDirty()` always said false — ATL *does* run Android's draw
+       path for Java views (GTK's draw calls `View.draw` → `onDraw`, see
+       `WrapperWidget.c`), so both moments exist: the flag is raised in
+       `propagateInvalidation` (the fork's single invalidation funnel) and
+       cleared in `draw()`. `dispatchSetPressed` was empty while AOSP's own
+       body re-applies the flag **and invalidates** — a pressed state
+       changed Android-side state without ever scheduling the repaint
+       (the fork's ViewGroup propagation was already AOSP's shape).
+       `performHapticFeedback` now returns false when
+       `setHapticFeedbackEnabled(false)` was called (observable: ATL's
+       vibrator is real, item 136's work). `stopService` refused any intent
+       without an explicit component while `startOrBindService` resolved
+       action-only intents through the manifest — both now share one
+       `resolveServiceComponent`, so a service started by action can be
+       stopped by action. Also round-tripping: `Intent` source bounds (AOSP
+       copies in and out), `ShortcutIconResource.fromContext` (the class
+       had **no fields**, so a shortcut icon pointed at nothing — now
+       packageName + `pkg:type/entry`), `Activity/Window` volume-control
+       stream (AOSP routes it through the window; **gap: no Android-side
+       volume-key routing**), `isDrawingCacheEnabled` (**gap:
+       drawing-cache/snapshot subsystem** — AOSP renders with its own
+       software renderer, ATL draws via GTK). `getReferrer` follows AOSP's
+       chain (extra → extra-name → `android-app://<calling package>` using
+       the caller recorded in the previous batch's `getCallingPackage`).
+       Recorded faithful: `getMovie` (AOSP's `Movie.decodeStream` returns
+       **null** for non-GIF data, so null is AOSP's own answer; **gap:
+       Movie/GIF decoding**), `setTaskDescription` (no task/recents host),
+       `getAttributionTag` (AOSP's Context default is literally null).
+       `grantUriPermission`/`revokeUriPermission` printed on every call and
+       did nothing: **gap: URI permission enforcement** (one app per
+       process, no provider access checks to grant into) — prints removed.
+       Stale: `Context.getThemeResId` (abstract declaration; `ContextImpl`
+       returns `mThemeResource`, which its ctor/`setTheme` set) and
+       `Context.stopService` (abstract; the real gap was in
+       `ATLLoadedApp`, now fixed).
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -1152,25 +1189,25 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x36 and full-corpus gates
-  `fc30`..`fc54` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x38 and full-corpus gates
+  `fc30`..`fc55` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
   was fixed, and `fc48`/`fc52` which FAILED on the canary's flake (see
   the batch 179–193 and 224–238 entries: cleared by `fc49`, 0/0 vs
   `fc47`, and `fc53`, 0/0 vs `fc51`); `fc37` 2
   improved: phonograph EXITED->ALIVE, nudge CRASH->BLANK; `fc40` 1
   improved: me.zhanghai.android.files CRASH->ALIVE). Fork commits
-  `940749c9`..`9315ed5e` (21 queue fixes + getWindowToken + fragment
+  `940749c9`..`33f1fedd` (21 queue fixes + getWindowToken + fragment
   onActivityCreated dispatch + fillType + Ringtone + dispatchKeyEvent +
   View state batch + TextView isSingleLine + batches 119-133, 134-148,
-  149-163, 164-178, 179-193, 194-208, 209-223, 224-238 and 239-253 +
-  hasWindowFocus fixup)
+  149-163, 164-178, 179-193, 194-208, 209-223, 224-238, 239-253 and
+  254-268 + hasWindowFocus fixup)
   pushed to `fix/fixcov-crashes` + `local-fixes`. Added
   `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
   with `atl-gaps --emit-queue
   15` after `fc39` (119 items), `fc41` (134), `fc43` (149), `fc44` (164),
-  `fc46` (179), `fc47` (194), `fc49` (209), `fc50` (224), `fc51` (239)
-  and `fc53` (254).
+  `fc46` (179), `fc47` (194), `fc49` (209), `fc50` (224), `fc51` (239),
+  `fc53` (254) and `fc54` (269).
   Used `rig smoke` + single-hunk builds to
   bisect the item-63 witness and the item-131 regression, and repeated
   forced single-app runs (5 at `433b2354`, 8 at the new tip) to show the
@@ -1180,7 +1217,7 @@ Say here which runner you're using for builds/gates, and clear it when done.
   Checked `rig -r bazzite job status` before starting; no other agent's
   jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
   phone items 67/103 stayed parked. Bazzite left installed with the
-  `9315ed5e` tree (= `local-fixes` tip). Released.
+  `33f1fedd` tree (= `local-fixes` tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

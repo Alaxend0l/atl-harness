@@ -437,3 +437,50 @@ android.app.Activity.isInPictureInPictureMode() returns a constant
 # stale (253): the fork resolves direction at inflation (params.resolveLayoutDirection
 # (getLayoutDirection())) and getLayoutDirection always answers LTR, so AOSP's resolved bit is set
 android.view.View.isLayoutDirectionResolved() returns a constant
+# fixed (254): the class had no fields at all, so the shortcut icon pointed at nothing; AOSP's public
+# packageName + resourceName now filled by fromContext (pkg + "pkg:type/entry") (fork 4e39acd3)
+android.content.Intent$ShortcutIconResource.fromContext(Context context, int id) returns a constant
+# recorded (255): AOSP's getMovie is openRawResource + Movie.decodeStream, and decodeStream returns
+# NULL for non-GIF data - so null is AOSP's own answer for anything ATL can be handed (no Movie class
+# here). **Gap: android.graphics.Movie / GIF decoding** (deprecated upstream since API 28) (fork 33f1fedd)
+android.content.res.Resources.getMovie(int id) returns a constant
+# fixed (256): hardcoded null; now AOSP's chain - EXTRA_REFERRER, EXTRA_REFERRER_NAME parsed, then
+# android-app://<calling package> via the recorded startActivityForResult caller (fork 33784e33)
+android.app.Activity.getReferrer() returns a constant
+# fixed (257): isDirty always false; ATL runs Android's draw path (GTK draw -> View.draw), so the
+# flag is raised in the invalidation funnel (propagateInvalidation) and cleared in draw() (fork 00f9cac2)
+android.view.View.isDirty() returns a constant
+# stale (258): Context's declaration is abstract; ContextImpl returns mThemeResource, which its
+# constructor and setTheme do assign (AOSP's Context default is 0 and @hide)
+android.content.Context.getThemeResId() is empty
+# recorded (259): a window-manager task-label call (recents entry); ATL has no task/recents host -
+# the visible label is the window title via setTitle (fork 33f1fedd)
+android.app.Activity.setTaskDescription(ActivityManager.TaskDescription description) is empty
+# fixed (260): the hook AOSP's setPressed calls was empty - AOSP's body also re-applies the flag and
+# INVALIDATES, so a pressed state never scheduled the repaint showing it (ViewGroup's propagation
+# was already AOSP's shape) (fork 00f9cac2)
+android.view.View.dispatchSetPressed(boolean pressed) is empty
+# stale (261): AOSP's Context.getAttributionTag default is literally null; a tag only comes from
+# context-creation params or <attribution>, which ATL lacks (comment added, fork 33f1fedd)
+android.content.Context.getAttributionTag() returns a constant
+# recorded (262): printed on every call and did nothing. AOSP records grants so ANOTHER package can
+# read a URI; ATL runs one app per process and its ContentResolver checks no URI permissions.
+# **Gap: URI permission enforcement**; prints removed (also revokeUriPermission) (fork 33f1fedd)
+android.content.Context.grantUriPermission(String dummy, Uri dummy2, int dummy3) only logs
+# fixed (263): the Context declaration is abstract and ContextImpl -> ATLLoadedApp.stopService really
+# destroys the instance, but it refused action-only intents while startOrBindService resolved them by
+# intent filter - now both use one resolveServiceComponent (fork 7298506e)
+android.content.Context.stopService(Intent intent) is empty
+# fixed (264/265): the Rect was thrown away and the getter answered null; AOSP stores a copy and
+# hands back a copy (fork 9e782e09)
+android.content.Intent.setSourceBounds(Rect sourceBounds) is empty
+android.content.Intent.getSourceBounds() returns a constant
+# fixed (266): setter empty, getter absent; AOSP routes both through the window (PhoneWindow keeps
+# it). Stored there, default USE_DEFAULT_STREAM_TYPE. **Gap: no Android-side volume-key routing** (fork 143f324a)
+android.app.Activity.setVolumeControlStream(int streamType) is empty
+# fixed+recorded (267): the enabled flag round-trips now (both sides were hardcoded). **Gap:
+# drawing-cache/snapshot subsystem** - AOSP renders with its own software renderer, ATL draws via GTK (fork d85493e4)
+android.view.View.getDrawingCache() returns a constant
+# fixed (268): flag stored + getter declared, and performHapticFeedback now honours AOSP's first gate
+# - observable here because ATL's vibrator is real (item 136) (fork d85493e4)
+android.view.View.setHapticFeedbackEnabled(boolean hapticFeedbackEnabled) is empty
