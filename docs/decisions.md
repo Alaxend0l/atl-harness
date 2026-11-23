@@ -127,3 +127,22 @@ gated local-model fixes stacked on `main`; the morning review is
 `origin/main..origin/local-fixes`. Merging into `main` follows AGENTS.md's
 merge rule and is the owner's call. `agent/overnight` stays as the raw branch
 of run 20261121-185746.
+
+## D18 (2026-11-23): the app sandbox masks /etc/group (Android-fidelity, not a policy widening)
+The canary's second flake mode — a JNI abort in `me.zhanghai.android.files`'
+own syscall library — turned out to be an environment difference, not a race:
+Android has no `/etc/group`, so bionic's `getgrgid` always answers "not
+found" and the app's null-handling runs; under bwrap the app saw the *host's*
+group database through glibc NSS, took the "lookup succeeded" path no device
+takes, and aborted the process parsing the result. `atl-sandbox` now binds
+`/dev/null` over `/etc/group`. Evidence: 6 forced canary runs went JNI-mode
+2/6 → 0/6 (remaining crashes are the separate, pre-existing NPE mode), and
+gate `fc60` vs `fc59` shows `me.zhanghai.android.files` CRASH→ALIVE, 0
+regressions across the corpus. Masking `/etc/passwd` the same way was tried
+and reverted on the spot: the art_standalone libcore copy the runtime links
+throws `AssertionError` from `System.<clinit>` when `getpwuid` fails, so every
+app died at startup (6/6 CRASH). AOSP main's `System.java` instead falls back
+to `user.name="unknown"` — aligning art_standalone with it is the follow-up
+that would let passwd be masked too. This narrows what an app can read (host
+account names were leaking), so it is not a sandbox-policy widening in D16's
+sense; the rationale lives next to the mount in the script.

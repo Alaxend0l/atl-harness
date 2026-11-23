@@ -370,11 +370,27 @@ def build_args(apk: str, atl_args: list[str], policy: dict, *, rootfs: str | Non
         # host files over the rootfs's (without a rootfs, /etc is the host's). The
         # rootfs is read-only: a bind needs an existing target there, or bwrap
         # aborts ("Can't create file ...: Read-only file system").
-        for f in ("/etc/passwd", "/etc/group", "/etc/machine-id", "/etc/localtime"):
+        for f in ("/etc/passwd", "/etc/machine-id", "/etc/localtime"):
             if Path(f).exists() and os.path.lexists(Path(rootfs) / f.lstrip("/")):
                 target = resolv_like_target(rootfs, f)
                 if (Path(rootfs) / target.lstrip("/")).exists():
                     a += ["--ro-bind", f, target]
+    # No Android device has an /etc/group: bionic's getgrgid only ever answers
+    # "not found" there. Handing the app the host's (or the rootfs's) instead
+    # lets glibc resolve groups no device would, and the "lookup succeeded"
+    # path - which Android code never takes - becomes reachable: the corpus
+    # canary's getgrgid JNI abort (HANDOFF, canary flake mode) is exactly that
+    # path taken on a host group entry. Mask it with /dev/null so NSS sees an
+    # empty database and group lookups fail the Android way. /etc/passwd stays:
+    # the art_standalone libcore this runtime links (older than AOSP's, whose
+    # System.java falls back to user.name="unknown") asserts on a failed
+    # getpwuid in System.<clinit>, so removing it kills every app at startup
+    # (measured: 6/6 CRASH). Aligning that copy with AOSP is a follow-up.
+    for f in ("/etc/group",):
+        target = resolv_like_target(rootfs, f)
+        if rootfs is None or os.path.lexists(Path(rootfs) / target.lstrip("/")):
+            a += ["--ro-bind", "/dev/null", target]
+    if rootfs:
         if dns_file is None and Path("/etc/resolv.conf").exists():
             target = resolv_target(rootfs)
             if (Path(rootfs) / target.lstrip("/")).exists():

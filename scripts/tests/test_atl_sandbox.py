@@ -116,6 +116,23 @@ class Args(unittest.TestCase):
         self.assertIn(("/r", "/"), pairs(args, "--ro-bind"))
         self.assertNotIn("/r", [s for s, _ in pairs(args, "--bind")])
 
+    def test_group_masked_android_style(self):
+        # no rootfs: the host's group database is masked away
+        args, _ = self.build(sb.derive_policy([]))
+        ro = pairs(args, "--ro-bind")
+        self.assertIn(("/dev/null", "/etc/group"), ro)
+        self.assertNotIn(("/etc/group", "/etc/group"), ro)
+        self.assertNotIn(("/dev/null", "/etc/passwd"), ro)  # art_standalone needs it
+        # with a rootfs that has it: masked too, and not bound from the host
+        root = Path(self.tmp.name) / "root"
+        (root / "etc").mkdir(parents=True)
+        for f in ("passwd", "group"):
+            (root / "etc" / f).write_text("x:x:0:\n")
+        args, _ = self.build(sb.derive_policy([]), rootfs=str(root))
+        ro = pairs(args, "--ro-bind")
+        self.assertIn(("/dev/null", "/etc/group"), ro)
+        self.assertNotIn(("/etc/group", "/etc/group"), ro)
+
     def test_wayland_only_socket(self):
         os.environ["WAYLAND_DISPLAY"] = "wayland-1"
         args, env = self.build(sb.derive_policy([]), x11=False)
