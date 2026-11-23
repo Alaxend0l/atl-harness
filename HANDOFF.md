@@ -1177,6 +1177,37 @@ with `javac -h`; commit the regenerated header with any new native method.
        1000 — microseconds, a thousandth of AOSP's ns answer; now
        `* NS_PER_MS`. Gate `fc66` vs `fc65`: 0/0; no corpus witness
        (no coverage in logs), compile + no-regression only.
+     - Queue batch 404–418 (fork `b5b5113f`..`958cc8d7`): a small
+       real batch inside mostly stale flags. Item 404 was stale — the
+       flag came from the phrase "does nothing" in my own transform()
+       comment from the previous batch (atl-gaps `TODO_MARK` false
+       positive), reworded. `FragmentTransaction.commit()` returned 0,
+       which in AOSP is the first back-stack index — this shim has no
+       back stack, and AOSP's `BackStackRecord.commitInternal`
+       (oreo-release) answers `mIndex = -1` when the transaction was
+       not added to one, so it now returns -1. `Dialog.onCreate`
+       printed "- onCreate - Dialog!" (AOSP's body is empty verbatim,
+       oreo-release `Dialog.java:416`) and `show()`'s println was ATL
+       dev noise over an otherwise real body — both removed;
+       `onTouchEvent` documented instead of implemented (AOSP's
+       outside-touch cancel needs `Window.shouldCloseOnTouch`, which
+       this fork does not provide, and its native window never
+       dispatches `Window.Callback.onTouchEvent` — touches go to the
+       view tree). Recorded faithful: the `Uri` items (abstract
+       declarations flagged as "empty"; `private Uri() {}` and
+       `Part.isEmpty`/`EmptyPart.isEmpty` are AOSP verbatim, checked
+       against android16-release `Uri.java`), the `SpannableStringBuilder`
+       items (flagged TODO lines are AOSP's own comments verbatim, and
+       the `setSpan` Log.e is AOSP's own zero-length-
+       SPAN_EXCLUSIVE_EXCLUSIVE error log, oreo-release line 705),
+       `ContentResolver.run()` (the SyncAdapterThread Runnable does
+       the real `onPerformSync`, only logging at the end), and
+       `Dialog.dismiss()` (real body; the flagged HACK comment
+       documents the intentional 10 ms delay that fixes NewPipe's
+       subscribe-then-dismiss race). Gate `fc67` vs `fc66`: 0/0; no
+       corpus witness for commit()/onTouchEvent (no coverage),
+       compile + no-regression only; dialogs do open in the corpus,
+       so the println removals are gate-covered.
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -1412,8 +1443,8 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x59 and full-corpus gates
-  `fc30`..`fc66` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x61 and full-corpus gates
+  `fc30`..`fc67` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
   was fixed, and `fc48`/`fc52` which FAILED on the canary's flake (see
   the batch 179–193 and 224–238 entries: cleared by `fc49`, 0/0 vs
@@ -1423,12 +1454,12 @@ Say here which runner you're using for builds/gates, and clear it when done.
   same canary CRASH->ALIVE after the harness masked `/etc/group` from
   the sandbox (D18, killed the JNI flake mode); `fc64` 1 improved: the
   canary's other (NPE) flake mode cleared again, CRASH->ALIVE. Fork
-  commits `940749c9`..`1eb7fbe2` (21 queue fixes + getWindowToken + fragment
+  commits `940749c9`..`958cc8d7` (21 queue fixes + getWindowToken + fragment
   onActivityCreated dispatch + fillType + Ringtone + dispatchKeyEvent +
   View state batch + TextView isSingleLine + batches 119-133, 134-148,
   149-163, 164-178, 179-193, 194-208, 209-223, 224-238, 239-253,
   254-268, 269-283, 284-298, 299-313, 314-328, 329-343, 344-358 +
-  hasWindowFocus fixup, 359-373, 374-388 and 389-403)
+  hasWindowFocus fixup, 359-373, 374-388, 389-403 and 404-418)
   pushed to `fix/fixcov-crashes` + `local-fixes`. Added
   `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
   with `atl-gaps --emit-queue
@@ -1436,7 +1467,7 @@ Say here which runner you're using for builds/gates, and clear it when done.
   `fc46` (179), `fc47` (194), `fc49` (209), `fc50` (224), `fc51` (239),
   `fc53` (254), `fc54` (269), `fc55` (284), `fc58` (299), `fc59` (314),
   `fc61` (329), after 314-328 (344), `fc62` (359), `fc63` (374) and
-  `fc64` (389), `fc65` (404) and `fc66` (419).
+  `fc64` (389), `fc65` (404), `fc66` (419) and `fc67` (434).
   Used `rig smoke` + single-hunk builds to
   bisect the item-63 witness and the item-131 regression, and repeated
   forced single-app runs (5 at `433b2354`, 8 at the new tip) to show the
@@ -1454,7 +1485,7 @@ Say here which runner you're using for builds/gates, and clear it when done.
   job status` before starting; no other agent's
   jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
   phone items 67/103 stayed parked. Bazzite left installed with the
-  `1eb7fbe2` tree (= `local-fixes` tip; `fc66` ran on it). Released.
+  `958cc8d7` tree (= `local-fixes` tip; `fc67` ran on it). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

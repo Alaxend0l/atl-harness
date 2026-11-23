@@ -835,3 +835,51 @@ android.view.MotionEvent.nativeGetAxisValue(int nativePtr, int axis, int pointer
 # fixed (403): eventTime is ms; * 1000 reported microseconds, a thousandth of AOSP's
 # nativeGetEventTimeNanos; now * NS_PER_MS
 android.view.MotionEvent.getEventTimeNano() is marked TODO/FIXME
+# stale (404): transform(Matrix) was implemented in 9b63c0d5; the flag came from the phrase
+# "does nothing" inside my own explanatory comment (atl-gaps TODO_MARK false positive) - reworded
+# (fork b5b5113f)
+android.view.MotionEvent.transform(Matrix matrix) is marked TODO/FIXME
+# stale (405, 418): abstract declarations on the abstract Uri (AOSP shape) - false positives;
+# StringUri/OpaqueUri carry the real bodies (toString returns/caches uriString, getScheme
+# parses or stores the scheme)
+android.net.Uri.toString() is empty
+android.net.Uri.getScheme() is empty
+# fixed (406): onCreate printed "- onCreate - Dialog!"; AOSP's onCreate body is empty
+# (oreo-release Dialog.java:416), apps override it (fork 958cc8d7)
+android.app.Dialog.onCreate(Bundle savedInstanceState) only logs
+# recorded (407, 417): the flagged TODO lines are AOSP's own comments, verbatim
+# ("TODO A correct previousSpanStart cannot be computed at this point", "TODO same as above for
+# previousSpanEnd", "TODO potential optimization: only fix up invariants...") - checked against
+# frameworks/base oreo-release SpannableStringBuilder.java; the methods do real gap-buffer work
+android.text.SpannableStringBuilder.replace(final int start, final int end, CharSequence tb, int tbstart, int tbend) is marked TODO/FIXME
+android.text.SpannableStringBuilder.change(int start, int end, CharSequence cs, int csStart, int csEnd) is marked TODO/FIXME
+# recorded (409): the run() the flag points at is the SyncAdapterThread Runnable inside
+# requestSync; it does the real onPerformSync work and only logs when the sync finishes/fails
+# (AOSP logs too)
+android.content.ContentResolver.run() prints on every call
+# fixed (408): show() println was ATL development noise - the body is real (onCreate, window
+# sizing from Window styleables, nativeShow, onShow listener); AOSP prints nothing (fork 958cc8d7)
+android.app.Dialog.show() prints on every call
+# fixed (410): commit() returned 0 = AOSP's first back-stack index, but this shim has no back
+# stack; AOSP returns mIndex = -1 when not added to the back stack (oreo BackStackRecord
+# .commitInternal) - now -1 (fork b5237fb2)
+android.app.FragmentTransaction.commit() returns a constant instead of state
+# recorded (412): AOSP cancels on outside touch via Window.shouldCloseOnTouch and returns false
+# otherwise; this fork has no Window.shouldCloseOnTouch and its native window never dispatches
+# Window.Callback.onTouchEvent (touches go to the view tree), so the method is unreachable -
+# documented, false = "not consumed" (fork 958cc8d7)
+android.app.Dialog.onTouchEvent(MotionEvent event) returns a constant instead of state
+# recorded (411): AOSP's `private Uri() {}` verbatim (core/java/android/net/Uri.java)
+android.net.Uri.Uri() is empty
+# recorded (413-414): AOSP verbatim - Part.isEmpty() returns false (real Part is never empty),
+# EmptyPart.isEmpty() returns true; checked against android16-release Uri.java
+android.net.Uri$Part.isEmpty() returns a constant instead of state
+android.net.Uri$Part$EmptyPart.isEmpty() returns a constant instead of state
+# recorded (415): dismiss() has a real body (nativeClose, onDismiss listener); the flagged
+# HACK comment documents an intentional 10 ms delay replicating AOSP's dismiss round-trip so
+# NewPipe's subscribe-then-dismiss race sees the listener - not a stub marker
+android.app.Dialog.dismiss() is marked TODO/FIXME
+# recorded (416): the Log.e is AOSP's own ("SPAN_EXCLUSIVE_EXCLUSIVE spans cannot have a zero
+# length", oreo-release SpannableStringBuilder line 705) on the invalid-zero-length-span error
+# path; setSpan does the real span work
+android.text.SpannableStringBuilder.setSpan(boolean send, Object what, int start, int end, int flags, boolean enforceParagraph) prints on every call
