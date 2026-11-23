@@ -1056,6 +1056,24 @@ with `javac -h`; commit the regenerated header with any new native method.
        the old tip (`f60nb1..6`); the canary logs 0
        `startActivityForResult` hits, so the batch's code paths are
        unreachable in it — Fisher-exact p≈0.6: flake, batch kept.
+     - Queue batch 314–343 (fork `cd5e7276`..`db7efb0e`): 30 of the
+       30 items were the scanner flagging **interface declarations**
+       in `Menu.java`/`MenuItem.java` as empty; `PopupMenu`'s
+       `MenuImpl`/`MenuItemImpl` have real bodies for all of them
+       (add/clear/removeItem manage the GMenu rows, size/findItem/
+       getItem work, state setters store and their getters read).
+       Genuine gaps found in that review: `setActionView(View/int)`
+       discarded and `getActionView()` answered null where AOSP's
+       `MenuItemImpl` (real path verified:
+       `core/java/com/android/internal/view/menu/MenuItemImpl.java`,
+       android16-release) stores the view — gave it the item id when
+       it had none — and inflates for the resId overload; now stored/
+       inflated AOSP-style (hosting gap: a GMenu row can't display
+       the view). Recorded faithful: `expandActionView`/
+       `isActionViewExpanded` false = AOSP's own popup answer
+       (expansion needs a presenter that can host it), 
+       `setIconTintList` (action-bar-only, no getter at this API).
+       Gate `fc62` vs `fc61`: 0/0 (canary ALIVE in both).
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -1291,8 +1309,8 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x46 and full-corpus gates
-  `fc30`..`fc61` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x48 and full-corpus gates
+  `fc30`..`fc62` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
   was fixed, and `fc48`/`fc52` which FAILED on the canary's flake (see
   the batch 179–193 and 224–238 entries: cleared by `fc49`, 0/0 vs
@@ -1301,11 +1319,11 @@ Say here which runner you're using for builds/gates, and clear it when done.
   improved: me.zhanghai.android.files CRASH->ALIVE; `fc60` 1 improved:
   same canary CRASH->ALIVE after the harness masked `/etc/group` from
   the sandbox (D18, killed the JNI flake mode). Fork commits
-  `940749c9`..`bb9a2c73` (21 queue fixes + getWindowToken + fragment
+  `940749c9`..`db7efb0e` (21 queue fixes + getWindowToken + fragment
   onActivityCreated dispatch + fillType + Ringtone + dispatchKeyEvent +
   View state batch + TextView isSingleLine + batches 119-133, 134-148,
   149-163, 164-178, 179-193, 194-208, 209-223, 224-238, 239-253,
-  254-268, 269-283, 284-298 and 299-313 + hasWindowFocus fixup)
+  254-268, 269-283, 284-298, 299-313, 314-328 and 329-343 + hasWindowFocus fixup)
   pushed to `fix/fixcov-crashes` + `local-fixes`. Added
   `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
   with `atl-gaps --emit-queue
@@ -1329,7 +1347,7 @@ Say here which runner you're using for builds/gates, and clear it when done.
   job status` before starting; no other agent's
   jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
   phone items 67/103 stayed parked. Bazzite left installed with the
-  `bb9a2c73` tree (= `local-fixes` tip). Released.
+  `db7efb0e` tree (= `local-fixes` tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

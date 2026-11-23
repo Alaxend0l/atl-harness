@@ -659,3 +659,44 @@ android.view.MenuItem.setCheckable(boolean checkable) is empty
 # stale (328): interface declaration; MenuItemImpl.setShowAsAction is a commented no-op -
 # popups have no action bar, and AOSP's stored flag has no consumer or getter there either
 android.view.MenuItem.setShowAsAction(int action) is empty
+# stale (329): interface declaration; MenuItemImpl.isVisible is `position >= 0` (the GMenu
+# row position is the visibility state)
+android.view.MenuItem.isVisible() is empty
+# stale (330): interface declaration; MenuItemImpl.isEnabled reads the stored flag (318's setter)
+android.view.MenuItem.isEnabled() is empty
+# stale (331): interface declaration; MenuImpl.findItem searches items and recurses into
+# submenus, like AOSP
+android.view.Menu.findItem(int id) is empty
+# stale (332): interface declaration; MenuItemImpl.setOnMenuItemClickListener stores the
+# listener and the click path invokes it
+android.view.MenuItem.setOnMenuItemClickListener(OnMenuItemClickListener listener) is empty
+# stale (333): interface declaration; MenuItemImpl.getIcon returns the stored icon (323/325)
+android.view.MenuItem.getIcon() is empty
+# stale (334): interface declaration; MenuImpl.getItem is items.get(index) (AOSP's index
+# semantics); the submenu variant looks up by id
+android.view.Menu.getItem(int id) is empty
+# stale (335): interface declaration; MenuItemImpl.isCheckable reads the stored flag (327)
+android.view.MenuItem.isCheckable() is empty
+# stale (336): interface declaration; MenuItemImpl.setIntent stores the intent
+android.view.MenuItem.setIntent(Intent intent) is empty
+# recorded (337): AOSP stores the tint for the action bar item view only; popup rows are
+# label-only, no getter at this API level - faithful no-op (comment, fork db7efb0e)
+android.view.MenuItem.setIconTintList(ColorStateList tint) is empty
+# fixed (338): stored like AOSP's MenuItemImpl (view gets the item id when it has none);
+# hosting gap stays commented - GMenu rows cannot display it (fork cd5e7276)
+android.view.MenuItem.setActionView(View actionView) is empty
+# fixed (339): inflates the layout into a throwaway LinearLayout and routes through the
+# View overload, AOSP's exact shape (fork cd5e7276)
+android.view.MenuItem.setActionView(int resId) is empty
+# stale (340): interface declaration; MenuImpl.removeItem hides the GMenu row and drops it
+# from the list, like AOSP MenuBuilder
+android.view.Menu.removeItem(int id) is empty
+# stale (341): interface declaration; MenuItemImpl.getSubMenu returns the stored submenu
+android.view.MenuItem.getSubMenu() is empty
+# fixed (342): getActionView now answers the stored view (AOSP's ActionProvider branch has
+# no counterpart here - no setActionProvider on this MenuItem) (fork cd5e7276)
+android.view.MenuItem.getActionView() is empty
+# recorded (343): false is AOSP's own popup answer - expansion runs through
+# MenuBuilder.expandItemActionView into presenters that can host it, and the flag is only
+# set by that path (comment, fork db7efb0e)
+android.view.MenuItem.isActionViewExpanded() is empty
