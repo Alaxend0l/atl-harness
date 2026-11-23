@@ -1317,18 +1317,24 @@ a photo). `interactions/org.fossify.musicplayer.txt` checks albums, tracks and
 (failing until playback works) the player.
 
 ## Waiting on the owner
-- **Rust-rewrite decision for the fork (pending).** Owner asked whether to
-  rebuild Andrun in Rust (stability, headless testing, AGPL, "Java falling
-  behind" — note: Google's *app* language is Kotlin, but Kotlin compiles to
-  the same dex the fork must implement against; Google's Rust push is in
-  the native/C++ tier, which maps to our `api-impl-jni` C, not the Java).
-  Full research: [`docs/research/rust-rewrite.md`](docs/research/rust-rewrite.md),
-  corrected same day after the owner clarified the hard fork is **complete**
-  (D20: ATL↔Andrun never share code again — upstream is off-limits for code
-  *and* knowledge, ruling given 2026-11-23; the "upstream stream" argument
-  was withdrawn and the analysis re-derived on technical grounds alone:
-  conclusion unchanged — full rewrite no, C→Rust incremental plausible,
-  JVM test rig do-regardless, Rust+JNI spike = suggested evidence step).
+- **Rust path: DECIDED 2026-11-23 (D21) — C then D, B conditional.** Owner:
+  run option C (JVM unit-test rig) first, then the option D spike (one leaf
+  component rewritten Rust+JNI, measure glue cost); option B (incremental
+  C→Rust migration of `api-impl-jni`) becomes the long-term goal only based
+  on D's result. C is started: `tools/jvmrig` v0 (brief:
+  [`docs/agent-tasks/jvm-test-rig.md`](docs/agent-tasks/jvm-test-rig.md)),
+  verified on bazzite (all 855 api-impl files javac on a stock JVM, smoke
+  test PASS). **Blocked on the workstation:** only a JRE is installed —
+  owner needs to run `sudo dnf5 install -y java-25-openjdk-devel` (plus the
+  libcore jar copy, see the brief) to run the rig locally instead of via
+  the runner. Coexistence mechanics (how the C core and a future Rust core
+  talk during a transition): `docs/research/rust-rewrite.md` §10.
+- **GTK4 / cross-platform toolkit question — answered** in
+  [`docs/research/graphics-backend.md`](docs/research/graphics-backend.md)
+  (short: toolkit barely affects APK compatibility; the cross-OS walls are
+  ART-host/audio/session-stack, not GTK; keep GTK4 as the Linux backend,
+  introduce a host seam only if/when B runs; Windows via WSLg needs no
+  swap). Owner decision wanted only if cross-OS native builds become a goal.
 - Telephony/SMS design for Messages and Phone.
 - Merging the two fedora-atomic-phone branches (`plasma-mobile-spectacle`, `oneplus12-flatpak-home`); both are already applied on the phone by hand.
 - **Phone music playback check** (roadmap step "phone gate"): largely done —

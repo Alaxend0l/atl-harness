@@ -215,3 +215,17 @@ ideologically separated and **will never share code again**. Therefore:
 - This removes the "upstream stream of work" argument from
   `docs/research/rust-rewrite.md`; that report was re-derived the same
   day on purely technical grounds (its conclusion did not change).
+
+### D21 — Rust path: JVM rig first, then a Rust+JNI spike; C→Rust migration conditional (2026-11-23)
+Owner decision on `docs/research/rust-rewrite.md`: execute option **C**
+(JVM unit-test rig for api-impl) first; once done, run option **D** (one
+leaf component rewritten in Rust+JNI, measuring real glue cost and
+testability). Option **B** (incremental C→Rust migration of the 31 k-line
+`api-impl-jni`) becomes a long-term goal only if D's result justifies it.
+Transition mechanics (C core ↔ Rust core in the same process during a
+migration) are documented in `docs/research/rust-rewrite.md` §10.
+C is started: `tools/jvmrig` v0 (task brief
+`docs/agent-tasks/jvm-test-rig.md`); verified on runner bazzite — all 855
+api-impl files javac on a stock JVM (no ART/GTK/Xvfb) and the headless
+smoke test passes. Running the rig on the workstation needs the JDK
+installed (`java-25-openjdk-devel`), owner action.
