@@ -1537,6 +1537,15 @@ Say here which runner you're using for builds/gates, and clear it when done.
   phone items 67/103 stayed parked. Bazzite left installed with the
   `f52ecb55` tree (= `local-fixes` tip; `fc69`/`fc70` ran on it).
   Released.
+- **opencode (this session, 2026-11-23): `oneplus12`** — the phone is
+  back (`rig -r oneplus12 doctor` green over the LAN alias). Built the
+  current tip on it: `rig -r oneplus12 build --detach --worktree
+  ~/Develop/atl-fixcov` (21 s, BUILD OK), so the phone now runs
+  `local:f52ecb55` in `/home/phone/src/atl-dev`, same tree as bazzite.
+  Doctor re-checked: `atl-installed local:f52ecb55`. This unblocks the
+  parked phone items (67 siggen SIGSEGV, 103 FLAC stutter) — not yet
+  run. No app runs on the phone beyond the build itself; runner
+  released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
