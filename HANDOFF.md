@@ -1546,6 +1546,44 @@ Say here which runner you're using for builds/gates, and clear it when done.
   parked phone items (67 siggen SIGSEGV, 103 FLAC stutter) — not yet
   run. No app runs on the phone beyond the build itself; runner
   released.
+- **opencode (this session, 2026-11-23, second): `oneplus12`** — Gramophone
+  pause->resume freeze repro (work/gramo-resume/TODO.md item 1). Found the
+  harness env on the phone had no PipeWire socket (rig `bwrap_prefix` did
+  `--tmpfs /run`), so every ATL AudioTrack init failed "Host is down" and
+  music runs only exercised a dead-audio retry loop; fixed by ro-bind-try of
+  `pipewire-0`/`pulse/native` in `scripts/rig` bwrap_prefix. Scratch runs
+  `grres1..grres6` via `work/config-grresume.toml` +
+  `work/interactions-mp/org.akanework.gramophone.txt` against the owner's
+  real `/home/phone/Music`: `grres3` reproduced the owner wedge (after the
+  first pause/resume cycle, later pause/resume taps produce zero
+  `AudioTrack` calls and the UI goes silent-frozen). Phone is shared with
+  the owner's own desktop sessions (`atl-app` -> `atl-sandbox`); only
+  harness Gramophone processes were touched. Also probed host PipeWire
+  (read-only pw-dump) for the volume-key issue (TODO item 2): Mobian
+  CallAudio role-sink setup, ATL ALSA streams carry no `media.role`.
+  Phone still installed at `local:f52ecb55`.
+- **opencode (this session, 2026-11-23, third): `oneplus12`** — element
+  addressing P0: media transport keys. Fork commit `dc58bf2a` on
+  `fix/fixcov-crashes` (`~/Develop/atl-fixcov`): session registry +
+  `atlDispatchMediaKey` in `MediaSession.java`, AOSP-default
+  `Callback.onMediaButtonEvent`, XF86Audio* keysym mapping and a
+  capture-phase window key controller (`WrapperWidget.c`, installed
+  from `main.c`; the per-view controllers never fire — ATL view apps
+  get no key events at all, focus path). Harness: semantic
+  `key media-play/media-pause/...` names in `src/interact.rs` (+test,
+  docs/usage.md). Witness `grres18`: pause key → `handled=true` →
+  `calling AudioTrack.pause()`; play key → expansion 85→126,
+  `handled=true`, media3 notification flips Play→Pause — and the run
+  then **reproduces the owner's bug cleanly**: `audioTrackUnderrun`
+  right after pause, and after resume no `AudioTrack.play()` ever
+  follows (player stuck CONNECTING). Prime suspect for the next task:
+  `getPlaybackHeadPosition` = frames-written minus `snd_pcm_delay`
+  across `snd_pcm_pause` on PipeWire
+  (`src/api-impl-jni/audio/android_media_AudioTrack.c`). Phone left
+  installed with `local:f52ecb55-dirty` = the `atl-fixcov` tree at
+  `dc58bf2a`; NOT gate-tested on the full corpus yet (adds only
+  previously-absent key handling), gate before merging to
+  `local-fixes`.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

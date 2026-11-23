@@ -146,3 +146,31 @@ to `user.name="unknown"` — aligning art_standalone with it is the follow-up
 that would let passwd be masked too. This narrows what an app can read (host
 account names were leaking), so it is not a sandbox-policy widening in D16's
 sense; the rationale lives next to the mount in the script.
+
+## D19 (2026-11-23): rebrand the fork as "Andrun" (rename task, not yet executed)
+Owner decision: the fork will be retitled **Andrun** to mark it clearly as a
+separate project from upstream Android Translation Layer. Motivation:
+upstream (postmarketOS ATL) has a no-AI-contribution policy (D1), and our
+hard fork carries AI-assisted work permanently and locally only; a distinct
+name stops anyone (including upstream) from reading our tree, commits or bug
+reports as theirs, and makes the divergence explicit rather than implicit.
+
+Legality reviewed before committing to the name (owner asked; not legal
+advice): the fork is GPLv3 (`LICENSE.txt`), which grants modify/rename
+freedom and never requires keeping the project *name* — precedent:
+CyanogenMod→LineageOS, MySQL→MariaDB. What must be preserved: copyright/
+SPDX notices and the license text inside source files ("appropriate legal
+notices"; GPLv3 §5(c) "you changed this" notices, already satisfied by fork
+commits), and upstream stays credited as the origin in README. "Android" is
+Google's mark; "Andrun" evokes but does not use it, and a web scan found no
+existing product of that name (USPTO/EUIPO + F-Droid/GitHub exact-string
+check is a pre-rename to-do). An "independent fork, not affiliated with the
+ATL developers / postmarketOS / Google" disclaimer accompanies the rename.
+Renaming does not change D1: nothing goes upstream either way.
+
+Follow-up when executed: meson `project('android_translation_layer')`, the
+`android-translation-layer` binary name, `atl-*` desktop entries /
+`atl-app` / `atl-sandbox` on the phone, `runners.toml` paths and docs; the
+`android.*` Java package namespace is API emulation and stays untouched.
+Until then the fork keeps its current name everywhere (installed builds,
+harness strings).

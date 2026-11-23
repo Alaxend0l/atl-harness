@@ -193,6 +193,39 @@ preferences, pressed/disabled states, shapes and gradients, bitmaps, dialogs).
 **4. Play Services apps** (`corpora/microg.txt`: Mastodon, Tasks.org,
 EVMap, …) don't reach Play Services yet; good tests once section 1 is fixed.
 
+## Harness: element-addressed interaction scripts (owner idea, 2026-11-23; proposed, not started)
+Today interaction scripts (`src/interact.rs`) address UI only by pixel
+coordinates (`tap X Y`), which breaks whenever an app changes layout or
+state — witnessed live on 2026-11-23: a Gramophone pause/resume witness
+script's fixed (64,336) taps started hitting another widget after the first
+cycle (opened a Details screen), manufacturing a fake "no AudioTrack calls"
+wedge that looked like the owner's bug. Proposal:
+
+1. **Fork side — query the view tree ATL already has.** ATL keeps the
+   Android `View` hierarchy in Java (it draws it); expose it to the harness:
+   extend the `ATL_DUMP_NODES` machinery into a queryable per-run dump or
+   socket — per node: class, text/content-description, bounds, clickable,
+   enabled. (A reader-style AT-SPI tree is NOT available: the fork's
+   `AccessibilityNodeInfo` is a stub and the atspi.Registry activation in
+   app logs is just GTK auto-connect, so no screen-reader path exists yet.)
+2. **Harness side — name things, not pixels.** New steps: `find "Pause"`
+   (match text/desc/class, store as the current target), `tap "Pause"`,
+   `long-press "…"`, tapping the centre of the resolved bounds; element not
+   found = hard FAIL with the element list dumped into the run log (a
+   distinct, classifiable failure). Raw-coordinate steps stay for edge
+   cases, and OCR (`expect-text`) stays as fallback matching when the node
+   dump is sparse.
+3. **Gestures**: add `swipe X1 Y1 X2 Y2 [MS]` plus semantic `swipe
+   up|down|left|right` (lists, hamburger drawers, seek bars).
+
+Benefits: witness scripts survive app state changes and read as intent
+("tap Pause") instead of magic numbers; failed witnesses fail honestly
+("element not found") instead of silently tapping the wrong widget;
+screenshots could annotate the tapped element. Suggested order: dump/socket
+in the fork first (also useful standalone for triage), then `find`/named
+`tap`, then `swipe`. Planned with risks and phases in
+docs/agent-tasks/element-addressed-interaction.md.
+
 ## Agent tasks
 Standing work for coding agents, independent of the steps above:
 - [Runner registry, harness tooling, documentation](agent-tasks/tooling-and-docs.md)
