@@ -229,3 +229,16 @@ C is started: `tools/jvmrig` v0 (task brief
 api-impl files javac on a stock JVM (no ART/GTK/Xvfb) and the headless
 smoke test passes. Running the rig on the workstation needs the JDK
 installed (`java-25-openjdk-devel`), owner action.
+
+### D22 — Launcher design: shape-first, no packaging door closed (2026-11-23)
+Owner instruction after the macOS evidence steps: write the launcher/daemon
+design (step 4), but **Andrun is nowhere near a public release** — the design
+must not make it impossible to ship later as exe/MSI (Windows), DMG/.app
+(macOS), Flatpak or AppImage (Linux). Recorded as
+`docs/launcher-design.md`: three contracts (guest image / host-runner /
+front-end), one adapter leaf per host tech, per-user relocatable state, no
+root/system paths, no Lima in product code, `.app`-bundle-ready macOS layout,
+silent-capable Windows install, flatpak-nesting spike before family A
+packaging. Nothing is to be built yet; stage gates (dev preview → packaging
+rehearsal → release criteria) bind packaging work to Andrun's actual
+readiness, not the other way round.

@@ -161,6 +161,10 @@ them behind a product that can exist first.
   (EFI kernel direct boot) with virtio-gpu + virtio-sound + virtiofs;
   launch one witness app; screenshot via the VM display.
 4. Only then: launcher/daemon design doc + guest-image packaging task.
+  *Design doc written 2026-11-23: [../launcher-design.md](../launcher-design.md)
+  (D22) — shape-only: the project is pre-release and the design's job is to
+  keep exe/dmg/flatpak/appimage all open. Packaging work is gated on real
+  spikes (macOS display path, WSL2) and on Andrun's own readiness.*
 
 Reproduce the facts: Microsoft WSL docs "build-custom-distro.md" /
 "use-custom-distro.md" + `wsl-config` (`guiApplications`); WSLg README
