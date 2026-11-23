@@ -625,3 +625,37 @@ android.view.MenuItem.setChecked(boolean checked) is empty
 # stale (313): interface declaration (AOSP shape); PopupMenu.MenuItemImpl.setTitle stores and
 # re-inserts the GMenu row, getTitle reads back
 android.view.MenuItem.setTitle(CharSequence title) is empty
+# stale (314-317): Menu.add* are interface declarations (AOSP shape); PopupMenu.MenuImpl.add
+# builds a MenuItemImpl, inserts the GMenu row and returns it; the others delegate to it
+# (AOSP's add(0,id,0,...)/add(0,0,0,text) shape kept)
+android.view.Menu.add(int groupId, int itemId, int order, CharSequence title) is empty
+android.view.Menu.add(int groupId, int itemId, int order, int titleRes) is empty
+android.view.Menu.add(int id) is empty
+android.view.Menu.add(CharSequence text) is empty
+# stale (318): interface declaration; MenuItemImpl.setEnabled stores the flag (comment notes
+# GMenu has no insensitive rows)
+android.view.MenuItem.setEnabled(boolean enabled) is empty
+# stale (319): interface declaration; MenuImpl.clear hides every GMenu row then drops the list
+android.view.Menu.clear() is empty
+# stale (320): interface declaration; MenuImpl.size returns items.size()
+android.view.Menu.size() is empty
+# stale (321): interface declaration; MenuItemImpl.getItemId returns the stored id
+android.view.MenuItem.getItemId() is empty
+# stale (322): interface declaration; MenuItemImpl.isChecked reads the stored flag (312's setter)
+android.view.MenuItem.isChecked() is empty
+# stale (323): interface declaration; MenuItemImpl.setIcon stores like AOSP (getIcon reads back);
+# GMenu popover rows are label-only, matching AOSP's popup behaviour
+android.view.MenuItem.setIcon(int iconRes) is empty
+# stale (324): interface declaration; MenuItemImpl.setVisible removes/re-inserts the GMenu row
+# (GMenu has no invisible items)
+android.view.MenuItem.setVisible(boolean visible) is empty
+# stale (325): same as 323 for the Drawable overload (stores; getIcon answers)
+android.view.MenuItem.setIcon(Drawable icon) is empty
+# stale (326): interface declaration; MenuItemImpl.getTitle returns the stored title (313's setter)
+android.view.MenuItem.getTitle() is empty
+# stale (327): interface declaration; MenuItemImpl.setCheckable stores, isChecked-style state
+# round-trips
+android.view.MenuItem.setCheckable(boolean checkable) is empty
+# stale (328): interface declaration; MenuItemImpl.setShowAsAction is a commented no-op -
+# popups have no action bar, and AOSP's stored flag has no consumer or getter there either
+android.view.MenuItem.setShowAsAction(int action) is empty
