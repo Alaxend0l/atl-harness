@@ -155,3 +155,26 @@ android.app.Activity.hasWindowFocus() returns a constant
 android.view.View.hasWindowFocus() returns a constant
 # stale (132): AOSP getChangingConfigurations = bitmask of the config change that restarted the activity; ATL restarts no activities on config change and never dispatches onConfigurationChanged to them (only a NativeActivity stub), so 0 is the faithful value for every ATL activity
 android.app.Activity.getChangingConfigurations() returns a constant
+# stale (134): AOSP base View.onCheckIsTextEditor returns false; fork matches (real editors override)
+android.view.View.onCheckIsTextEditor() returns a constant
+# stale (135): obtainAttributes is implemented via the XmlBlock.Parser AttributeSet; the XXX comment is a design note about generic (non-compiled) XML, not a missing body
+android.content.res.Resources.obtainAttributes(AttributeSet set, int[] attrs) is marked
+# stale (141): AOSP records styleable attribute data for the accessibility attribute-drawing hints; ATL's a11y layer is a stub with no consumer, nothing to record into
+android.view.View.saveAttributeDataForStyleable(Context ctxt, int[] styleable, AttributeSet attrs, TypedArray t, int defStyleAttr, int defStyleRes) is empty
+# stale (142): AOSP touch mode is false for mouse/keyboard input, which is ATL's whole input world; constant false equals the desktop answer
+android.view.View.isInTouchMode() returns a constant
+# stale (143): resolveAttribute's print is already gated by the fork's debug flag; atl-gaps print-in-body false positive
+android.content.res.Resources$Theme.resolveAttribute(int resid, TypedValue outValue, boolean resolveRefs) prints on every call
+# stale (145): getLastNonConfigurationInstance returns the object retained across a config-driven restart; ATL restarts no activities on config change, so null is faithful (same reasoning as 132)
+android.app.Activity.getLastNonConfigurationInstance() returns a constant
+# stale (146): AOSP isChangingConfigurations is true only while finishing due to a config change; ATL never restarts on config change, false is faithful
+android.app.Activity.isChangingConfigurations() returns a constant
+# stale (148): AOSP base View.onGenericMotionEvent returns false; fork matches; delivering generic motion (hover/scroll/pointer) from GTK into the view tree is a separate input gap
+android.view.View.onGenericMotionEvent(MotionEvent event) returns a constant
+android.view.View.performHapticFeedback(int feedbackConstant, int flags) is marked
+android.view.View.setDescendantFocusability(int value) is empty
+android.view.View.stopNestedScroll() is empty
+android.view.View.setBackgroundTintList(ColorStateList tint) is empty
+android.view.View.setTextDirection(int textDirection) is empty
+android.view.View.setWindowInsetsAnimationCallback(WindowInsetsAnimation.Callback callback) is empty
+android.view.View.getOverScrollMode() returns a constant
