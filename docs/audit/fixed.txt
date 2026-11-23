@@ -311,3 +311,50 @@ android.view.View.requestFocusFromTouch() is marked TODO/FIXME
 # recorded (208): Activity no longer answers - it forwards to Window.requestFeature, where the
 # reason lives (ATL's window chrome is GTK's, no feature flags change the decor); answer unchanged
 android.app.Activity.requestWindowFeature(int featureId) returns a constant
+# fixed (209): AOSP reads mActivityInfo.parentActivityName; the fork's Activity has no ActivityInfo
+# but the value exists (PackageParser parses it fully qualified, PackageManager.getActivityInfo answers
+# from the loaded package) - now asks the PM, AOSP shape incl. Intent.makeMainActivity which was
+# missing; no corpus witness (would need an app with parentActivityName + up-navigation) (fork 7dd31875)
+android.app.Activity.getParentActivityIntent() returns a constant
+# fixed (210): getWindowId always null; now a process-wide WindowId handed out by the same
+# attach test as getWindowToken (this view or an ancestor laid out by the window) (fork ef942252)
+android.view.View.getWindowId() returns a constant
+# fixed (211): setTextAlignment mapped GTK CSS classes but dropped the value; getTextAlignment
+# answered 0/INHERIT. Stored now, default TEXT_ALIGNMENT_GRAVITY as AOSP (fork 4e59b7c6)
+android.view.View.getTextAlignment() returns a constant
+# fixed (212): getLocales returned the *system* list and setLocales was a commented-out body
+# whose mLocaleList field was never declared; now AOSP shape (lazy fixUpLocaleList sync) (fork e7bdc5de)
+android.content.res.Configuration.setLocales(LocaleList locales) has its implementation commented out
+# recorded (213): ATL's Theme is a live GTK handle resolved per call against the process-wide
+# config; nothing to rebase against (ATL never reconfigures - ComponentCallbacks gap family) (fork 7a869e95)
+android.content.res.Resources$Theme.rebase() is empty
+# stale (214): AOSP's Activity.onCreatePanelView default literally returns null
+android.app.Activity.onCreatePanelView(int featureId) returns a constant
+# recorded (215): AOSP calls startSearch and returns true; no startSearch/SearchManager in ATL,
+# false is AOSP's "search unavailable" answer. **Gap: search subsystem** (fork 7a869e95)
+android.app.Activity.onSearchRequested() returns a constant
+# fixed (216): setter was empty while isKeyboardNavigationCluster was declared **and hard-wired
+# to false** - the pair could never round-trip; now stored (focus is GTK's, cluster steers no search)
+android.view.View.setKeyboardNavigationCluster(boolean isCluster) is empty
+# recorded (217): AOSP gates on hasFeature(FEATURE_OPTIONS_PANEL) which ATL can never grant
+# (item 208's finding) - AOSP's own body would do nothing here too (fork 7a869e95)
+android.app.Activity.closeOptionsMenu() is empty
+# recorded (218): embedded-activity facility; ATL has no embedded activities (see isChild) and
+# no per-activity config-override path; no-op instead of AOSP's IllegalStateException (fork 7a869e95)
+android.app.Activity.applyOverrideConfiguration(Configuration overrideConfiguration) is empty
+# recorded (219): a window-manager transition request; ATL transitions in-process, nothing to
+# decorate (postpone-enter-transition gap family) (fork 7a869e95)
+android.app.Activity.overridePendingTransition(int enterAnim, int exitAnim) is empty
+# fixed (220): stored + the two AOSP is...ScrollBarEnabled() getters declared; default false as
+# AOSP ("not drawn by default"); gates nothing yet - scrollbar drawing gap (awakenScrollBars)
+android.view.View.setHorizontalScrollBarEnabled(boolean enabled) is empty
+android.view.View.setVerticalScrollBarEnabled(boolean enabled) is empty
+# fixed+recorded (221): listener stored; **gap: drag & drop subsystem** - OnDragListener is an
+# empty marker, no DragEvent/dispatchDragEvent/GTK DnD feed, so nothing can invoke it (fork 7d50fe6c)
+android.view.View.setOnDragListener(OnDragListener onDragListener) is empty
+# recorded (222): AOSP keeps it in the RenderNode and it only matters under rotationX/Y; ATL has
+# no RenderNode and composites no 3-D view properties (rendering gap) (fork 7d50fe6c)
+android.view.View.setCameraDistance(float distance) is empty
+# recorded (223): AOSP is mParent != null (embedded activities); the fork never sets an activity
+# parent - no embedded activity support, false *is* the state (fork 7a869e95)
+android.app.Activity.isChild() returns a constant

@@ -827,6 +827,33 @@ with `javac -h`; commit the regenerated header with any new native method.
        false because focus is GTK's — the branch AOSP takes then).
        `Activity.requestWindowFeature` now delegates to
        `Window.requestFeature` where the reason belongs (answer unchanged).
+     - Queue batch 209–223 (fork `4e59b7c6`..`7a869e95`, gate `fc51` =
+       **0 improved, 0 regressed vs `fc50`**): more dropped state fixed —
+       `setTextAlignment` (value lost; getter answered 0, default now
+       AOSP's `TEXT_ALIGNMENT_GRAVITY`), `setHorizontal/VerticalScrollBarEnabled`
+       (+ the two `is…ScrollBarEnabled()` getters, absent; default false
+       as AOSP), and `setKeyboardNavigationCluster`, whose getter was
+       already declared **and hard-wired to false** — the pair could
+       never round-trip. `Configuration.getLocales` returned the *system*
+       list while `setLocales` was a commented-out body whose `mLocaleList`
+       field was never declared; now the AOSP shape with the lazy
+       `fixUpLocaleList()` sync. `getWindowId()` now answers a
+       process-wide `WindowId` under the same attach test as
+       `getWindowToken`. **Item 209 turned out fixable after all**: my
+       first read said `parentActivityName` was never parsed — wrong,
+       `PackageParser` fills it fully qualified (`buildClassName`) and
+       `PackageManager.getActivityInfo` serves it; the Activity just has
+       no `mActivityInfo`, so `getParentActivityIntent` now asks the PM
+       (AOSP shape, incl. `Intent.makeMainActivity`, which the fork
+       lacked). No corpus witness for it — an up-navigation interaction
+       would be needed. Six items recorded faithful (`Theme.rebase`,
+       `onSearchRequested` + **gap: search subsystem**, `closeOptionsMenu`
+       — AOSP's own gate can never pass in ATL, `applyOverrideConfiguration`
+       and `isChild` — embedded-activity facilities ATL lacks,
+       `overridePendingTransition` — no transition machinery) plus
+       `setOnDragListener` stored with **gap: drag & drop subsystem** and
+       `setCameraDistance` (no RenderNode, 3-D properties unconsumed);
+       `onCreatePanelView` was stale — AOSP's default returns null.
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -1062,28 +1089,29 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x27 and full-corpus gates
-  `fc30`..`fc50` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x30 and full-corpus gates
+  `fc30`..`fc51` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
   was fixed, and `fc48` which FAILED on the canary's flake (see the
   batch 179–193 entry: cleared by `fc49`, 0/0 vs `fc47`); `fc37` 2
   improved: phonograph EXITED->ALIVE, nudge CRASH->BLANK; `fc40` 1
   improved: me.zhanghai.android.files CRASH->ALIVE). Fork commits
-  `940749c9`..`5c42fdad` (21 queue fixes + getWindowToken + fragment
+  `940749c9`..`7a869e95` (21 queue fixes + getWindowToken + fragment
   onActivityCreated dispatch + fillType + Ringtone + dispatchKeyEvent +
   View state batch + TextView isSingleLine + batches 119-133, 134-148,
-  149-163, 164-178, 179-193 and 194-208 + hasWindowFocus fixup) pushed
-  to `fix/fixcov-crashes` + `local-fixes`. Added `com.io7m.exfilac.main`
-  to `corpora/fixcov.txt`; refreshed the queue with `atl-gaps --emit-queue
+  149-163, 164-178, 179-193, 194-208 and 209-223 + hasWindowFocus fixup)
+  pushed to `fix/fixcov-crashes` + `local-fixes`. Added
+  `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
+  with `atl-gaps --emit-queue
   15` after `fc39` (119 items), `fc41` (134), `fc43` (149), `fc44` (164),
-  `fc46` (179), `fc47` (194) and `fc49` (209). Used `rig smoke` + single-hunk builds to
+  `fc46` (179), `fc47` (194), `fc49` (209) and `fc50` (224). Used `rig smoke` + single-hunk builds to
   bisect the item-63 witness and the item-131 regression, and repeated
   forced single-app runs (5 at `433b2354`, 8 at the new tip) to show the
   `fc48` canary CRASH is pre-existing flakiness rather than a regression.
   Checked `rig -r bazzite job status` before starting; no other agent's
   jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
   phone items 67/103 stayed parked. Bazzite left installed with the
-  `5c42fdad` tree (= `local-fixes` tip). Released.
+  `7a869e95` tree (= `local-fixes` tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
