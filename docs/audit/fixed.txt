@@ -700,3 +700,39 @@ android.view.MenuItem.getActionView() is empty
 # MenuBuilder.expandItemActionView into presenters that can host it, and the flag is only
 # set by that path (comment, fork db7efb0e)
 android.view.MenuItem.isActionViewExpanded() is empty
+# stale (344): interface declaration; MenuItemImpl.hasSubMenu is `subMenu != null`
+android.view.MenuItem.hasSubMenu() is empty
+# stale (345): interface declaration; MenuItemImpl.expandActionView false = AOSP's popup
+# answer (comment added in fork db7efb0e, see 343)
+android.view.MenuItem.expandActionView() is empty
+# stale (346-349): interface declarations; MenuImpl.addSubMenu builds a SubMenuImpl + GMenu
+# row (AOSP's add(0,id,0,"") delegation kept for the id-only overload)
+android.view.Menu.addSubMenu(int id) is empty
+android.view.Menu.addSubMenu(int groupId, int itemId, int order, CharSequence title) is empty
+android.view.Menu.addSubMenu(int groupId, int itemId, int order, int titleRes) is empty
+# stale (350): interface declaration; MenuItemImpl.setOnActionExpandListener comments the
+# no-action-bar reality - AOSP stores the listener but only expandActionView consumes it,
+# false in popups
+android.view.MenuItem.setOnActionExpandListener(OnActionExpandListener listener) is empty
+# stale (351): interface declaration; setShowAsActionFlags stores nothing because the flag
+# only feeds action-bar placement (hidden getter, no API 26 round-trip)
+android.view.MenuItem.setShowAsActionFlags(int action) is empty
+# fixed (352): alphabetic shortcut stored lower-cased like AOSP (unchanged = no-op), getter
+# getAlphabeticShortcut added to the interface (AOSP declares it; apps would have hit
+# NoSuchMethodError) (fork 84a4aa48)
+android.view.MenuItem.setAlphabeticShortcut(char alphaChar) is empty
+# fixed (353): setShortcut stores both chars (alpha lower-cased, AOSP) (fork 84a4aa48)
+android.view.MenuItem.setShortcut(char numeric, char alpha) is empty
+# stale (354): interface declaration; MenuItemImpl.getOrder returns the stored order
+android.view.MenuItem.getOrder() is empty
+# fixed (355): numeric shortcut stored (as given, AOSP) + getNumericShortcut added (fork 84a4aa48)
+android.view.MenuItem.setNumericShortcut(char numericChar) is empty
+# stale (356): interface declaration; MenuImpl.removeGroup hides each group row from the
+# GMenu then drops it (AOSP MenuBuilder shape)
+android.view.Menu.removeGroup(int groupId) is empty
+# stale (357): interface declaration; MenuImpl.hasVisibleItems answers via its visible-row
+# counter
+android.view.Menu.hasVisibleItems() is empty
+# stale (358): interface declaration; MenuImpl.setGroupVisible routes to each item's
+# setVisible (which manages the GMenu row)
+android.view.Menu.setGroupVisible(int group, boolean visible) is empty
