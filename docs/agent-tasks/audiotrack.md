@@ -355,3 +355,26 @@ Still open from this brief: `snd_pcm_delay()`'s error return is still
 ignored in the JNI (the monotonic clamp covers the symptom);
 `getTimestamp()` still returns false; the Equalizer stub and the
 NULL-handle steps above are not done.
+
+## Status update 2 (2026-11-23, `local-fixes` @ `8faa3ec3`, desktop PoC + oneplus12)
+**Boot auto-play + "skipping" root-caused and fixed** (owner-reported on
+the desktop PoC; the same shape was always present on phone grres runs):
+`native_constructor` set ALSA `start_threshold = one period`, so media3's
+pre-roll write for a restored queue started the stream by itself — audible
+audio with **zero** `AudioTrack.play()` calls, then XRUN/`snd_pcm_recover`
+churn = the skipping (94 underrun lines on the desktop; PipeWire showed
+the stream `[active]` while the log had no play()). Fix `8faa3ec3`:
+`start_threshold = whole buffer` (nothing auto-starts; `play()` starts
+explicitly) plus a per-track `started` flag that re-pauses the stream if
+a server starts it on a write anyway. Witnessed: desktop PoC 70 s
+untouched boot with the owner's restored queue → constructor only, no
+`play()`, **0 underruns** (was 94), the owner's click then plays cleanly
+(position advances 0/3017/6027/8618 ms); phone `grres25`
+(`local:8faa3ec3`) 52 s boot window before the first injected key with no
+`play()`/no PLAYING publish (`grres21` on the old build auto-played
+there), scripted pause→resume keys still play normally (position
+8113→15538 ms). Gate (bazzite, corpora/fixcov.txt): `fc72→fc73`
+0 improved / 0 regressed. The step-2 `start_threshold = boundary` idea
+above is now moot — `8faa3ec3` achieves it with the buffer size + safety
+net; keep that in mind when continuing this brief.
+

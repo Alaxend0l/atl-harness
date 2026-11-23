@@ -80,5 +80,10 @@ Notes learned on the way:
 
 ## What this does NOT change
 
-No fork code, no harness code: the PoC runs the same `local-fixes` tip as
-the runners. Runners and gates stay as documented (setup.md, rig.md).
+Runners and gates stay as documented (setup.md, rig.md): the PoC never
+touches the host and is not a runner. It *diagnosed* fork bugs though -
+the boot auto-play/"skipping" complaint was root-caused here (`wpctl
+status` caught an `[active]` PipeWire stream with zero
+`AudioTrack.play()` calls) and fixed in this worktree (`8faa3ec3` on
+`local-fixes`, see docs/agent-tasks/audiotrack.md). The container now
+runs that build; the image `atl-desktop-poc:latest` predates it.

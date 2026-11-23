@@ -1608,6 +1608,27 @@ Say here which runner you're using for builds/gates, and clear it when done.
   procps (no pkill in fedora:44 base image) keeps running as a zombie
   whose audio/queue confuses what the new window shows - `dnf install
   procps-ng` first.
+- **opencode (this session, 2026-11-23, fifth): workstation + bazzite +
+  oneplus12** — the owner's boot complaint from the PoC ("music starts
+  playing when the app is opened, and is skipping... a song should not
+  play at all on boot") root-caused to ATL, not the app: the AudioTrack
+  constructor set ALSA `start_threshold = one period`, so media3's
+  pre-roll write for the restored queue started the stream by itself —
+  on the PoC `wpctl status` showed the stream `[active]` with **zero**
+  `AudioTrack.play()` calls and 94 `snd_pcm_recover underrun` lines; the
+  phone's `grres21` had auto-played the same way (state=3 + advancing
+  head at boot, no keys). Fix `8faa3ec3` (fork `local-fixes`): threshold
+  = whole buffer + per-track `started` flag that re-pauses a stream a
+  server started on write anyway. Witnessed audibly and in logs: desktop
+  70 s untouched boot = constructor only, 0 underruns, owner's click
+  plays cleanly from the pre-buffered frames; `grres25` (phone,
+  `local:8faa3ec3`) = 52 s key-free window with no `play()`/no PLAYING,
+  then scripted pause→resume plays normally (8113→15538 ms). Gate
+  (bazzite, corpora/fixcov.txt): `fc72→fc73` 0 improved / 0 regressed.
+  Runner use: `rig build` + gate on **bazzite**, witness build on
+  **oneplus12** (both installed `local:8faa3ec3`), diagnosis + witness
+  in the workstation's podman container `atl-desktop`. No ATL probes left
+  in the tree; fork `MediaSession` witness line is from `a52665e6`.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
