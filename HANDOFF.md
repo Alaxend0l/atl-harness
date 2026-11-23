@@ -1585,6 +1585,22 @@ Say here which runner you're using for builds/gates, and clear it when done.
   change). Bazzite and phone both installed with `local:a52665e6`.
   **Merged to `local-fixes` (tip `a52665e6`) and pushed to the fork's
   origin**; nothing went to upstream (push URL disabled).
+- **opencode (this session, 2026-11-23, fourth): workstation (laptop)** —
+  desktop PoC: Gramophone as a window on the laptop's Wayland session,
+  no runner, no harness, no host install (sudo needs a password the agent
+  has no access to): rootless **podman** container `atl-desktop` (image
+  `atl-desktop-poc:latest` via `podman commit`) built by
+  `scripts/runner/bootstrap.sh` *inside* the container (steps: packages
+  wolfssl bionic art opensles atl; fork worktree `~/Develop/atl-desktop-poc`
+  @ `a52665e6` bind-mounted, no fork changes). Recipe + gotchas in
+  **docs/desktop-poc.md**. Witnessed on the live session (noctalia,
+  Wayland + PipeWire sockets mounted): native window, MediaStore scanned
+  `~/Music` read-only (4852 files probed), playback resumed mid-track and
+  played through the laptop speakers (state PLAYING, position advancing,
+  one `AudioTrack.play()` at start). Media-key press-through on the
+  desktop (physical key -> focused window -> `atlDispatchMediaKey`) not
+  yet witnessed; noctalia binds no media keys itself, so it should work
+  with the ATL window focused.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

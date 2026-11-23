@@ -28,7 +28,9 @@ Host atl-box
 
 Then register it with `scripts/rig add` ([rig.md](rig.md#adding-a-runner)),
 which also covers building everything (`rig bootstrap`). The rest of this
-file documents what bootstrap does and why.
+file documents what bootstrap does and why. Running ATL apps as windows on
+the workstation's own desktop (no runner, no harness) is covered in
+[desktop-poc.md](desktop-poc.md).
 
 Legacy single-runner helper (deprecated), e.g. in your shell profile:
 
