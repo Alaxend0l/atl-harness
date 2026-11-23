@@ -1,8 +1,93 @@
 # Element-addressed interaction scripts (planning brief)
 
 Status: **P0 done 2026-11-23** (media keys, fork `dc58bf2a` on
-`fix/fixcov-crashes`); P1–P4 planned (owner proposal 2026-11-23, see
-roadmap "Harness: element-addressed interaction scripts").
+`fix/fixcov-crashes`); **P1 done 2026-11-23, witnessed and merged**
+(fork dumper + harness `find`/`tap $el` in Rust, owner instruction;
+fork merge `56206f55` on `local-fixes`); P2–P4 planned (owner proposal
+2026-11-23, see roadmap "Harness: element-addressed interaction scripts").
+
+## P1 (done 2026-11-23)
+
+- Fork (branch `feat/element-dump`, merged to `local-fixes` as `56206f55`;
+  dumper `3694d263` + regenerated JNI headers `0b1c3695`):
+  `src/api-impl/android/atl/ATLElementDump.java` — daemon thread that,
+  **only when `ATL_ELEMENT_DUMP=DIR` is set** (unset ⇒ no thread, no
+  behavior change, gates stay comparable), posts a view-tree walk to the
+  main looper (real: `api-impl-jni/android_os_MessageQueue.c` pumps
+  `Looper.loop()` from GLib) every ~1 s (400 ms after a `<DIR>/request`
+  touch) and writes `<DIR>/views.json` atomically: `{v:1,nodes:[{c,l,t,
+  r,b,en?,clk?,txt?,desc?}]}`, bounds window-local px. Hooked from the
+  `Window` constructor (covers Activities and Dialogs). The harness
+  points `ATL_ELEMENT_DUMP` under the app's `XDG_DATA_HOME` — the one
+  dir `atl-sandbox` re-binds rw — so sandboxed runs work without new
+  binds. Merge gate: `fc75` (bazzite, corpora/fixcov.txt, build
+  `local:0b1c3695`): **0 improved / 0 regressed** vs `fc73`.
+- Harness (`src/interact.rs` + `src/runner.rs`): new steps `find "NAME"
+  [class=X] [nth=N] [timeout S]`, `wait-find …`, `tap $el`,
+  `long-press $el [SECS]`. The runner loads the script **before**
+  spawning and sets `ATL_ELEMENT_DUMP` under the app data dir only when
+  the script uses these steps; `$el` centres are mapped to root-window
+  absolute pixels via `xdotool getwindowgeometry` of the ATL window
+  (never the blank-scoring crop). Matching: text/content-desc,
+  case-insensitive, disabled widgets excluded, whitespace-squashed; an
+  **exact match beats substring hits** (`find "Tracks"` → the tab, not a
+  "9 Tracks" subheader); nodes whose centre is off the Xvfb screen never
+  match (kills ViewPager neighbour pages that live at x>1080 or x<0 in
+  the dump). The matched tree is kept as `<run dir>/elements.json` and
+  the detail line shows window origin, e.g. `$el = "Tracks" (kk2) at
+  (968,1899) 40x31, match 1 of 6, win (0,0)`. A failed find fails the
+  step **and lists the app's exposed elements** in the run record.
+  Parser, matcher and geometry unit-tested (25 tests).
+- Witness (P1 exit criterion) **passed** on oneplus12, run `p1w10`,
+  `interact_ok=1`, app `org.fossify.musicplayer` (v18; its bottom tabs
+  are Playlists / Folders / Artists / Albums / Tracks; media library is
+  the phone's `~/Music` — King Gizzard "Nonagon Infinity" — so this
+  script lives in `work/interactions-p1/`, not in tracked
+  `interactions/`, which assumes the `make-test-media.sh` library):
+  `find`+`tap $el` on the **Tracks** tab (2.45 % pixels changed), then
+  **Albums** (2.67 %), then **Tracks** again (2.72 %) — every step finds
+  the element fresh after the previous one changed the whole layout;
+  then `find "Big Fig Wasp"` + `tap $el` starts playback **and**
+  navigates to the Now Playing screen (3.67 % changed) and
+  `expect-text "Big Fig Wasp"` passes. Gramophone itself was *not*
+  witnessable this way: its UI is Compose (one opaque
+  `AndroidComposeView` node), which needs the P3 accessibility pass.
+  The script (`work/interactions-p1/org.fossify.musicplayer.txt`,
+  re-create with scp to the runner if lost — `rig sync` skips `work/`):
+
+  ```
+  shot boot
+  wait-find "Tracks" timeout=40
+  tap $el
+  shot tracks_tab
+  expect-changed
+  wait-find "Albums" timeout=10
+  tap $el
+  shot albums_tab
+  expect-changed
+  wait-find "Tracks" timeout=10
+  tap $el
+  shot tracks_again
+  expect-changed
+  wait-find "Big Fig Wasp" timeout=10
+  tap $el
+  wait 1.5
+  shot now_playing
+  expect-changed
+  expect-text "Big Fig Wasp"
+  ```
+- Follow-ups seen during the witness:
+  - Tapping a Fossify track-row **subline** TextView (album • count)
+    lands but does nothing in the app, while the **title** TextView
+    works; both rows are handled by the parent. Worth a triage brief
+    (click propagation from a child without a listener to its parent —
+    the fork's `on_click`/`performClick` in `WrapperWidget.c` calls
+    `callOnClick()` on the hit view only).
+  - The dumper exposes obfuscated label classes (`kk2` = Fossify's tab
+    TextView); `class=` filters should document that classes may be
+    obfuscated in release APKs.
+  - P2: convert the tracked `interactions/*.txt` scripts to
+    element-addressed steps where the app uses classic views.
 
 ## Why
 Fixed-coordinate witness scripts lie silently: when the app layout or

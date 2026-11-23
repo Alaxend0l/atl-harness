@@ -1635,6 +1635,37 @@ Say here which runner you're using for builds/gates, and clear it when done.
   pre-rename string scan findings recorded in D19/FORK.md. Mechanical
   renames (binary, meson, desktop entries, config strings) deliberately
   left as their own task — see D19.
+- **opencode (this session, 2026-11-23, sixth): workstation + bazzite +
+  oneplus12** — **P1 of element-addressed interaction scripts done,
+  witnessed, merged** (brief:
+  `docs/agent-tasks/element-addressed-interaction.md`; roadmap section
+  updated). Fork `feat/element-dump`: `ATLElementDump.java` — view-tree
+  dump to `views.json` behind env `ATL_ELEMENT_DUMP=DIR` (unset ⇒ no
+  thread at all), hooked from the `Window` ctor, walk posted to the main
+  looper; `+3694d263`, regenerated JNI headers `+0b1c3695` (fresh-sync
+  builds were failing: committed `android_graphics_*.c` include
+  Shader/Gradient headers that were never added). Merged to
+  `local-fixes` as **`56206f55`** (merge message records gate + witness).
+  Harness (`src/interact.rs`, `src/runner.rs`): steps
+  `find`/`wait-find`/`tap $el`/`long-press $el`, exact-text-over-
+  substring matching, off-Xvfb-screen nodes never matched (ViewPager
+  neighbours sit at x>1080/x<0 in the dump), window-origin mapping via
+  `xdotool`, failed finds list the app's exposed elements, matched tree
+  kept as `elements.json`; 25 unit tests, clippy clean. Runner use:
+  `rig build --worktree ~/Develop/atl-desktop-poc` + gate **fc75**
+  (bazzite, corpora/fixcov.txt): **0 improved / 0 regressed** vs fc73;
+  witness on **oneplus12**: run **p1w10** `interact_ok=1` on
+  `org.fossify.musicplayer` — tab taps by element name (2.4–2.7% screen
+  changes) then `tap $el` on track "Big Fig Wasp" starts playback and
+  opens Now Playing (`expect-text` passes). Both runners left installed
+  with `local:0b1c3695` (identical code to merged `local-fixes`),
+  released. Follow-ups in the brief: Fossify row **subline** TextView
+  taps register but do nothing (title taps work — parent-handled rows,
+  fork `performClick` hits the leaf only); Gramophone is Compose and
+  needs P3 a11y; P2 = convert tracked `interactions/` scripts.
+  Note: the dumper commit once vanished from the shared clones (branch
+  gone locally and on origin) — recreate + `git ls-remote` verify after
+  pushing in shared repos.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

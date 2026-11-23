@@ -119,6 +119,31 @@ so the gate covers what apps *do*, not only how they start. Find coordinates
 from a screenshot (`rig smoke`). Runners need `xdotool` and `tesseract`
 (in `scripts/runner/packages.txt`).
 
+**Element-addressed steps** (no coordinates; preferred for scripts that
+must survive layout changes):
+```
+# Fossify Music Player: switch tabs by element, not by pixel
+wait-find "Tracks"       # up to 10 s; also: find "X" [class=Button] [nth=2] [timeout S]
+tap $el                  # centre of the found element (also long-press $el [S])
+expect-changed
+wait-find "Albums"
+tap $el
+```
+`find`/`wait-find` match the app's live view tree (element text or
+content-description, case-insensitive substring, an exact match preferred;
+`class=` filters by widget class — beware obfuscated classes in release
+APKs — 1-based `nth=` picks among matches, disabled widgets and nodes off
+the screen never match). They need the fork's view dump: when a script
+uses these steps the harness sets `ATL_ELEMENT_DUMP` for that app only —
+unset otherwise, so plain gates run identical binary paths (merged on the
+fork's `local-fixes`). `$el`
+centres are mapped through the ATL window position (`xdotool
+getwindowgeometry`), so taps land correctly wherever the window is. A failed
+find lists the elements the app does expose in `interact_detail` — a wrong
+name is visible, not a silent mis-tap. Apps rendered with Jetpack Compose
+(one opaque `AndroidComposeView`) expose nothing to these steps until the
+accessibility pass (P3); use classic-views apps for element scripts.
+
 ### `missing-apis` — what to implement next
 ```
 atlh missing-apis [RUN...] [--top 40] [--include-app-classes] [--json]

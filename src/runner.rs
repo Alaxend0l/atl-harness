@@ -257,8 +257,29 @@ pub fn run_one(
     let xvfb = Xvfb::start(&cfg.display.xvfb_args)?;
     let log = File::create(&log_path)?;
 
+    // Interaction script, if the app has one. Loaded before the spawn: a
+    // script with element steps makes the harness enable the fork's
+    // ATL_ELEMENT_DUMP view-tree dump for this app. The dump lives under
+    // the app's XDG_DATA_HOME: that is the one directory atl-sandbox
+    // re-binds read-write into the sandbox (scripts/runner/atl-sandbox),
+    // so the harness still sees it and sandboxed runs can use element
+    // steps without new binds.
+    let script = match &cfg.interact {
+        Some(ic) => crate::interact::load(&ic.dir, pkg)?,
+        None => None,
+    };
+    let elem_dir = match &script {
+        Some(steps) if crate::interact::uses_elements(steps) => {
+            let d = h.join(".local/share/atl-element-dump");
+            fs::create_dir_all(&d)?;
+            Some(d.canonicalize()?)
+        }
+        _ => None,
+    };
+
     let started = Instant::now();
-    let mut child = Command::new(program)
+    let mut spawn_cmd = Command::new(program);
+    spawn_cmd
         .args(args)
         .env_remove("WAYLAND_DISPLAY")
         .env("HOME", h)
@@ -271,7 +292,11 @@ pub fn run_one(
             "ATL_MEDIA_DIRS",
             cfg.atl.media_dir.as_deref().unwrap_or(Path::new("")),
         )
-        .envs(&cfg.atl.env)
+        .envs(&cfg.atl.env);
+    if let Some(d) = &elem_dir {
+        spawn_cmd.env("ATL_ELEMENT_DUMP", d);
+    }
+    let mut child = spawn_cmd
         .stdin(Stdio::null())
         .stdout(log.try_clone()?)
         .stderr(log)
@@ -290,14 +315,18 @@ pub fn run_one(
         )
         .ok(),
     };
-    // Interaction script, if the app is alive and has one.
-    let script = match (&status, &cfg.interact) {
-        (None, Some(ic)) => crate::interact::load(&ic.dir, pkg)?,
-        _ => None,
-    };
+    // Run the (pre-loaded) interaction script if the app is alive.
     let interaction = script.map(|steps| {
         let first = shot_path.exists().then(|| shot_path.clone());
-        crate::interact::run(&steps, &xvfb.display, &mut child, out_dir, pkg, first)
+        crate::interact::run(
+            &steps,
+            &xvfb.display,
+            &mut child,
+            out_dir,
+            pkg,
+            first,
+            elem_dir.as_deref(),
+        )
     });
     if interaction.as_ref().is_some_and(|i| i.exited) {
         status = child.try_wait()?;

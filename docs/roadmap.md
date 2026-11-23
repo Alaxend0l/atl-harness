@@ -193,7 +193,7 @@ preferences, pressed/disabled states, shapes and gradients, bitmaps, dialogs).
 **4. Play Services apps** (`corpora/microg.txt`: Mastodon, Tasks.org,
 EVMap, …) don't reach Play Services yet; good tests once section 1 is fixed.
 
-## Harness: element-addressed interaction scripts (owner idea, 2026-11-23; proposed, not started)
+## Harness: element-addressed interaction scripts (owner idea, 2026-11-23; P0+P1 done, P2–P4 planned)
 Today interaction scripts (`src/interact.rs`) address UI only by pixel
 coordinates (`tap X Y`), which breaks whenever an app changes layout or
 state — witnessed live on 2026-11-23: a Gramophone pause/resume witness
@@ -225,6 +225,13 @@ screenshots could annotate the tapped element. Suggested order: dump/socket
 in the fork first (also useful standalone for triage), then `find`/named
 `tap`, then `swipe`. Planned with risks and phases in
 docs/agent-tasks/element-addressed-interaction.md.
+
+Status 2026-11-23: **P0** (semantic media keys) done; **P1** done — the
+fork's env-gated `ATLElementDump` (`local-fixes` `56206f55`) plus harness
+`find`/`wait-find`/`tap $el`/`long-press $el`, witnessed end-to-end on
+`org.fossify.musicplayer` (oneplus12 run `p1w10`, `interact_ok=1`) and
+gated clean (`fc75`: 0/0). P2 (convert tracked scripts), P3 (accessibility
+pass so Compose apps expose elements) and P4 (`swipe`) remain.
 
 ## Agent tasks
 Standing work for coding agents, independent of the steps above:
