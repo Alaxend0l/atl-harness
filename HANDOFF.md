@@ -1323,11 +1323,10 @@ a photo). `interactions/org.fossify.musicplayer.txt` checks albums, tracks and
   C→Rust migration of `api-impl-jni`) becomes the long-term goal only based
   on D's result. C is started: `tools/jvmrig` v0 (brief:
   [`docs/agent-tasks/jvm-test-rig.md`](docs/agent-tasks/jvm-test-rig.md)),
-  verified on bazzite (all 855 api-impl files javac on a stock JVM, smoke
-  test PASS). **Blocked on the workstation:** only a JRE is installed —
-  owner needs to run `sudo dnf5 install -y java-25-openjdk-devel` (plus the
-  libcore jar copy, see the brief) to run the rig locally instead of via
-  the runner. Coexistence mechanics (how the C core and a future Rust core
+  verified on bazzite AND on the workstation (owner installed
+  `java-25-openjdk-devel` 2026-11-23; `work/core-all_classes.jar` staged;
+  all api-impl files javac on a stock JVM, smoke test PASS both machines).
+  Coexistence mechanics (how the C core and a future Rust core
   talk during a transition): `docs/research/rust-rewrite.md` §10.
 - **GTK4 / cross-platform toolkit question — answered** in
   [`docs/research/graphics-backend.md`](docs/research/graphics-backend.md)

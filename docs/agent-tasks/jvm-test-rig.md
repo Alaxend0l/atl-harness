@@ -36,11 +36,12 @@ B conditional on D).
 
 ## Remaining work
 
-1. **Workstation home**: owner must `sudo dnf5 install -y java-25-openjdk-devel`
-   (workstation has JREs only — measured). Then copy the libcore jar once:
-   `scripts/rig -r bazzite sh 'cp /usr/local/lib64/java/core-all_classes.jar ~/'`
-   and `scp atl-box:core-all_classes.jar work/`; run with
-   `CORE_JAR=work/core-all_classes.jar`.
+1. ~~Workstation home~~ **done 2026-11-23**: owner installed
+   `java-25-openjdk-devel`. The rig now runs fully on the workstation:
+   `CORE_JAR=work/core-all_classes.jar ATL_SRC=~/Develop/android-translation-layer WORK=/tmp/opencode/jvmrig bash tools/jvmrig/jvmrig.sh test`
+   (jar copied once from bazzite: `scripts/rig -r bazzite sh 'cp -f
+   /usr/local/lib64/java/core-all_classes.jar ~/'` + scp into `work/`;
+   verified PASS with JDK 25.0.5, 856 srcs on the workstation clone).
 2. **Shim generator**: parse `native` declarations from the tree and
    auto-generate recording stubs (return type defaults, log the call) so
    tests that touch native seams don't hand-write shims one by one.
