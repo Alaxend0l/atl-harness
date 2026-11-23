@@ -210,3 +210,35 @@ android.view.View.dispatchHoverEvent(MotionEvent event) returns a constant inste
 android.view.View.getFocusables(int direction) returns a constant instead of state
 android.content.Intent.setExtrasClassLoader(ClassLoader loader) is empty
 android.view.View.setBackgroundTintMode(PorterDuff.Mode tintMode) is empty
+# stale (166/176): AOSP's Activity.onKeyUp/onKeyDown carry the legacy BACK/ESCAPE tracking and the
+# DEFAULT_KEYS_* default-key-service handling; ATL's back action comes from JNI
+# (current_activity_back_pressed -> onBackPressed) not a KEYCODE_BACK KeyEvent (adding it would
+# double-handle back), and the DEFAULT_KEYS_* half needs Window.performPanelShortcut which ATL lacks
+android.app.Activity.onKeyUp(int keyCode, KeyEvent event) returns a constant
+android.app.Activity.onKeyDown(int keyCode, KeyEvent event) returns a constant
+# stale (173): AOSP delegates to mFragments.onCreateView (framework FragmentManager inflation
+# factories); the fork has no framework FragmentManager - androidx FragmentActivity overrides
+# onCreateView itself - so AOSP's base null is the honest answer
+android.app.Activity.onCreateView(View parent, String name, Context context, AttributeSet attrs) returns a constant
+# stale (178): AOSP View.onKeyDown presses the view on confirm keys and the key-up half clicks it;
+# the fork's View.dispatchKeyEvent handles only ACTION_DOWN and there is no checkForLongClick/press
+# machinery, so a partial copy would leave views stuck pressed. Keyboard view activation recorded as
+# an input gap (documented in code)
+android.view.View.onKeyDown(int keyCode, KeyEvent event) returns a constant
+# stale (167/168): no scroll-into-view machinery in ATL (ViewParent has no
+# requestChildRectangleOnScreen), so "false = nothing scrolled" is faithful; documented in code
+android.view.View.requestRectangleOnScreen(Rect rectangle, boolean immediate) returns a constant
+android.view.View.requestRectangleOnScreen(Rect rectangle) returns a constant
+# stale (170): AOSP routes through ViewRootImpl's window callbacks to the audio stack; ATL has
+# neither that object nor a sound-effect sink (fork AudioManager.playSoundEffect is an empty stub)
+android.view.View.playSoundEffect(int soundConstant) is empty
+# stale (175): AOSP reports "HWUI is drawing this view"; ATL draws through GTK4 render nodes and the
+# layer/overlay APIs apps gate on this for do not exist, so false is faithful (documented in code)
+android.view.View.isHardwareAccelerated() returns a constant
+android.view.View.getFocusedRect(Rect r) is empty
+android.app.Activity.getWindowManager() returns a constant instead of state
+android.content.Intent.getClipData() returns a constant instead of state
+android.view.View.setTooltipText(CharSequence tooltip) is empty
+android.view.View.transformMatrixToGlobal(Matrix matrix) is empty
+android.view.View.isShown() returns a constant instead of state
+android.view.View.hasOnClickListeners() returns a constant instead of state
