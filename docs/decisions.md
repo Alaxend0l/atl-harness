@@ -189,3 +189,27 @@ still name the old repo path and keep working through GitHub's
 redirect). Renaming binaries changes what every runner installs and what
 every config command runs: do it as its own task with a full re-bootstrap
 + gate, not as a drive-by.
+
+### D20 — Hard fork completed: no code flows either way (2026-11-23; supersedes D1's merge clause and D13's mechanism)
+Owner clarification: the fork exists as a **hard fork primarily because of
+the use of AI**; the developer communities of ATL and Andrun are
+ideologically separated and **will never share code again**. Therefore:
+- D1's clause "upstream changes are merged into the fork on a schedule"
+  and D13's mechanism (`git merge upstream/master`, fetch-only upstream
+  remote) are **repealed**: never fetch, merge or rebase upstream into any
+  Andrun branch. The 5 upstream commits that had arrived since the
+  2026-11-08 base are abandoned; they are not gate material either.
+- `main`/`local-fixes` become purely Andrun lineage continuing from the
+  fork point `22a96b28`; plan and base work on the fork's own history,
+  not on what upstream has been doing. The "expect merge conflicts to
+  grow" pressure in design.md is gone: fork-local restructuring is now
+  free.
+- `scripts/runner/bootstrap.sh` no longer adds the `upstream` remote
+  (existing checkouts keep theirs; drop them manually when convenient).
+- Whether upstream's public commits/issues may be *read* as knowledge
+  about Android behaviour (without copying or porting any code) is
+  **pending the owner's ruling**; until it is given, treat upstream as
+  out of scope for research too.
+- This removes the "upstream stream of work" argument from
+  `docs/research/rust-rewrite.md`; that report was re-derived the same
+  day on purely technical grounds (its conclusion did not change).

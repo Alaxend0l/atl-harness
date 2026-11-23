@@ -9,20 +9,33 @@ is abandoning (Kotlin). This document records the measurements, sources,
 and options so the decision can be made later without redoing the work.
 Per the standing research-task rule: **report, don't adopt.**
 
-## TL;DR (recommendation, not a decision)
+## TL;DR (recommendation, not a decision — see the premise correction below before weighing §4)
 
-A full rewrite in Rust is not supported by the evidence: it does not
+**Premise correction (owner clarification, same day, D20):** Andrun and
+upstream ATL will **never share code again** (ideological separation over
+AI use); upstream merges are repealed (D20). This *removes* the "upstream
+stream" argument from §4 — the rest of the analysis was re-derived on
+purely technical grounds and the conclusion did not change. What it does
+change: restructuring the fork freely is now unconstrained, which makes
+the incremental options (B, D) cheaper in friction, and makes the
+"surface work" comparison fairer: we must implement every API ourselves
+eventually either way, so the rewrite question reduces to the *marginal*
+cost of Rust+JNI glue vs Java per component — measurable, see Option D.
+
+Full rewrite in Rust remains unsupported by the evidence: it does not
 remove the Java layer (the binding constraint is **dex bytecode + ART**,
-not the source language), it forfeits an unusually productive upstream
-(~143 commits/3 months, 8 active devs — all writing Java), and our
-root-caused bug history shows the failures are *Android-semantics gaps*,
-not Java-caused defects. The two cheap, honest wins available now:
-(a) a **JVM unit-test rig** for the pure-logic Java (fixes the headless
-testing complaint without a rewrite), and (b) selectively migrating the
-**31 k-line C JNI layer** (`api-impl-jni`) to Rust over time — that is
-where the real memory-safety exposure is, and it has no dex constraint.
-A small **Rust+JNI spike** on one leaf component is the suggested
-evidence-gathering step before ever considering (b) as policy.
+not the source language — a Rust framework keeps the whole dex-visible
+signature surface and *adds* Rust+glue underneath), no one has ever
+succeeded at it (§2), and our root-caused bug history shows the failures
+are *Android-semantics gaps*, not Java-caused defects — the Java tier is
+already GC/memory-safe; Rust's stability margin is real only over the
+**C tier** (§6). The two cheap, honest wins available now: (a) a **JVM
+unit-test rig** for the pure-logic Java (fixes the headless testing
+complaint without a rewrite), and (b) selectively migrating the
+**31 k-line C JNI layer** (`api-impl-jni`) to Rust — that is where the
+real memory-safety exposure is, and it has no dex constraint. A small
+**Rust+JNI spike** on one leaf component is the suggested evidence-gathering
+step before making (b) policy.
 
 ## 1. What Andrun actually is (measured 2026-11-23)
 
@@ -89,22 +102,37 @@ Conclusion for us: Google's Rust push *supports* migrating our C JNI
 layer eventually (same reasoning as AOSP's), and *does not support*
 replacing the dex layer.
 
-## 4. The upstream stream (the largest practical cost of a rewrite)
+## 4. ~~The upstream stream~~ — WITHDRAWN as an argument (D20, same day)
 
-Measured on `upstream/master` (gitlab postmarketOS ATL; fetch-only — D1
-keeps push disabled):
+*The original §4 measured the value of merging upstream (`143 commits in
+3 months, 8 authors, fork 5 commits from base`) and argued a Rust rewrite
+would forfeit that stream. The owner then clarified that ATL and Andrun
+will never share code again — the hard fork is complete (D20), upstream
+merges are repealed. The number above stays only as history of the fork
+state at measurement time; it no longer weighs on anything.*
 
-- **143 commits in the last 3 months, 195 in 6 months, ~8 active authors
-  in 12 months** (Julian Winkler 199, Fox2Code 38, Mis012 29, …). Real
-  API work (GradientDrawable theming, TextToSpeech via libspeechd,
-  LayoutTransition…).
-- Fork `main` diverged from upstream only **2026-11-08** and is **5
-  commits behind** — we consume that stream essentially daily.
-- Upstream writes 100% Java (api-impl) + C (api-impl-jni). A Rust fork
-  permanently stops merging any of it: every API they complete, we would
-  then have to implement ourselves in Rust+dex-signatures+JNI glue. For
-  a 2-human setup, that cost is the single strongest argument in the
-  whole analysis.
+What the severance does and doesn't change for the rewrite question:
+
+- **Removes**: "you lose upstream's Java work for free" (never applicable
+  again) — and correspondingly the "upstream diffs become unmergeable"
+  objection to restructuring, Kotlin experiments, or Rust migration
+  (options B/D/E were partly disqualified by sync damage; that part is
+  void).
+- **Neutral**: the API-surface workload. We implement every needed API
+  ourselves either way; the question reduces to the *marginal* cost and
+  benefit of Rust+JNI glue vs Java per component (measurable — Option D).
+- **Strengthens slightly**: incremental Rust migration of the C tier and
+  free architectural restructuring (no upstream shape to preserve).
+- **Does not touch**: the dex/ART constraint (§2), the 336 k-line
+  dex-visible surface (§1), prior art (§2), the bug-class evidence (§6),
+  the license facts (§7) — all independent of upstream.
+- One residual, knowledge-only: upstream's public history documents
+  Android behaviours they already got right (marquee, ScrollView, AOSP
+  quirks). Whether even *reading* it (without copying code) is allowed
+  under the ideological separation is **pending the owner's ruling**;
+  agents should not consult it meanwhile. This is a research-permission
+  question, not a code-sharing one, and it does not affect any option's
+  technical assessment.
 
 ## 5. Testing: the complaint is real; the rewrite doesn't fix it
 
@@ -157,29 +185,29 @@ interop, no dex constraint).
 
 | | Option | Cost | Risk | Verdict from evidence |
 |---|---|---|---|---|
-| A | Full rewrite of api-impl (+C layer) in Rust | years (336 k-line surface + full JNI re-plumbing); upstream stream lost day one | fatal | **No** — contradicts §2, §4 |
-| B | Migrate `api-impl-jni` (31 k C) to Rust incrementally | months, file-by-file; keeps upstream Java intact; C↔Rust interop easy | medium (glue churn, build chain) | Plausible **later**, per-file; the memory-safety argument applies here and matches Google's own Rust-in-systems-layers policy |
+| A | Full rewrite of api-impl (+C layer) in Rust | years (336 k-line surface, all ours to hand either way, plus a full JNI re-plumbing — the dex signature layer stays *on top* of the Rust) | fatal | **No** — rests now on §1–§2 alone: dex contract, surface, zero prior art, and no stability prize in the Java tier (it is GC-managed) |
+| B | Migrate `api-impl-jni` (31 k C) to Rust incrementally | months, file-by-file; C↔Rust interop easy; D20 removed any sync objection | medium (glue churn, build chain) | **Plausible** — the memory-safety argument applies exactly here (matches Google's own Rust-in-the-native-tier policy); gate adoption on D's measurement |
 | C | JVM unit-test rig for api-impl (stub natives) | days | low | **Do regardless** — addresses the testing complaint directly |
-| D | Spike: one leaf component (e.g. `ATLElementDump` or the audio state machine) rewritten in Rust+JNI, measure glue cost + testability | ~a day | none (additive) | Recommended first evidence step before endorsing B |
-| E | Kotlin for api-impl source | kotlinc + stdlib on boot classpath, dx incompatibility, upstream unmergeable | high | No |
+| D | Spike: one leaf component (e.g. `ATLElementDump` or the audio state machine) rewritten in Rust+JNI, measure glue cost + testability | ~a day | none (additive) | Recommended first evidence step for B |
+| E | Kotlin for api-impl source | kotlinc + kotlin-stdlib on boot classpath, old dx toolchain | high | Still **no** (the upstream-merge objection is gone, the toolchain/runtime ones stand) |
 | F | Status quo (Java+C, Rust harness) | — | — | Current default; §5–§6 show the Java part is not where the claimed pain comes from |
 
 Suggested decision process (owner-paced): run C (immediately useful),
 run D once (empirical glue-cost number), then revisit B with real data.
 Re-open the full-rewrite question only if any of these become true:
-upstream goes dormant (today: very active); the C tier shows a sustained
-memory-corruption bug rate (today: our bugs are semantic gaps); ART/dex
-itself becomes the blocker (never observed; ART is not ours to rewrite
-anyway).
+the C tier shows a sustained memory-corruption bug rate (today: our bugs
+are semantic gaps); ART/dex itself becomes the blocker (never observed;
+ART is not ours to rewrite anyway); or harness data starts showing the
+Java tier dominating defect rates (today: it does not — see §6).
 
 ## 9. What this document deliberately does NOT claim
 
 - Not that Rust is a bad fit *anywhere* here — B/D are real candidates.
 - Not that the fork will never change shape; D19-style incremental
   substitution has worked so far.
-- Not that upstream's code quality is sufficient — we already diverge
-  104 commits; the argument is that *merging their Java is cheaper than
-  reimplementing it in Rust*, which holds regardless.
+- Not that upstream's code quality or relationship were ever the reason
+  to stay in Java — after D20 they are irrelevant; the conclusion rests
+  solely on the technical sections (§1–§3, §5–§6).
 
 Reproduce the measurements: `find src/api-impl -name '*.java' | xargs wc
 -l`, `git fetch upstream master && git rev-list --count FETCH_HEAD

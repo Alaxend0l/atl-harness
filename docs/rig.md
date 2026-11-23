@@ -204,8 +204,9 @@ Unknown keys are errors, like `config.toml`.
 ## Doctor checks
 ssh · distrobox exists · Lima VM running · arch matches · page size is 4K
 (see decisions D11) · Fedora · cargo, Xvfb, ImageMagick, ATL on PATH ·
-art-standalone installed · ATL checkout, its `origin` is the fork, and
-`upstream` can't be pushed to · disk ≥ 20 GB · memory/cpus ·
+art-standalone installed · ATL checkout and its `origin` is the fork
+(the hard fork is complete, D20: no `upstream` remote) · disk ≥ 20 GB ·
+memory/cpus ·
 harness checkout synced with this workstation (hash of `src/`, Cargo
 files, `config*.toml`) · atlh built · clock skew ≤ 5 s. Exit code: 0 all
 ok, 1 warnings, 2 failures. Every failure line has a fix hint.

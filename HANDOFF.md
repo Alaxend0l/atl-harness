@@ -1322,12 +1322,16 @@ a photo). `interactions/org.fossify.musicplayer.txt` checks albums, tracks and
   behind" — note: Google's *app* language is Kotlin, but Kotlin compiles to
   the same dex the fork must implement against; Google's Rust push is in
   the native/C++ tier, which maps to our `api-impl-jni` C, not the Java).
-  Full research written 2026-11-23 in
-  [`docs/research/rust-rewrite.md`](docs/research/rust-rewrite.md):
-  measurements (336 k hand-written Java LOC vs 31 k C; upstream 143
-  commits/3 months, all Java), options table (full rewrite = no; C→Rust
-  incremental = plausible; JVM test rig = do regardless; Rust+JNI spike =
-  suggested evidence step). No code changed; awaiting the owner's call.
+  Full research: [`docs/research/rust-rewrite.md`](docs/research/rust-rewrite.md),
+  corrected same day after the owner clarified the hard fork is **complete**
+  (D20: ATL↔Andrun never share code again — the "upstream stream" argument
+  was withdrawn and the analysis re-derived on technical grounds alone:
+  conclusion unchanged — full rewrite no, C→Rust incremental plausible,
+  JVM test rig do-regardless, Rust+JNI spike = suggested evidence step).
+- **Reading upstream for knowledge only (sub-question of D20):** may
+  agents *read* upstream ATL's public commits/issues as documentation of
+  Android behaviour (no code copied or ported), or is even that out of
+  bounds? Until ruled, treat upstream as out of scope entirely.
 - Telephony/SMS design for Messages and Phone.
 - Merging the two fedora-atomic-phone branches (`plasma-mobile-spectacle`, `oneplus12-flatpak-home`); both are already applied on the phone by hand.
 - **Phone music playback check** (roadmap step "phone gate"): largely done —

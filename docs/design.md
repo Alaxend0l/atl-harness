@@ -85,12 +85,12 @@ this is a hard fork and nothing produced by the loop goes upstream:
   unofficial, AI-assisted fork, so users don't take fork bugs upstream.
 - Keep upstream's license files and copyright notices; the fork inherits
   ATL's license. Code ported from AOSP keeps its Apache-2.0 headers.
-- Track upstream as a git remote and merge it on a schedule (e.g. weekly).
-  After each merge run a full census + `compare` against the pre-merge
-  baseline; upstream changes go through the same gate as agent changes.
-- Expect merge conflicts to grow as the fork diverges. Keep agent changes
-  small and in focused commits (one signature per branch) to keep merges
-  tractable, and periodically decide whether upstream sync is still worth it.
+- **No code flows either way (D20, 2026-11-23):** the hard fork is
+  complete. Never fetch/merge/rebase upstream into any branch; work is
+  based on the fork's own lineage from the fork point. Restructuring the
+  fork freely is therefore allowed — there is no upstream merge to keep
+  tractable. Reading upstream for knowledge (no code) is pending the
+  owner's ruling.
 - Agent branches are merged into the fork's main by you after review.
 
 ## Reward hacking — the main risk

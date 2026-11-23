@@ -16,7 +16,6 @@ mkdir -p "$SRC" "$LOGS" "$MARK"
 MAKE_JOBS=${MAKE_JOBS:-$(nproc)}
 ATL_SRC=${ATL_SRC:-$SRC/android_translation_layer}
 ATL_GIT=${ATL_GIT:-git@github-atl-fork:Alaxend0l/android-translation-layer.git}
-ATL_UPSTREAM=https://gitlab.com/android_translation_layer/android_translation_layer.git
 ALL_STEPS="packages rust sources wolfssl bionic vixl art opensles atl harness microg"
 STEPS=${STEPS:-$ALL_STEPS}
 GITLAB=https://gitlab.com/android_translation_layer
@@ -59,11 +58,9 @@ step_sources() {
     clone "$GITLAB/$r.git" "$SRC/$r"
   done
   # The fork is private: the runner needs the github-atl-fork ssh alias and a
-  # deploy key (docs/rig.md). Upstream is added fetch-only (decisions D1, D13).
+  # deploy key (docs/rig.md). The hard fork is complete (D20): no upstream
+  # remote is ever added — no code flows either way.
   clone "$ATL_GIT" "$ATL_SRC" --branch main
-  git -C "$ATL_SRC" remote get-url upstream >/dev/null 2>&1 \
-    || git -C "$ATL_SRC" remote add upstream "$ATL_UPSTREAM"
-  git -C "$ATL_SRC" remote set-url --push upstream DISABLED-hard-fork-never-push-upstream
 }
 
 meson_install() { # dir [meson setup args...]
