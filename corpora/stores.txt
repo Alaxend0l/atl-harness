@@ -1,0 +1,2 @@
+dev.imranr.obtainium
+org.fdroid.fdroid

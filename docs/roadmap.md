@@ -61,6 +61,12 @@ End to end on the box (x86_64 Bazzite, `atl` distrobox, upstream ATL
    scrolls), so later code paths get exercised.
 
 ## Later: app stores and installers (F-Droid client, Aurora, Obtainium)
+Owner flagged as future-important (2026-11-23): installs must work **from
+apps** (F-Droid client, Obtainium), not only from our CLI. Measurement brief:
+[`agent-tasks/installer-chain.md`](agent-tasks/installer-chain.md)
+(witness apps in `corpora/stores.txt`; first step = run Obtainium + F-Droid
+and read the real signatures, then an interaction script that presses
+Install).
 Not checked yet; from the ATL code read so far, probably **not working**.
 
 ATL has: `_installed_apks_` in the data dir, `--install`/`--install-internal`
