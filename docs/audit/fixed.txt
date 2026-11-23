@@ -807,3 +807,31 @@ android.util.AttributeSet.getStyleAttribute() is empty
 # (fork 5838aac6)
 android.view.MotionEvent.getPressure() returns a constant instead of state
 android.view.MotionEvent.getPressure(int pointerIndex) returns a constant instead of state
+# stale (389-399): AttributeSet interface declarations (AOSP shape); XmlPullAttributes has the
+# real bodies (namespace delegates to the parser; resource/float/list/unsigned-int getters go
+# through XmlUtils.convertValue*; getIdAttribute/getIdAttributeResourceValue read @android:id)
+android.util.AttributeSet.getAttributeNamespace(int index) is empty
+android.util.AttributeSet.getAttributeResourceValue(String namespace, String attribute, int defaultValue) is empty
+android.util.AttributeSet.getAttributeResourceValue(int index, int defaultValue) is empty
+android.util.AttributeSet.getAttributeFloatValue(String namespace, String attribute, float defaultValue) is empty
+android.util.AttributeSet.getAttributeFloatValue(int index, float defaultValue) is empty
+android.util.AttributeSet.getAttributeListValue(String namespace, String attribute, String[] options, int defaultValue) is empty
+android.util.AttributeSet.getAttributeUnsignedIntValue(String namespace, String attribute, int defaultValue) is empty
+android.util.AttributeSet.getAttributeListValue(int index, String[] options, int defaultValue) is empty
+android.util.AttributeSet.getAttributeUnsignedIntValue(int index, int defaultValue) is empty
+android.util.AttributeSet.getIdAttribute() is empty
+android.util.AttributeSet.getIdAttributeResourceValue(int defaultValue) is empty
+# fixed (400): transform(Matrix) called the empty nativeTransform stub; transcribed libinput's
+# MotionEvent::transform (perspective transform of window coords, raw preserved, orientation
+# rotated) and removed the stub declaration
+android.view.MotionEvent.nativeTransform(int nativePtr, Matrix matrix) is empty
+# stale (401): AOSP's PointerCoords default ctor is empty verbatim (comment: all axes
+# initialized to zero - Java fields already default to 0)
+android.view.MotionEvent$PointerCoords.PointerCoords() is empty
+# fixed (402): axis getters all hit the constant-0 nativeGetAxisValue stub and discarded the
+# obtain(...) caller's PointerCoords; samples are now copied per event and read by every axis
+# getter (getTouchMajor(int)'s arbitrary 2.5f gone - AOSP SizeCalibration::NONE gives 0)
+android.view.MotionEvent.nativeGetAxisValue(int nativePtr, int axis, int pointerIndex, int historyPos) returns a constant instead of state
+# fixed (403): eventTime is ms; * 1000 reported microseconds, a thousandth of AOSP's
+# nativeGetEventTimeNanos; now * NS_PER_MS
+android.view.MotionEvent.getEventTimeNano() is marked TODO/FIXME
