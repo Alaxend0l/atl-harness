@@ -358,3 +358,41 @@ android.view.View.setCameraDistance(float distance) is empty
 # recorded (223): AOSP is mParent != null (embedded activities); the fork never sets an activity
 # parent - no embedded activity support, false *is* the state (fork 7a869e95)
 android.app.Activity.isChild() returns a constant
+# fixed (224): getLocalVisibleRect always said "nothing visible"; now the view's own bounds via
+# the working native_getGlobalVisibleRect (no ancestor clipping - same gap that method has) (fork e4737875)
+android.view.View.getLocalVisibleRect(Rect r) returns a constant
+# fixed (225): flag stored + getForceDarkAllowed declared (ATL runs no force-dark pass; androidx round-trips)
+android.view.View.setForceDarkAllowed(boolean forceDark) is empty
+# fixed (226): setPaddingRelative dropped AOSP's padding-is-relative flag while the getter was
+# hardcoded false - the pair could never agree (fork 09784077)
+android.view.View.isPaddingRelative() returns a constant
+# recorded (227): **gap: ServiceConnection tracking** - bindService really binds and calls
+# onServiceConnected, but nothing maps connections to services, so unbind cannot disconnect (fork e0f09030)
+android.content.Context.unbindService(ServiceConnection serviceConnection) is empty
+# fixed (228/229): the callback is stored/cleared now (hidden API 33; ATL has no translation-service
+# integration to fire it, but storage is what AOSP's setter guarantees) (fork 09784077)
+android.view.View.setViewTranslationCallback(ViewTranslationCallback callback) is empty
+android.view.View.clearViewTranslationCallback() is empty
+# fixed (230): the constant true forced apps into their rationale-then-retry loop; AOSP answers true
+# only after a user DENIAL - ATL never asks the user, so false is faithful (fork 76993989)
+android.app.Activity.shouldShowRequestPermissionRationale(String permission) returns a constant
+# fixed (231): setWillNotDraw already stores the flag; only the getter ignored it (fork 09784077)
+android.view.View.willNotDraw() returns a constant
+# stale (232): AOSP's Activity.onCreateOptionsMenu default literally returns true
+android.app.Activity.onCreateOptionsMenu(Menu menu) returns a constant
+# recorded (233): see setCameraDistance (batch 209-223) - no RenderNode, no 3-D compositing (fork 7d50fe6c)
+android.view.View.getCameraDistance() returns a constant
+# stale (234): every print in loadDrawable is gated by DEBUG_LOAD/TRACE_* constants (all false) or
+# commented out; the one ungated Log.w is AOSP's own "not a Drawable" error path
+android.content.res.Resources.loadDrawable(TypedValue value, int id, Theme theme) prints on every call
+# recorded (235): no accessibility node pipeline in ATL (gap at setAccessibilityPaneTitle) (fork e0f09030)
+android.view.View.announceForAccessibility(CharSequence text) is empty
+# fixed (236): setStateListAnimator applied then dropped the animator; getStateListAnimator was null
+# even right after android:stateListAnimator inflation. Reference kept (fork 09784077)
+android.view.View.getStateListAnimator() returns a constant
+# fixed (237): returned true although no layout-bounds overlay is ever painted - AOSP defaults
+# this debug feature false; the old answer was the opposite of what is on screen (fork e0f09030)
+android.view.View.isShowingLayoutBounds() returns a constant
+# fixed (238): View.findFocus returned `this` unconditionally and getCurrentFocus was null;
+# now AOSP shape walking per-view GTK focus (isFocused, item 114's work) (fork d3ada17b)
+android.app.Activity.getCurrentFocus() returns a constant

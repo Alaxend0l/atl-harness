@@ -854,6 +854,37 @@ with `javac -h`; commit the regenerated header with any new native method.
        `setOnDragListener` stored with **gap: drag & drop subsystem** and
        `setCameraDistance` (no RenderNode, 3-D properties unconsumed);
        `onCreatePanelView` was stale — AOSP's default returns null.
+     - Queue batch 224–238 (fork `d3ada17b`..`e0f09030`): `findFocus()`
+       returned `this` **unconditionally** and `getCurrentFocus()` was a
+       hardcoded null — now AOSP's shape walking per-view GTK focus
+       (`isFocused`, the item-114 machinery), `ViewGroup` recursing,
+       `Activity` walking `root_view`. `getLocalVisibleRect` (always
+       "nothing visible") now answers via the working
+       `native_getGlobalVisibleRect` (local bounds; ancestor-clipping
+       gap shared with that method). `shouldShowRequestPermissionRationale`
+       returned **true** — AOSP answers true only after a user *denial*,
+       which ATL can never produce (no runtime permission dialog) — so
+       permission-helper apps were stuck in their rationale-then-retry
+       loop; now false. `isShowingLayoutBounds` returned true while no
+       overlay is ever painted (AOSP default false). Stored+round-trip:
+       force-dark-allowed, padding-relative flag (the getter was
+       hardcoded false), `willNotDraw()` (the *setter* already stored!),
+       `StateListAnimator` (dropped right after inflation),
+       `ViewTranslationCallback`. Recorded: **gap: ServiceConnection
+       tracking** (`bindService` really binds + `onServiceConnected`,
+       nothing maps connections to services, so unbind cannot
+       disconnect), `announceForAccessibility` (a11y pipeline gap);
+       stale: `onCreateOptionsMenu` (AOSP default returns true) and
+       `loadDrawable` "prints on every call" (all prints gated by
+       false constants or commented out; the one ungated `Log.w` is
+       AOSP's error path).
+       Gate `fc52` **FAILED on the canary again** — measured again:
+       forced single-app runs gave **5/10 CRASH at the new tip
+       (`e0f09030`) vs 6/10 at the old tip (`7a869e95`)** with the same
+       NPE signature (`ap3.c → yo3.k → lk.f → ud.r0`,
+       `Dispatchers.Main.immediate`) — the flake rate is *unchanged*,
+       and a full re-run at the new tip (`fc53`) is **0 improved, 0
+       regressed vs `fc51`**. Batch kept.
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -1089,29 +1120,34 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x30 and full-corpus gates
-  `fc30`..`fc51` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x34 and full-corpus gates
+  `fc30`..`fc53` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
-  was fixed, and `fc48` which FAILED on the canary's flake (see the
-  batch 179–193 entry: cleared by `fc49`, 0/0 vs `fc47`); `fc37` 2
+  was fixed, and `fc48`/`fc52` which FAILED on the canary's flake (see
+  the batch 179–193 and 224–238 entries: cleared by `fc49`, 0/0 vs
+  `fc47`, and `fc53`, 0/0 vs `fc51`); `fc37` 2
   improved: phonograph EXITED->ALIVE, nudge CRASH->BLANK; `fc40` 1
   improved: me.zhanghai.android.files CRASH->ALIVE). Fork commits
-  `940749c9`..`7a869e95` (21 queue fixes + getWindowToken + fragment
+  `940749c9`..`e0f09030` (21 queue fixes + getWindowToken + fragment
   onActivityCreated dispatch + fillType + Ringtone + dispatchKeyEvent +
   View state batch + TextView isSingleLine + batches 119-133, 134-148,
-  149-163, 164-178, 179-193, 194-208 and 209-223 + hasWindowFocus fixup)
+  149-163, 164-178, 179-193, 194-208, 209-223 and 224-238 +
+  hasWindowFocus fixup)
   pushed to `fix/fixcov-crashes` + `local-fixes`. Added
   `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
   with `atl-gaps --emit-queue
   15` after `fc39` (119 items), `fc41` (134), `fc43` (149), `fc44` (164),
-  `fc46` (179), `fc47` (194), `fc49` (209) and `fc50` (224). Used `rig smoke` + single-hunk builds to
+  `fc46` (179), `fc47` (194), `fc49` (209), `fc50` (224) and `fc51` (239).
+  Used `rig smoke` + single-hunk builds to
   bisect the item-63 witness and the item-131 regression, and repeated
   forced single-app runs (5 at `433b2354`, 8 at the new tip) to show the
-  `fc48` canary CRASH is pre-existing flakiness rather than a regression.
+  `fc48` canary CRASH is pre-existing flakiness rather than a regression,
+  and 10 forced runs on *each* of the `7a869e95` and `e0f09030` trees
+  (6/10 vs 5/10 CRASH, same signature) to show the same for `fc52`.
   Checked `rig -r bazzite job status` before starting; no other agent's
   jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
   phone items 67/103 stayed parked. Bazzite left installed with the
-  `7a869e95` tree (= `local-fixes` tip). Released.
+  `e0f09030` tree (= `local-fixes` tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
