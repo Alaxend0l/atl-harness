@@ -103,7 +103,14 @@ expect-changed    # vs. the previous screenshot (default > 0.005 % of pixels)
 expect-text "15"  # tesseract OCR of the latest screenshot
 ```
 Steps: `wait S`, `tap X Y`, `long-press X Y [S]`, `type "text"`, `key NAME`
-(xdotool names: `Return`, `BackSpace`, `ctrl+a`), `shot NAME`,
+(xdotool names: `Return`, `BackSpace`, `ctrl+a`; semantic media names
+`media-play`, `media-pause`, `media-stop`, `media-next`, `media-previous`,
+`media-rewind`, `media-fast-forward`, `volume-up`, `volume-down`,
+`volume-mute` — the fork maps those keysyms to the Android
+`KEYCODE_MEDIA_*`/`KEYCODE_VOLUME_*` codes and routes transport keys to the
+app's media sessions, like Android's system server does; `media-play` is the
+hardware play/pause toggle, so after a `media-pause` it means "play"),
+`shot NAME`,
 `expect-changed [PCT]`, `expect-text "text"`. The run stores `interact_ok` and
 per-step results (`interact_detail`); a failed step adds an `interaction`
 signature; if the app exits during the script it is a CRASH like any other.

@@ -7,7 +7,11 @@
 //!   tap X Y               click at screen pixels (the Xvfb screen, e.g. 1080x1920)
 //!   long-press X Y [SECS] press and hold (default 1 s)
 //!   type "TEXT"           type text into the focused widget
-//!   key NAME              press a key (xdotool names: Return, BackSpace, Escape, ctrl+a)
+//!   key NAME              press a key (xdotool names: Return, BackSpace, Escape, ctrl+a;
+//!                         semantic media names: media-play, media-pause, media-stop,
+//!                         media-next, media-previous, media-rewind, media-fast-forward,
+//!                         volume-up, volume-down, volume-mute — ATL maps these to the
+//!                         Android media key codes; see docs/usage.md)
 //!   shot NAME             screenshot to <run dir>/<pkg>.<NAME>.png
 //!   expect-changed [PCT]  the latest screenshot differs from the one before it in
 //!                         more than PCT % of pixels (default 0.005 %, ~100 px on
@@ -119,7 +123,7 @@ pub fn parse(text: &str) -> Result<Vec<(usize, Step)>> {
                 Step::LongPress(v[0] as i32, v[1] as i32, v.get(2).copied().unwrap_or(1.0))
             }
             "type" => Step::Type(quoted(rest, n)?),
-            "key" if !rest.trim().is_empty() => Step::Key(rest.trim().to_string()),
+            "key" if !rest.trim().is_empty() => Step::Key(key_alias(rest.trim())),
             "shot" if !rest.trim().is_empty() => Step::Shot(rest.trim().to_string()),
             "expect-changed" if rest.trim().is_empty() => Step::ExpectChanged(DEFAULT_CHANGED),
             "expect-changed" => Step::ExpectChanged(nums(1)?[0] / 100.0),
@@ -129,6 +133,29 @@ pub fn parse(text: &str) -> Result<Vec<(usize, Step)>> {
         steps.push((n, step));
     }
     Ok(steps)
+}
+
+/// Semantic media/volume key names → X keysyms understood by xdotool.
+/// The fork maps these keysyms to the Android KEYCODE_MEDIA_*/KEYCODE_VOLUME_*
+/// codes (src/api-impl-jni/widgets/WrapperWidget.c), so a script can drive
+/// playback without knowing any coordinates. `media-play` is the hardware
+/// play/pause toggle: ATL expands it per session like AOSP does, so after a
+/// `media-pause` it deterministically means "play".
+fn key_alias(name: &str) -> String {
+    let mapped = match name {
+        "media-play" | "media-play-pause" | "media-toggle" => "XF86AudioPlay",
+        "media-pause" => "XF86AudioPause",
+        "media-stop" => "XF86AudioStop",
+        "media-next" => "XF86AudioNext",
+        "media-previous" => "XF86AudioPrev",
+        "media-rewind" => "XF86AudioRewind",
+        "media-fast-forward" => "XF86AudioForward",
+        "volume-up" => "XF86AudioRaiseVolume",
+        "volume-down" => "XF86AudioLowerVolume",
+        "volume-mute" => "XF86AudioMute",
+        _ => return name.to_string(),
+    };
+    mapped.to_string()
 }
 
 fn xdotool(display: &str, args: &[&str]) -> Result<()> {
@@ -365,5 +392,18 @@ mod tests {
     #[test]
     fn squash_normalises() {
         assert_eq!(squash("  Hello\n ATL  "), "hello atl");
+    }
+
+    #[test]
+    fn media_key_aliases() {
+        assert_eq!(key_alias("media-pause"), "XF86AudioPause");
+        assert_eq!(key_alias("media-play"), "XF86AudioPlay");
+        assert_eq!(key_alias("media-previous"), "XF86AudioPrev");
+        assert_eq!(key_alias("volume-mute"), "XF86AudioMute");
+        // unknown names pass through untouched (plain xdotool keysyms)
+        assert_eq!(key_alias("Return"), "Return");
+        // and parse() resolves the alias in the step
+        let steps = parse("key media-pause").unwrap();
+        assert_eq!(steps[0].1, Step::Key("XF86AudioPause".into()));
     }
 }
