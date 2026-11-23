@@ -1304,6 +1304,7 @@ item 25), `getTimestamp` returns false,
 indicator), and mini's Lima audio device failing `snd_pcm_hw_params`
 (VM config, audible audio untested there). Phone gate with the new main not
 run yet.
+1a. **exe/DMG VM-launcher distribution (owner question, researched 2026-11-23)**: [`docs/research/vm-launcher-distribution.md`](docs/research/vm-launcher-distribution.md) — feasible, far cheaper than the five native walls; one guest image (the bootstrap rootfs + a drop-directory daemon), wrapped as a `.wsl` double-click distro on Windows (WSLg = per-app windows, Start-Menu shortcuts, Pulse audio glue) and a VZ-VM `.app` on macOS (virtio-gpu/sound/fs). Evidence steps before committing: mini audio A/B → WSL2 import spike → VZ spike; awaiting the owner's go.
 1b. **Interaction scripts** exist (`interactions/`, docs/usage.md): Calculator (7+8=15), Notes (typing) and Fossify Music (library, playback, + a failing `setView` dialog check) are gated. Status and candidates: `docs/agent-tasks/test-first.md` "Status" (maxLines/ellipsize needs an OCR-DSL step first, e.g. `expect-no-text`). Add scripts for more apps, especially ones exercising fixes 5–8 (checkbox clicks, Enter/IME actions, preferences).
 2. App widgets (`AppWidgetManager`, `AppWidgetHost`): unblocks Flow and Fossify Launcher.
 3. Visual check of password masking on the phone (an app with a password field).
