@@ -396,3 +396,44 @@ android.view.View.isShowingLayoutBounds() returns a constant
 # fixed (238): View.findFocus returned `this` unconditionally and getCurrentFocus was null;
 # now AOSP shape walking per-view GTK focus (isFocused, item 114's work) (fork d3ada17b)
 android.app.Activity.getCurrentFocus() returns a constant
+# stale (239): AOSP's base Drawable.jumpToCurrentState body is literally empty (a hook animated
+# drawables override); the fork overrides it (AdaptiveIconDrawable, DrawableWrapper) and AbsListView calls it
+android.graphics.drawable.Drawable.jumpToCurrentState() is empty
+# fixed (240): hardcoded null although the fork already records the caller (resultActivity, used by
+# getCallingActivity/setResult); now that caller's package, null unless started for result (fork 0f9ff249)
+android.app.Activity.getCallingPackage() returns a constant
+# stale (241): AOSP's Activity.onPrepareOptionsMenu default literally returns true (the mParent
+# fallback is unreachable in ATL - no embedded activities)
+android.app.Activity.onPrepareOptionsMenu(Menu menu) returns a constant
+# recorded (242): AOSP reads PFLAG2_ACCESSIBILITY_FOCUSED set by the a11y focus machinery; no a11y
+# node pipeline in ATL, so the flag can never be set (GTK's focus is not Android's a11y focus) (fork d772dc89)
+android.view.View.isAccessibilityFocused() returns a constant
+# recorded (243/248): AOSP defers/releases through mActivityTransitionState; ATL has no activity
+# transition state at all (transition gap family) (fork 9315ed5e)
+android.app.Activity.startPostponedEnterTransition() is empty
+android.app.Activity.postponeEnterTransition() is empty
+# fixed (244/251): listener stored + AOSP's long-clickable half applied; registerForContextMenu is
+# AOSP's one-liner and Activity implements the interface with AOSP's empty default. **Gap:
+# context-menu panel machinery** - nothing can hand the listener a ContextMenu (fork fa6b380b)
+android.view.View.setOnCreateContextMenuListener(View.OnCreateContextMenuListener l) is empty
+android.app.Activity.registerForContextMenu(View view) is empty
+# fixed (245): stored + getTouchDelegate reads it back (was hardcoded null). **Gap: touch delegation
+# in ATL's input path** - touches are GTK's, no Android-side hit-test consults the delegate (fork 87f2ab56)
+android.view.View.setTouchDelegate(TouchDelegate touchDelegate) is empty
+# fixed (246/247, + up/down family): ids stored with AOSP's NO_ID default and the AOSP public getters
+# declared. **Gap: Android focus-search subsystem** - focus is GTK's (item 88), nothing steers (fork 48a18c15)
+android.view.View.setNextFocusLeftId(int id) is empty
+android.view.View.setNextFocusRightId(int id) is empty
+# (same fix covers the up/down siblings, which had not been queued yet)
+android.view.View.setNextFocusUpId(int id) is empty
+android.view.View.setNextFocusDownId(int id) is empty
+# stored + recorded (249/250): AOSP's body is a store into fields its transition state machine
+# reads back; ATL has no transitions (fork 9315ed5e)
+android.app.Activity.setExitSharedElementCallback(SharedElementCallback callback) is empty
+android.app.Activity.setEnterSharedElementCallback(SharedElementCallback callback) is empty
+# stale (252): AOSP returns mIsInPictureInPictureMode, set by the window manager; ATL never enters
+# PiP and the fork's code already says so
+android.app.Activity.isInPictureInPictureMode() returns a constant
+# stale (253): the fork resolves direction at inflation (params.resolveLayoutDirection
+# (getLayoutDirection())) and getLayoutDirection always answers LTR, so AOSP's resolved bit is set
+android.view.View.isLayoutDirectionResolved() returns a constant
