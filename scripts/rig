@@ -194,6 +194,13 @@ def bwrap_prefix(root: str) -> str:
         "--bind", '"$HOME"', '"$HOME"', "--bind", "/tmp", "/tmp",
         "--proc", "/proc", "--dev", "/dev", "--dev-bind-try", "/dev/dri", "/dev/dri",
         "--tmpfs", "/run", "--dir", '"/run/user/$(id -u)"', "--chmod", "0700", '"/run/user/$(id -u)"',
+        # Audio: ATL writes through the ALSA->PipeWire plugin, so harness runs need the
+        # host session's PipeWire socket (the phone's desktop apps get the same via
+        # atl-sandbox). Without it every AudioTrack init fails with "Host is down" and
+        # music apps exercise a dead-audio retry loop instead of the real path.
+        # ro-bind-try: a no-op where these sockets don't exist.
+        "--ro-bind-try", '"/run/user/$(id -u)/pipewire-0"', '"/run/user/$(id -u)/pipewire-0"',
+        "--ro-bind-try", '"/run/user/$(id -u)/pulse/native"', '"/run/user/$(id -u)/pulse/native"',
         "--setenv", "XDG_RUNTIME_DIR", '"/run/user/$(id -u)"',
         "--ro-bind", "/etc/resolv.conf", "/etc/resolv.conf",
         "--ro-bind", "/etc/passwd", "/etc/passwd", "--ro-bind", "/etc/group", "/etc/group",
