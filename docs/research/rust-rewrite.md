@@ -126,13 +126,12 @@ What the severance does and doesn't change for the rewrite question:
 - **Does not touch**: the dex/ART constraint (§2), the 336 k-line
   dex-visible surface (§1), prior art (§2), the bug-class evidence (§6),
   the license facts (§7) — all independent of upstream.
-- One residual, knowledge-only: upstream's public history documents
-  Android behaviours they already got right (marquee, ScrollView, AOSP
-  quirks). Whether even *reading* it (without copying code) is allowed
-  under the ideological separation is **pending the owner's ruling**;
-  agents should not consult it meanwhile. This is a research-permission
-  question, not a code-sharing one, and it does not affect any option's
-  technical assessment.
+- One residual closed by ruling: upstream's public history would have
+  been a knowledge source about Android behaviours (marquee, ScrollView,
+  AOSP quirks). The owner ruled it **off-limits too** (D20, same day):
+  no browsing/citing upstream — behaviour is learned from real apps
+  under ATL and the harness. No effect on any option's technical
+  assessment; it only removes a shortcut from the toolbox.
 
 ## 5. Testing: the complaint is real; the rewrite doesn't fix it
 

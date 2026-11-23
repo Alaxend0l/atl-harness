@@ -206,10 +206,12 @@ ideologically separated and **will never share code again**. Therefore:
   free.
 - `scripts/runner/bootstrap.sh` no longer adds the `upstream` remote
   (existing checkouts keep theirs; drop them manually when convenient).
-- Whether upstream's public commits/issues may be *read* as knowledge
-  about Android behaviour (without copying or porting any code) is
-  **pending the owner's ruling**; until it is given, treat upstream as
-  out of scope for research too.
+- Reading upstream's public commits/issues is **also off-limits** (owner
+  ruling, 2026-11-23, same day): no fetching, browsing or citing upstream
+  for knowledge either — Android behaviour is discovered from real apps
+  under ATL and the harness, not from upstream's findings. The
+  `upstream` remotes on the workstation clone and the runners were
+  deleted.
 - This removes the "upstream stream of work" argument from
   `docs/research/rust-rewrite.md`; that report was re-derived the same
   day on purely technical grounds (its conclusion did not change).

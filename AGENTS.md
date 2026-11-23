@@ -13,8 +13,10 @@ Start with `HANDOFF.md` (current state), then `README.md` and `docs/roadmap.md`.
   (postmarketOS developers) has a no-AI policy; the communities will never
   share code. Never open PRs or issues upstream, never suggest
   upstreaming, never add upstream as a push target, and never fetch/merge/
-  rebase upstream code into our branches (D20). Base work on the fork's
-  own lineage. See `docs/decisions.md` D1 and D20.
+  rebase upstream code into our branches (D20). Upstream is not a
+  knowledge source either — do not browse or cite its commits/issues;
+  Android behaviour is learned from real apps under ATL. Base work on
+  the fork's own lineage. See `docs/decisions.md` D1 and D20.
 - Don't fake fixes in the ATL fork (catch-alls, `return null`, empty
   bodies). The harness exists to measure real compatibility. Where ATL truly
   can't provide something, return what Android returns in that case and say

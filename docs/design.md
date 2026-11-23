@@ -87,10 +87,11 @@ this is a hard fork and nothing produced by the loop goes upstream:
   ATL's license. Code ported from AOSP keeps its Apache-2.0 headers.
 - **No code flows either way (D20, 2026-11-23):** the hard fork is
   complete. Never fetch/merge/rebase upstream into any branch; work is
-  based on the fork's own lineage from the fork point. Restructuring the
+  based on the fork's own lineage from the fork point. Upstream is not a
+  knowledge source either (owner ruling): Android behaviour comes from
+  real apps under ATL, not from upstream's findings. Restructuring the
   fork freely is therefore allowed — there is no upstream merge to keep
-  tractable. Reading upstream for knowledge (no code) is pending the
-  owner's ruling.
+  tractable.
 - Agent branches are merged into the fork's main by you after review.
 
 ## Reward hacking — the main risk
