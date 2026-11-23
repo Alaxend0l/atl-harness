@@ -1562,28 +1562,28 @@ Say here which runner you're using for builds/gates, and clear it when done.
   (read-only pw-dump) for the volume-key issue (TODO item 2): Mobian
   CallAudio role-sink setup, ATL ALSA streams carry no `media.role`.
   Phone still installed at `local:f52ecb55`.
-- **opencode (this session, 2026-11-23, third): `oneplus12`** — element
-  addressing P0: media transport keys. Fork commit `dc58bf2a` on
-  `fix/fixcov-crashes` (`~/Develop/atl-fixcov`): session registry +
-  `atlDispatchMediaKey` in `MediaSession.java`, AOSP-default
-  `Callback.onMediaButtonEvent`, XF86Audio* keysym mapping and a
-  capture-phase window key controller (`WrapperWidget.c`, installed
-  from `main.c`; the per-view controllers never fire — ATL view apps
-  get no key events at all, focus path). Harness: semantic
-  `key media-play/media-pause/...` names in `src/interact.rs` (+test,
-  docs/usage.md). Witness `grres18`: pause key → `handled=true` →
-  `calling AudioTrack.pause()`; play key → expansion 85→126,
-  `handled=true`, media3 notification flips Play→Pause — and the run
-  then **reproduces the owner's bug cleanly**: `audioTrackUnderrun`
-  right after pause, and after resume no `AudioTrack.play()` ever
-  follows (player stuck CONNECTING). Prime suspect for the next task:
-  `getPlaybackHeadPosition` = frames-written minus `snd_pcm_delay`
-  across `snd_pcm_pause` on PipeWire
-  (`src/api-impl-jni/audio/android_media_AudioTrack.c`). Phone left
-  installed with `local:f52ecb55-dirty` = the `atl-fixcov` tree at
-  `dc58bf2a`; NOT gate-tested on the full corpus yet (adds only
-  previously-absent key handling), gate before merging to
-  `local-fixes`.
+- **opencode (this session, 2026-11-23, third): `oneplus12` + `bazzite`** —
+  element addressing P0 (media transport keys) AND the owner's
+  pause→resume bug, both fixed. Fork branch `fix/fixcov-crashes`
+  (`~/Develop/atl-fixcov`): `dc58bf2a` session registry +
+  `atlDispatchMediaKey` + capture-phase window key controller; witness
+  `grres18` then reproduced the resume bug deterministically (no
+  `AudioTrack.play()` after resume); `e20d7f16` fixes it —
+  `getPlaybackHeadPosition` is now monotonic (PipeWire delay > frames
+  written across `snd_pcm_pause` used to rewind the head to 0, media3
+  saw a phantom `audioTrackUnderrun` and never re-primed the track:
+  Loader stuck paused, ExoPlayer BUFFERING forever; thread stacks
+  witnessed via temporary probes); `a52665e6` DOWN-only PLAY_PAUSE
+  expansion + media3 legacy state numbering (legacy BUFFERING=6 —
+  media3's vendored `session.legacy.PlaybackStateCompat` renumbers
+  states). Witness after fix: `grres22..grres24` two pause→resume
+  cycles, `play()` each resume, position advances 8158→15581 ms.
+  Harness: semantic `key media-*` names (`8fd0656`), rig PipeWire socket
+  bind (`64be560`). Gates (bazzite, corpora/fixcov.txt): `fc70→fc71`
+  0 improved/0 regressed (keys only), **`fc72` running at tip
+  `a52665e6`** (covers the AudioTrack change). Bazzite and phone both
+  installed with `local:a52665e6`. NOT yet merged to `local-fixes` —
+  merge after fc72 is 0-regressions.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

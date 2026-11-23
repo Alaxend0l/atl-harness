@@ -112,7 +112,10 @@ origin.
   notification action flips Play→Pause. Same witness then
   **reproduces the owner's resume bug deterministically**: after the
   resume no `AudioTrack.play()` follows and media3 logs
-  `audioTrackUnderrun` right after pause (see HANDOFF).
+  `audioTrackUnderrun` right after pause (see HANDOFF). **Update same
+  day: that resume bug is fixed — non-monotonic
+  `getPlaybackHeadPosition` under PipeWire, fork `e20d7f16`
+  (witnesses grres22..grres24).**
   Implementation notes: media keys are intercepted by a
   **capture-phase** `GtkEventControllerKey` on the main window
   (installed from `main.c`) — the per-view controllers only fire along

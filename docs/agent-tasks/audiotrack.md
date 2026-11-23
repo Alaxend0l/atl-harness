@@ -330,3 +330,28 @@ log check instead: no `STUB: AudioTrack` lines and no `XRUN.` storms.
   peaking biquad per band (RBJ cookbook) on the PCM in `AudioTrack.write` for
   tracks whose session id has an enabled Equalizer. Until the filtering
   exists, report `hasControl()` honestly and keep levels as state.
+
+## Status update (2026-11-23, `fix/fixcov-crashes` @ `a52665e6`, runner oneplus12)
+`getPlaybackHeadPosition` is now monotonic (last reported value is the
+floor; counters reset in `flush()` only, per AOSP) — commit `e20d7f16`.
+This **fixed the owner-reported Gramophone bug** ("pause then resume does
+not take effect"): the PipeWire-backed delay can exceed frames written
+across `snd_pcm_pause`, the old clamp-to-0 rewound the head ~8 s at the
+moment of pause, media3's `AudioTrackPositionTracker` logged a phantom
+`audioTrackUnderrun` and never re-primed the track on resume (ExoPlayer
+stuck BUFFERING, source Loader stuck in `pauseLoading`, zero
+`AudioTrack.play()` calls — witnessed with temporary
+`Thread.getAllStackTraces` probes in `MediaSession.setPlaybackState`).
+Witness after the fix (runs `grres22..grres24`): two media-key
+pause→resume cycles, `AudioTrack.play()` on every resume, position
+8158→15581 ms, no underrun. Note the Fossify line numbers above are
+media3 1.11; Gramophone 1.1.2 uses nift4's media3 fork
+(`github.com/nift4/media`, branch `gramophone`, submodule `962f72c3`) and
+its vendored `androidx.media3.session.legacy.PlaybackStateCompat`
+**renumbers playback states** (BUFFERING=6, ERROR=7, CONNECTING=8), which
+matters for anything reading published session states (the media-key
+expansion does: `ATL_STATE_BUFFERING_LEGACY`).
+Still open from this brief: `snd_pcm_delay()`'s error return is still
+ignored in the JNI (the monotonic clamp covers the symptom);
+`getTimestamp()` still returns false; the Equalizer stub and the
+NULL-handle steps above are not done.
