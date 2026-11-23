@@ -118,3 +118,24 @@ Resources$Theme.obtainStyledAttributes(AttributeSet set, int[] attrs, int defSty
 VectorDrawable ignores android:fillType
 Ringtone.getTitle returns a visible placeholder string
 android.app.Activity.dispatchKeyEvent(KeyEvent event) returns a constant
+# stale (104): AOSP sendSessionEvent delivers to *connected* controllers; ATL's MediaController is inert (no connect path), so zero controllers - the fork's documented drop+print equals AOSP's no-op
+android.media.session.MediaSession.sendSessionEvent(String event, Bundle extras) only logs
+# stale (106): View.draw is fully implemented (native background + onDraw + dispatchDraw); the only marker is the deliberate exception catch around dispatchDraw
+android.view.View.draw(Canvas canvas) is marked TODO/FIXME
+# stale (107): AOSP Configuration.describeContents() returns 0; the fork matches exactly
+android.content.res.Configuration.describeContents() returns a constant
+# stale (116): AOSP base View.onCreateInputConnection returns null; the fork matches (real connections live in EditText overrides)
+android.view.View.onCreateInputConnection(EditorInfo outAttrs) returns a constant
+me.zhanghai.android.files still crashes: NullPointerException
+# fc40 witness CRASH->ALIVE: isLaidOut early-doOnLayout NPE (fork 38bc7b3e) + TextView isSingleLine probe (5f900c6d)
+android.view.View.performAccessibilityAction(int action, Bundle arguments) returns a constant
+android.view.View.setFocusableInTouchMode(boolean focusableInTouchMode) is empty
+android.view.View.setScaleX(float scaleX) is empty
+android.view.View.setScaleY(float scaleY) is empty
+android.view.View.setPivotX(float pivot_x) is empty
+android.view.View.setPivotY(float pivot_y) is empty
+android.view.View.setImportantForAutofill(int flag) is empty
+android.view.View.hasFocus() returns a constant
+android.view.View.isLaidOut() returns a constant
+android.view.View.setLayerType(int layerType, Paint paint) is empty
+android.view.View.getRootWindowInsets() returns a constant

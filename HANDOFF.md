@@ -631,21 +631,38 @@ with `javac -h`; commit the regenerated header with any new native method.
        chain + Window.superDispatchKeyEvent + AOSP KeyEvent.Callback
        defaults) — both **0 improved, 0 regressed** vs their
        predecessors (no corpus witness; no-regression only, said so in
-       the commit messages).
-     - Item 63 (me.zhanghai.android.files NPE): root cause is that ATL
-       implements no SAF document providers at all
-       (`com.android.externalstorage.documents` etc. absent); the app
-       resolves storage roots through DocumentsContract, gets nothing,
-       NPEs in its loader chain (fc37 stack: all R8 frames). This is a
-       subsystem-sized feature (writing real DocumentProviders), not a
-       queue-item-sized fix — left open, recorded here as roadmap
-       context.
+       the commit messages). `fc40` (tree `38bc7b3e`: queue batch
+       105/108/109-115/117/118 — View transform state, real focus
+       state via new nativeHasFocus/nativeClearFocus JNI,
+       isLaidOut/layerType/autofill/rootWindowInsets state): **0
+       regressed, 1 improved** — `me.zhanghai.android.files`
+       CRASH→ALIVE (witnesses the isLaidOut fix, see next). `fc41`
+       (tree `5f900c6d`, TextView isSingleLine): 0 improved, 0
+       regressed (the probe fix is inside an already-ALIVE app).
+     - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
+       `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
+       wrong: the real root cause is `View.isLaidOut()` returning
+       constant true — the app's `doOnLayout`-style androidx helpers
+       saw "already laid out" before any layout existed and ran their
+       block immediately, where still-null members NPE'd
+       (`Object.getClass()` on null, all R8 frames). Bisected by
+       single-hunk builds + `rig smoke`: `2a0f01cb` (scale) and
+       `c4c26458` (focus) still NPE'd; the isLaidOut hunk alone
+       (window-driven layout / explicit `layout()` tracking) removed
+       it and reached onResume. The app then hit a swallowed
+       `NoSuchMethodException: isSingleLine []` from its RecyclerView
+       path → fixed by `5f900c6d` (TextView single-line state; smoke
+       exceptions 1→0), gate `fc41` owed. Separate real gap (unfixed,
+       context): ATL still implements no SAF document providers, so
+       the app's storage-root list content is limited — different
+       feature, not this crash.
      - Queue refreshed after fc39: `atl-gaps --emit-queue 15` on
        bazzite against the `9a22a650` tree + fc39 sqlite → queue now
        119 items; the new 15 are View state/graphics gaps with dex
-       references but **no runtime hits** (atl-gaps reports 3302/3303
-       gaps without runtime coverage — gates for these prove only
-       no-regression, per AGENTS).
+       references but no logged runtime hits (atl-gaps reports
+       3302/3303 gaps without runtime coverage). Despite that, the
+       batch did witness me.zhanghai.android.files (see above) —
+       dex-reference ranking is weak evidence, not "nothing to gain".
 
 Items 5–8 change behaviour on interaction (typing, clicking, pressing,
 preference changes), which the harness can't drive yet: gates show no
@@ -857,17 +874,22 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x4 and full-corpus gates
-  `fc30`..`fc39` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x8 and full-corpus gates
+  `fc30`..`fc41` (74 apps each, each vs its predecessor; all 0
   regressed; `fc37` 2 improved: phonograph EXITED->ALIVE, nudge
-  CRASH->BLANK). Fork commits `940749c9`..`9a22a650` (21 queue fixes +
+  CRASH->BLANK; `fc40` 1 improved: me.zhanghai.android.files
+  CRASH->ALIVE). Fork commits `940749c9`..`5f900c6d` (21 queue fixes +
   getWindowToken + fragment onActivityCreated dispatch + fillType +
-  Ringtone + dispatchKeyEvent) pushed to `fix/fixcov-crashes` +
-  `local-fixes`. Added `com.io7m.exfilac.main` to `corpora/fixcov.txt`;
-  refreshed the queue with `atl-gaps --emit-queue 15` after `fc39`
-  (queue now 119). Checked `rig -r bazzite job list` before starting; no
-  other agent's jobs. Bazzite left installed with the `9a22a650` tree
-  (= `local-fixes` tip). Released.
+  Ringtone + dispatchKeyEvent + View state batch + TextView
+  isSingleLine) pushed to `fix/fixcov-crashes` + `local-fixes`. Added
+  `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
+  with `atl-gaps --emit-queue 15` after `fc39` (queue now 119). Used
+  `rig smoke` + single-hunk builds to bisect the item-63 witness to
+  the isLaidOut fix. Checked `rig -r bazzite job status` before
+  starting; no other agent's jobs. Phone still unreachable (`rig -r
+  oneplus12 doctor` FAIL ssh), phone items 67/103 stayed parked.
+  Bazzite left installed with the `5f900c6d` tree (= `local-fixes`
+  tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
