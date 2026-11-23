@@ -137,8 +137,9 @@ them behind a product that can exist first.
   until signed; ARM Windows laptops run arm64 guests → Android apps with
   x86-only NDK libs need in-guest emulation (FEX/box64) later — dex-only
   apps (most F-Droid corpus) unaffected.
-- macOS: virtio-GPU/sound want macOS 14+ (set a minimum; Intel Macs OK via
-  x86_64 guest); RAM budgeting (a second browser-class VM); MAS auto-update
+- macOS: virtio-GPU wants macOS 14+, virtio-sound macOS 15+ (corrected by the
+  2026-11-23 spike; set a minimum; Intel Macs OK via x86_64 guest); RAM
+  budgeting (a second browser-class VM); MAS auto-update
   friction (DMG solves).
 - Guest image updates: pin an in-guest update channel from day one; never
   re-download the world on every host update.
@@ -167,3 +168,49 @@ Reproduce the facts: Microsoft WSL docs "build-custom-distro.md" /
 sessions (Linux guests, virtio GPU/sound); Docker Desktop Mac feedback
 issue (their guest kernel `CONFIG_SOUND` off — a guest-config choice, not
 a VZ limit); Lima/UTM/Colima/oriel as shipping precedents.
+
+## 8. Spike results (2026-11-23, runner: mini)
+
+Steps 1 and 3 ran on the Mac mini (`atl-mini`); step 2 (WSL2) stays a todo
+(owner has no Windows box set up yet). Verdict: **both macOS-side evidence
+steps pass** — the exe/DMG model is no longer hypothetical on macOS.
+
+Step 3 — VZ boot (PASS). The Lima guest disk (`~/.lima/atl/disk`, raw) was
+cloned to `~/andrun-vz/disk.raw` and booted headless under plain Virtualization.
+framework — first `vfkit` (EFI, `--device virtio-blk/net/rng/serial`), then our
+own minimal Swift launcher — with **no Lima involved**. `atlh run --run-id vzs1
+--pkg org.fossify.math`: ALIVE, `interact_ok=1`, `ExpectText("15")` found. The
+same guest image works under a hand-written VZ launcher; the Lima dependency is
+convenience, not a requirement.
+
+Audio A/B (PASS, with a corrected root cause). The old "mini has no audio"
+story was wrong in detail: **Lima attaches no audio device to the guest at all**
+(`/proc/asound` absent inside `atl`), so AudioTrack's `snd_pcm_open` failed —
+a Lima config gap, not a Mac mini hardware limit (the mini has no display
+attached, but that is unrelated). Two more guest-side gaps found on the way:
+the cloud image lacked `kernel-modules` (no `virtio_snd.ko` for the running
+kernel) and PipeWire/access setup. With a virtio-sound device attached:
+`virtio_snd` binds, `/proc/asound/cards` shows `VirtIO SoundCard`, PipeWire
+lists "Virtio 1.0 sound" as a sink, `aplay -D default` exits 0, and Fossify
+Musicplayer's AudioTrack opens with **no `snd_pcm_hw_params` error** (earlier
+runs failed there). `AudioTrack.flush()` remains a fork stub (unrelated to VM
+audio). Not yet verified: audible output at the host speakers (VZ feeds the
+CoreAudio default device; headless mini, nobody listened).
+
+Key practical facts paid for:
+- **vfkit v0.6.4 has no sound device at all** — the product launcher must use
+  `VZVirtioSoundDeviceConfiguration` directly (macOS 15+; corrects the macOS 14
+  guess in §6). A ~60-line Swift launcher suffices:
+  `scripts/research/vzsnd.swift` (build: `xcrun swiftc -O`, ad-hoc
+  `codesign -s - --entitlements` with `com.apple.security.virtualization`).
+- macOS 26.4 SDK API idioms (property-setter style for EFI boot loader/
+  variable store/NAT attachment; `serialPorts` + `VZFileHandleSerialPortAttachment`;
+  `Result`-based `vm.start`) are baked into the spike file.
+- Guest image for the product must ship `kernel-modules` (virtio_snd), enable
+  PipeWire (linger or session autostart), and note that audio-group grants need
+  a user-manager restart to take effect.
+- The sandbox is not an audio blocker: bwrap-mapped-root opens the PCM node fine.
+
+Spike artifacts live on `atl-mini:~/andrun-vz/` (`disk.raw`, `vzsnd`, logs) and
+in `scripts/research/`. One vfkit/VZ process per machine at a time, and the
+spike VM (4 GiB) plus `atl` (12 GiB) do not fit the 16 GB mini together.

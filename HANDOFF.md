@@ -1301,10 +1301,12 @@ and the interaction script passes on mini and in the bazzite gate. Follow-ups
 left: ~~AudioTrack `stop()`/`flush()` stubs~~ done in `b858fdff` (HANDOFF
 item 25), `getTimestamp` returns false,
 `AnimationUtils.loadInterpolator` returning null (crashes Music's progress
-indicator), and mini's Lima audio device failing `snd_pcm_hw_params`
-(VM config, audible audio untested there). Phone gate with the new main not
-run yet.
-1a. **exe/DMG VM-launcher distribution (owner question, researched 2026-11-23)**: [`docs/research/vm-launcher-distribution.md`](docs/research/vm-launcher-distribution.md) — feasible, far cheaper than the five native walls; one guest image (the bootstrap rootfs + a drop-directory daemon), wrapped as a `.wsl` double-click distro on Windows (WSLg = per-app windows, Start-Menu shortcuts, Pulse audio glue) and a VZ-VM `.app` on macOS (virtio-gpu/sound/fs). Evidence steps before committing: mini audio A/B → WSL2 import spike → VZ spike; awaiting the owner's go.
+indicator), and mini's Lima audio device failing `snd_pcm_hw_params` — root
+cause found 2026-11-23: **Lima attaches no audio device to the `atl` guest at
+all** (and the cloud image lacked `kernel-modules`, so no `virtio_snd.ko`);
+under VZ with virtio-sound the whole chain works (vm-launcher doc §8). Phone
+gate with the new main not run yet.
+1a. **exe/DMG VM-launcher distribution (owner question, researched 2026-11-23)**: [`docs/research/vm-launcher-distribution.md`](docs/research/vm-launcher-distribution.md) — feasible, far cheaper than the five native walls; one guest image (the bootstrap rootfs + a drop-directory daemon), wrapped as a `.wsl` double-click distro on Windows (WSLg = per-app windows, Start-Menu shortcuts, Pulse audio glue) and a VZ-VM `.app` on macOS (virtio-gpu/sound/fs). macOS evidence steps done 2026-11-23 (mini): **VZ boot PASS** (cloned Lima disk boots headless under vfkit and under our own ~60-line Swift VZ launcher, Fossify Calculator interacts OK) and **audio PASS** (virtio-sound device → PipeWire sink, `aplay` rc=0, Musicplayer's AudioTrack opens clean — see §8 of the doc). vfkit has no sound device: the product launcher needs `VZVirtioSoundDeviceConfiguration` (macOS 15+); spike launcher in `scripts/research/vzsnd.swift`. Remaining step: WSL2 spike (owner todo, no Windows box set up yet), plus listening-by-ear on a Mac with speakers. Only then: launcher/daemon design doc.
 1b. **Interaction scripts** exist (`interactions/`, docs/usage.md): Calculator (7+8=15), Notes (typing) and Fossify Music (library, playback, + a failing `setView` dialog check) are gated. Status and candidates: `docs/agent-tasks/test-first.md` "Status" (maxLines/ellipsize needs an OCR-DSL step first, e.g. `expect-no-text`). Add scripts for more apps, especially ones exercising fixes 5–8 (checkbox clicks, Enter/IME actions, preferences).
 2. App widgets (`AppWidgetManager`, `AppWidgetHost`): unblocks Flow and Fossify Launcher.
 3. Visual check of password masking on the phone (an app with a password field).
@@ -1690,6 +1692,17 @@ Say here which runner you're using for builds/gates, and clear it when done.
   Note: the dumper commit once vanished from the shared clones (branch
   gone locally and on origin) — recreate + `git ls-remote` verify after
   pushing in shared repos.
+- **opencode (this session, 2026-11-23, seventh): `mini` host (no ATL build)**
+  — ran the two macOS evidence steps for the exe/DMG model (see
+  `docs/research/vm-launcher-distribution.md` §8): cloned Lima disk booted
+  under vfkit and a hand-written Swift VZ launcher (`~/andrun-vz/`, artifacts
+  now in `scripts/research/`), plus the audio A/B that found mini's real audio
+  root cause (**Lima attaches no audio device to the guest**; the cloud image
+  also lacked `kernel-modules`, so no `virtio_snd.ko`). No `/usr/local`
+  changes on mini; `atl` stopped during the spike and restarted afterwards
+  (now Running, host keys regenerated — `ssh-keygen -R atl-mini-vm` done on
+  the workstation). The spike VM (4 GiB) and `atl` (12 GiB) were never up at
+  the same time on the 16 GB mini. Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
@@ -1724,3 +1737,6 @@ to `docs/audit/fixed.txt`.
 - An app still dumping threads after an ART abort looks "alive"; the harness now classifies that as CRASH. ATL's light window frame made blank dark screens look non-blank; the harness crops it.
 - The `!` prompt in Claude Code has no TTY: `sudo` there can't ask for a password.
 - Background waits outside `rig job wait` can hang silently: always use bounded waits.
+- `limactl stop`/`start atl` regenerates the guest's ssh host keys (cloud-init): clear the stale `atl-mini-vm` entry (`ssh-keygen -R`) after any Lima restart.
+- Lima attaches **no audio device** to its guests — a Lima VM is not an audio test bed; vfkit v0.6.4 has no sound device either. For VM audio use VZ's `VZVirtioSoundDeviceConfiguration` (macOS 15+) directly (spike: `scripts/research/vzsnd.swift`).
+- Audio-group grants don't apply to an already-running systemd user manager: PipeWire keeps seeing zero ALSA devices until the guest reboots (or the manager is restarted from a fresh login).
