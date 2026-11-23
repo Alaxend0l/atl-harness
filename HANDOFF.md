@@ -749,6 +749,52 @@ with `javac -h`; commit the regenerated header with any new native method.
        checkForLongClick machinery — a partial copy would leave views
        stuck pressed; ATL's back action also comes from JNI straight to
        onBackPressed, so AOSP's BACK branch would double-handle back.
+     - Queue batch 179–193 (fork `3cfaf852`..`337d8a92`):
+       `OnFocusChangeListener`'s interface body was another `// TODO`
+       with **no method at all** — AOSP's `void onFocusChange(View,
+       boolean)` added and the listener stored (`getOnFocusChangeListener`
+       answers it), but honest gap recorded: nothing calls it, ATL's focus
+       is GTK's and the fork has neither `View.onFocusChanged` nor a JNI
+       focus-change callback. `setOnKeyListener` stored nothing; now the
+       listener is stored and `View.dispatchKeyEvent` asks it first like
+       AOSP's `dispatchKeyEventNoClient` (behaviour-visible on the GTK key
+       path). `setTranslationZ`/`getTranslationZ`/`setZ` were state-less
+       while `getZ()` returned elevation alone — **not** just HWUI
+       bookkeeping here, because `ViewGroup.addView` sorts children by
+       `getZ()` before handing the index to GTK (`ViewGroup.java:112`), so
+       the sort now sees elevation + translationZ as AOSP computes it.
+       `isInLayout()` (`return false; // FIXME`) now returns the
+       `in_layout` flag the fork already maintains around
+       `layoutInternal()`. Foreground drawable state (+`getForeground`),
+       `setDefaultFocusHighlightEnabled` (+ the previously undeclared
+       getter, AOSP default true), AOSP's reference-counted
+       `setHasTransientState`/`hasTransientState` (clamped at 0; parent
+       propagation + recycling gate recorded as absent), scroll-indicator
+       state + the missing `SCROLL_INDICATOR_*` constants (masked update)
+       and live-region state + `ACCESSIBILITY_LIVE_REGION_*`. Four items
+       recorded instead of changed, reason in the code: **gap: view
+       saved-state pipeline** (`saveHierarchyState`/`restoreHierarchyState`
+       are empty because the whole feature is absent — no caller for
+       `Activity.onSaveInstanceState(Bundle)`, no id-keyed
+       `dispatchSaveInstanceState`, the widget `SavedState` classes are
+       commented out in `ExpandableListView.java`), no drawable
+       state-animator machinery (180), no accessibility node pipeline
+       (188), and `setSaveEnabled` now at least stores its flag. Two more
+       stale from AOSP: 186 already debug-gated, 189 `onOptionsItemSelected`
+       is just `mParent` delegation in AOSP and ATL has no embedding
+       parent.
+     - **Gate `fc48` FAILED on the canary (`me.zhanghai.android.files`
+       ALIVE→CRASH) and it was a flake, not a regression.** Measured, not
+       assumed: the same NPE (`ap3.c → yo3.k → lk.f → ud.r0 …`,
+       `Object.getClass()` on null, inside a `Dispatchers.Main.immediate`
+       coroutine) reproduces at ~30 % on *both* trees — 2/5 forced reruns
+       at the previous tip `433b2354`, 3/8 at the new tip — and a full
+       re-run at the new tip (`fc49`) is **0 improved, 0 regressed vs
+       `fc47`** (`fc48` vs `fc49` shows the app back to ALIVE). Batch kept.
+       The intermittent crash itself is unfixed and worth a look: it is
+       app-side code reacting to a null root in its storage listing, i.e.
+       the same neighbourhood as the missing SAF document-provider
+       subsystem (HANDOFF item 13 family).
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -984,24 +1030,28 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x18 and full-corpus gates
-  `fc30`..`fc47` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x25 and full-corpus gates
+  `fc30`..`fc49` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
-  was fixed; `fc37` 2 improved: phonograph EXITED->ALIVE, nudge
-  CRASH->BLANK; `fc40` 1 improved: me.zhanghai.android.files
-  CRASH->ALIVE). Fork commits `940749c9`..`433b2354` (21 queue fixes +
-  getWindowToken + fragment onActivityCreated dispatch + fillType +
-  Ringtone + dispatchKeyEvent + View state batch + TextView
-  isSingleLine + batches 119-133, 134-148, 149-163 and 164-178 +
-  hasWindowFocus fixup) pushed to `fix/fixcov-crashes` + `local-fixes`.
-  Added `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the
-  queue with `atl-gaps --emit-queue 15` after `fc39` (119 items), `fc41`
-  (134), `fc43` (149), `fc44` (164) and `fc46` (179). Used `rig smoke` +
-  single-hunk builds to bisect the item-63 witness and the item-131
-  regression. Checked `rig -r bazzite job status` before starting; no
-  other agent's jobs. Phone still unreachable (`rig -r oneplus12 doctor`
-  FAIL ssh), phone items 67/103 stayed parked. Bazzite left installed
-  with the `433b2354` tree (= `local-fixes` tip). Released.
+  was fixed, and `fc48` which FAILED on the canary's flake (see the
+  batch 179–193 entry: cleared by `fc49`, 0/0 vs `fc47`); `fc37` 2
+  improved: phonograph EXITED->ALIVE, nudge CRASH->BLANK; `fc40` 1
+  improved: me.zhanghai.android.files CRASH->ALIVE). Fork commits
+  `940749c9`..`337d8a92` (21 queue fixes + getWindowToken + fragment
+  onActivityCreated dispatch + fillType + Ringtone + dispatchKeyEvent +
+  View state batch + TextView isSingleLine + batches 119-133, 134-148,
+  149-163, 164-178 and 179-193 + hasWindowFocus fixup) pushed to
+  `fix/fixcov-crashes` + `local-fixes`. Added `com.io7m.exfilac.main` to
+  `corpora/fixcov.txt`; refreshed the queue with `atl-gaps --emit-queue
+  15` after `fc39` (119 items), `fc41` (134), `fc43` (149), `fc44` (164),
+  `fc46` (179) and `fc47` (194). Used `rig smoke` + single-hunk builds to
+  bisect the item-63 witness and the item-131 regression, and repeated
+  forced single-app runs (5 at `433b2354`, 8 at the new tip) to show the
+  `fc48` canary CRASH is pre-existing flakiness rather than a regression.
+  Checked `rig -r bazzite job status` before starting; no other agent's
+  jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
+  phone items 67/103 stayed parked. Bazzite left installed with the
+  `337d8a92` tree (= `local-fixes` tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

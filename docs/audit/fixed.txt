@@ -242,3 +242,33 @@ android.view.View.setTooltipText(CharSequence tooltip) is empty
 android.view.View.transformMatrixToGlobal(Matrix matrix) is empty
 android.view.View.isShown() returns a constant instead of state
 android.view.View.hasOnClickListeners() returns a constant instead of state
+# recorded (179/184): the whole view saved-state pipeline is absent, not just these two - nothing
+# asks an Activity to save (Activity.onSaveInstanceState(Bundle) has no caller), no Bundle of view
+# state is handed back, AOSP's View.onSaveInstanceState + ViewGroup.dispatchSaveInstanceState (keyed
+# by view id) are not in the fork, and the widget SavedState classes are commented out
+# (android/widget/ExpandableListView.java). Gap recorded in code; setSaveEnabled now stores its flag
+android.view.View.saveHierarchyState(SparseArray<Parcelable> array) is empty
+android.view.View.restoreHierarchyState(SparseArray<Parcelable> container) is empty
+# recorded (180): AOSP jumps the drawables' state animators; ATL's Drawable has no state-animator
+# machinery at all (Drawable.jumpToCurrentState empty, no StateAnimatorData), so the no-op is faithful
+android.view.View.jumpDrawablesToCurrentState() is empty
+# recorded (188): AOSP announces the pane title through the view's accessibility node; ATL exposes no
+# accessibility node pipeline (android.view.accessibility is stubs, cf. item 141), and AOSP's View
+# has no public getter either
+android.view.View.setAccessibilityPaneTitle(CharSequence paneTitle) is empty
+# stale (186): already debug-gated (`if (debug) { System.out... }`, same as item 143) - atl-gaps'
+# print-in-body rule ignores the gate; the real work is the tooling fix, not the code
+android.content.res.Resources$Theme.applyStyle(int resid, boolean force) prints on every call
+# stale (189): AOSP's Activity.onOptionsItemSelected is `if (mParent != null) return
+# mParent.onOptionsItemSelected(item); return false;` - ATL has no activity-embedding parent, so false
+# is the faithful answer
+android.app.Activity.onOptionsItemSelected(MenuItem item) returns a constant
+android.view.View.setForeground(Drawable foreground) is empty
+android.view.View.setTranslationZ(float translationZ) is empty
+android.view.View.setDefaultFocusHighlightEnabled(boolean enabled) is empty
+android.view.View.isInLayout() returns a constant
+android.view.View.setOnFocusChangeListener(View.OnFocusChangeListener l) is empty
+android.view.View.getAccessibilityLiveRegion() returns a constant
+android.view.View.setOnKeyListener(OnKeyListener l) is empty
+android.view.View.setScrollIndicators(int indicators, int mask) is empty
+android.view.View.setHasTransientState(boolean hasTransientState) is empty
