@@ -983,6 +983,33 @@ with `javac -h`; commit the regenerated header with any new native method.
        syscall lib (`Syscall.getgrgid` pending-AIOOBE + `NewByteArray`) which
        hit the old tree twice (`f56or2/3`) and is what `fc58` showed. Old
        tree strictly worse on identical signatures: batch kept.
+     - Queue batch 284–298 (fork `0183c9f4`..`7db65a56`):
+       `setOnGenericMotionListener` was doubly dead — the interface had no
+       method (TODO stub) and the setter dropped the listener — while ATL's
+       GTK scroll controller feeds real `ACTION_SCROLL` events through
+       `dispatchGenericMotionEvent`, so storing the listener and using
+       AOSP's listener-then-override dispatch order is observable.
+       Scrollbar fading/position and accessibility traversal ids are now
+       stored (gaps: scrollbar drawing, a11y node pipeline; AOSP's
+       `SCROLLBAR_POSITION_*` constants added — verified there are no
+       START/END variants). `setFinishOnTouchOutside` now routes to the
+       window (AOSP's `Window.setCloseOnTouchOutside`; gap: no
+       outside-touch dispatch), and `setDefaultKeyMode` stores the mode
+       **on the activity** where AOSP keeps it (verified against
+       android16-release, not on Window) with the five `DEFAULT_KEYS_*`
+       constants; the unhandled-key fallback needs the search /
+       menu-shortcut / dialer subsystems ATL lacks. Stale/faithful:
+       `isDeviceProtectedStorage` (ContextImpl reads `atl_flags`),
+       `revokeUriPermission` (matches the recorded non-enforced grants),
+       `getPairValue` (old-AOSP `@hide` body verbatim, `Log.w` included),
+       `onKeyMultiple` (AOSP default literally false), `native_drawChildren`
+       (ViewGroup re-declares it native with its C impl; View-side empty
+       body correct), `dispatchSetSelected/Activated` (AOSP base bodies
+       literally empty), progress-bar and preview-screenshot setters (AOSP
+       routes them through `hasFeature`, always false in ATL, and recents,
+       which ATL has no host for). Gate `fc59` vs `fc58`: 0/0; the
+       canary's JNI flake mode appeared in `fc58`+`fc59` — same `getgrgid`
+       signature as the old tree's forced runs `f56or2/3`.
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -1218,25 +1245,25 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x42 and full-corpus gates
-  `fc30`..`fc58` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x44 and full-corpus gates
+  `fc30`..`fc59` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
   was fixed, and `fc48`/`fc52` which FAILED on the canary's flake (see
   the batch 179–193 and 224–238 entries: cleared by `fc49`, 0/0 vs
   `fc47`, and `fc53`, 0/0 vs `fc51`); `fc37` 2
   improved: phonograph EXITED->ALIVE, nudge CRASH->BLANK; `fc40` 1
   improved: me.zhanghai.android.files CRASH->ALIVE). Fork commits
-  `940749c9`..`7f28b7aa` (21 queue fixes + getWindowToken + fragment
+  `940749c9`..`7db65a56` (21 queue fixes + getWindowToken + fragment
   onActivityCreated dispatch + fillType + Ringtone + dispatchKeyEvent +
   View state batch + TextView isSingleLine + batches 119-133, 134-148,
   149-163, 164-178, 179-193, 194-208, 209-223, 224-238, 239-253,
-  254-268 and 269-283 + hasWindowFocus fixup)
+  254-268, 269-283 and 284-298 + hasWindowFocus fixup)
   pushed to `fix/fixcov-crashes` + `local-fixes`. Added
   `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
   with `atl-gaps --emit-queue
   15` after `fc39` (119 items), `fc41` (134), `fc43` (149), `fc44` (164),
   `fc46` (179), `fc47` (194), `fc49` (209), `fc50` (224), `fc51` (239),
-  `fc53` (254), `fc54` (269) and `fc55` (284).
+  `fc53` (254), `fc54` (269), `fc55` (284) and `fc58` (299).
   Used `rig smoke` + single-hunk builds to
   bisect the item-63 witness and the item-131 regression, and repeated
   forced single-app runs (5 at `433b2354`, 8 at the new tip) to show the
@@ -1245,11 +1272,12 @@ Say here which runner you're using for builds/gates, and clear it when done.
   (6/10 vs 5/10 CRASH, same signature) to show the same for `fc52`, and
   6 forced runs on each side of the `fc56` verdict (1/6 CRASH at the new
   tip vs 5/6 at `33f1fedd`, and the app's JNI-abort flake mode found in
-  the *old* tree's logs too) for `fc56`-`fc58`. Checked `rig -r bazzite
+  the *old* tree's logs too) for `fc56`-`fc58`; `fc59` was 0/0 vs
+  `fc58` with the same canary JNI mode in both. Checked `rig -r bazzite
   job status` before starting; no other agent's
   jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
   phone items 67/103 stayed parked. Bazzite left installed with the
-  `7f28b7aa` tree (= `local-fixes` tip). Released.
+  `7db65a56` tree (= `local-fixes` tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

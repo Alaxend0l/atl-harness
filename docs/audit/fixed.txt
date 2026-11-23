@@ -535,3 +535,50 @@ android.app.Activity.onNavigateUp() returns a constant instead of state
 # fixed (283): style now stored (AOSP SCROLLBARS_STYLE_MASK, default INSIDE_INSET); **gap: scrollbar
 # drawing in ATL** stays recorded; AOSP's getter is @hide (fork eefdea6c)
 android.view.View.setScrollBarStyle(int style) is empty
+# stale (284): Context's declaration is abstract; ContextImpl implements it (reads the ATL
+# storage-encryption flag), ContextWrapper delegates
+android.content.Context.isDeviceProtectedStorage() is empty
+# stale (285): AOSP's Activity.onKeyMultiple default is literally false (comment added, fork 7db65a56)
+android.app.Activity.onKeyMultiple(int keyCode, int repeatCount, KeyEvent event) returns a constant instead of state
+# recorded (286): URI-permission enforcement gap recorded when the grant/revoke prints were
+# dropped (fork d85493e4); an empty revoke matches the not-enforced grants
+android.content.Context.revokeUriPermission(Uri uri, int modeFlags) is empty
+# stale (287): the fork's getPairValue body is old-AOSP's @hide method verbatim, its Log.w
+# warning included (flagged single-pair optimisation); AOSP prints the same
+android.os.Bundle.getPairValue() prints on every call
+# recorded (288): AOSP's body routes setFeatureInt(FEATURE_INDETERMINATE_PROGRESS) through
+# hasFeature, which is always false in ATL (item 208) - AOSP's own path no-ops; no title
+# progress bar UI exists (comment added, fork 7db65a56)
+android.app.Activity.setProgressBarIndeterminateVisibility(boolean indeterminate) is empty
+# fixed+recorded (289): flag now stored on Window where AOSP keeps it (mCloseOnTouchOutside);
+# **gap: outside-touch dispatch** - no WM delivers ACTION_OUTSIDE to the app (fork 0046a7a6)
+android.app.Activity.setFinishOnTouchOutside(boolean finish) is empty
+# fixed+recorded (290): AOSP keeps the mode on the *activity* (default DISABLE) - stored with
+# AOSP's five DEFAULT_KEYS_* constants; the unhandled-key fallback needs search/menu-shortcut/
+# dialer subsystems ATL lacks (fork 0046a7a6)
+android.app.Activity.setDefaultKeyMode(int flag) is empty
+# recorded (291): AOSP's body is literally setRecentsScreenshotEnabled(!disable) - a recents/task
+# hint; no recents host (**activity task stack gap**) (comment added, fork 7db65a56)
+android.app.Activity.setDisablePreviewScreenshots(boolean disable) is empty
+# stale (292): ViewGroup re-declares native_drawChildren `protected native` with its JNI impl in
+# api-impl-jni/views/android_view_ViewGroup.c; the empty View-side body is the correct no-op for
+# a childless View (comment added, fork 7db65a56)
+android.view.View.native_drawChildren(long widget, long snapshot) is empty
+# stale (293): AOSP's View-base body is literally empty; ViewGroup.setSelected propagates via its
+# own override, which the fork has (comment added, fork 7db65a56)
+android.view.View.dispatchSetSelected(boolean selected) is empty
+# stale (294): same as 293 for activation (comment added, fork 7db65a56)
+android.view.View.dispatchSetActivated(boolean activated) is empty
+# fixed (295): interface method was a TODO stub, listener dropped; now stored and
+# dispatchGenericMotionEvent tries listener-then-override as AOSP does - observable: GTK's scroll
+# controller feeds real ACTION_SCROLL events through that dispatch (fork 0183c9f4)
+android.view.View.setOnGenericMotionListener(View.OnGenericMotionListener l) is empty
+# fixed (296): stored + AOSP's isScrollbarFadingEnabled declared (default false = AOSP's getter
+# answer before its scroll cache exists); **scrollbar drawing gap** stays recorded (fork 94a5addd)
+android.view.View.setScrollbarFadingEnabled(boolean fadeEnabled) is empty
+# fixed (297): AOSP's SCROLLBAR_POSITION_DEFAULT/LEFT/RIGHT constants (no START/END variants)
+# added, position stored + getter; **scrollbar drawing gap** stays recorded (fork 94a5addd)
+android.view.View.setVerticalScrollbarPosition(int position) is empty
+# fixed+recorded (298): traversal ids stored (default NO_ID) + AOSP's After sibling declared;
+# **gap: accessibility node pipeline in ATL** - nothing consumes them (fork 0d353e50)
+android.view.View.setAccessibilityTraversalBefore(int id) is empty
