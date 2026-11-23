@@ -1317,6 +1317,17 @@ a photo). `interactions/org.fossify.musicplayer.txt` checks albums, tracks and
 (failing until playback works) the player.
 
 ## Waiting on the owner
+- **Rust-rewrite decision for the fork (pending).** Owner asked whether to
+  rebuild Andrun in Rust (stability, headless testing, AGPL, "Java falling
+  behind" — note: Google's *app* language is Kotlin, but Kotlin compiles to
+  the same dex the fork must implement against; Google's Rust push is in
+  the native/C++ tier, which maps to our `api-impl-jni` C, not the Java).
+  Full research written 2026-11-23 in
+  [`docs/research/rust-rewrite.md`](docs/research/rust-rewrite.md):
+  measurements (336 k hand-written Java LOC vs 31 k C; upstream 143
+  commits/3 months, all Java), options table (full rewrite = no; C→Rust
+  incremental = plausible; JVM test rig = do regardless; Rust+JNI spike =
+  suggested evidence step). No code changed; awaiting the owner's call.
 - Telephony/SMS design for Messages and Phone.
 - Merging the two fedora-atomic-phone branches (`plasma-mobile-spectacle`, `oneplus12-flatpak-home`); both are already applied on the phone by hand.
 - **Phone music playback check** (roadmap step "phone gate"): largely done —
