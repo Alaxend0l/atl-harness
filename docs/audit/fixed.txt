@@ -582,3 +582,46 @@ android.view.View.setVerticalScrollbarPosition(int position) is empty
 # fixed+recorded (298): traversal ids stored (default NO_ID) + AOSP's After sibling declared;
 # **gap: accessibility node pipeline in ATL** - nothing consumes them (fork 0d353e50)
 android.view.View.setAccessibilityTraversalBefore(int id) is empty
+# recorded (299): AOSP returns its scroll cache's scrollbar width and 0 with no cache;
+# ATL never builds one (**scrollbar drawing gap**) - 0 is AOSP's own answer (comment, fork bb9a2c73)
+android.view.View.getVerticalScrollbarWidth() returns a constant instead of state
+# stale (300): body is AOSP's verifyPreloadConfig verbatim; its Log.w only fires while
+# mPreloading, which ATL sets only inside startPreload()
+android.content.res.Resources.verifyPreloadConfig(int changingConfigurations, int allowVarying, int resourceId, String name) logs and returns a constant
+# fixed (301): children started for a result are now tracked per request code (ATL creates
+# them itself); finishActivity(requestCode) finishes the child and delivers RESULT_CANCELED
+# unless the child already reported - setResult gained the AOSP once-only dispatch guard (fork 0b6fd2d9)
+android.app.Activity.finishActivity(int requestCode) is marked TODO/FIXME
+# stale (302): the flag matched the prose "no-op" inside a comment about ReactViewGroup;
+# layoutInternal's body is real layout logic
+android.view.View.layoutInternal(int width, int height) is marked TODO/FIXME
+# fixed (303): removed the per-intent startup dump; the two failure prints that precede
+# System.exit(1) stay (fork c2adb3ef)
+android.app.Activity.createMainActivity(String className, long native_window, String uriString) prints on every call
+# stale (304): Log.d is AOSP's own, gated by TRACE_FOR_PRELOAD=false - never prints
+android.content.res.Resources.loadComplexColor(@NonNull TypedValue value, int id, Theme theme) prints on every call
+# stale (305): same - AOSP body verbatim, gate false
+android.content.res.Resources.loadColorStateList(TypedValue value, int id, Theme theme) prints on every call
+# stale (306): same - AOSP body verbatim, TRACE_FOR_MISS_PRELOAD/DEBUG_LOAD gates false
+android.content.res.Resources.loadComplexColorForCookie(TypedValue value, int id, Theme theme) prints on every call
+# stale (307): Context's declaration is abstract; ContextImpl implements it (returns
+# atl_loaded_app) and dozens of call sites use it
+android.content.Context.get_atl_loaded_app() is empty
+# recorded (308): AOSP answers mParcelledData != null; this Bundle has no lazily-unparcelled
+# representation (no mParcelledData field, values always in mMap) - false is faithful (comment, fork bb9a2c73)
+android.os.Bundle.isParcelled() returns a constant instead of state
+# stale (309): the HACK is ATL's intentional watch hook (ATL_IS_WATCH env); AOSP's field
+# screenRound is never SCREEN_ROUND_YES on ATL's configurations anyway
+android.content.res.Configuration.isScreenRound() is marked TODO/FIXME
+# stale (310): body is old-AOSP's @hide forPair verbatim, its "// TODO: optimize this case."
+# comment included - the TODO is AOSP's own
+android.os.Bundle.forPair(String key, String value) is marked TODO/FIXME
+# stale (311): Menu.close() is an interface declaration (AOSP shape); the implementation
+# PopupMenu.MenuImpl.close() dismisses the popup
+android.view.Menu.close() is empty
+# stale (312): interface declaration (AOSP shape); PopupMenu.MenuItemImpl.setChecked stores
+# and isChecked reads back
+android.view.MenuItem.setChecked(boolean checked) is empty
+# stale (313): interface declaration (AOSP shape); PopupMenu.MenuItemImpl.setTitle stores and
+# re-inserts the GMenu row, getTitle reads back
+android.view.MenuItem.setTitle(CharSequence title) is empty

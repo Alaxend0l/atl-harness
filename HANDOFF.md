@@ -1025,6 +1025,37 @@ with `javac -h`; commit the regenerated header with any new native method.
        "unknown"`); every app died at startup (`f60nr1..6`). Follow-up:
        align art_standalone's `System.java` with AOSP, then mask
        passwd too.
+     - Queue batch 299–313 (fork `0b6fd2d9`..`bb9a2c73`):
+       `finishActivity(requestCode)` was a logged stub with a "track
+       started activities" TODO — ATL creates the for-result children
+       itself (`startActivityForResult` records `resultRequestCode`/
+       `resultActivity` on them), so the request-code→child map now
+       lives on the caller where AOSP's activity manager keeps it:
+       finishActivity finishes the right child and delivers
+       RESULT_CANCELED unless it already reported; `setResult` gained
+       AOSP's dispatch-exactly-once guard. Unknown codes stay a silent
+       no-op as in AOSP. Dropped the per-intent startup dump in
+       `createMainActivity` (failure prints before `System.exit(1)`
+       kept). Stale/faithful: `getVerticalScrollbarWidth` (0 = AOSP's
+       answer with no scroll cache; scrollbar drawing gap),
+       `isParcelled` (no `mParcelledData` representation in this fork
+       at all), Resources `verifyPreloadConfig`/`load*Color*` (AOSP
+       bodies verbatim — every flagged print is gated by
+       `TRACE_FOR_PRELOAD`/`TRACE_FOR_MISS_PRELOAD`/`DEBUG_LOAD`, all
+       false), `layoutInternal` (flag matched the prose "no-op" in a
+       comment — TODO_MARK false positive, follow-up already owed),
+       `isScreenRound` (intentional `ATL_IS_WATCH` hook), `forPair`
+       (old-AOSP `@hide` body incl. AOSP's own TODO),
+       `get_atl_loaded_app` (abstract on Context, ContextImpl
+       implements), `Menu.close`/`MenuItem.setChecked`/`setTitle`
+       (interface declarations flagged; PopupMenu's impls have real
+       bodies — close() dismisses the popup). Gate `fc61` vs `fc60`
+       **FAILED on the canary**, measured not assumed: 10 forced runs
+       at the new tip (7/10 CRASH, **all the same pre-existing NPE
+       mode** `ap3.c → yo3.k`, JNI=0 — group mask holding) vs 3/6 at
+       the old tip (`f60nb1..6`); the canary logs 0
+       `startActivityForResult` hits, so the batch's code paths are
+       unreachable in it — Fisher-exact p≈0.6: flake, batch kept.
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -1260,8 +1291,8 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x44 and full-corpus gates
-  `fc30`..`fc60` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x46 and full-corpus gates
+  `fc30`..`fc61` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
   was fixed, and `fc48`/`fc52` which FAILED on the canary's flake (see
   the batch 179–193 and 224–238 entries: cleared by `fc49`, 0/0 vs
@@ -1270,11 +1301,11 @@ Say here which runner you're using for builds/gates, and clear it when done.
   improved: me.zhanghai.android.files CRASH->ALIVE; `fc60` 1 improved:
   same canary CRASH->ALIVE after the harness masked `/etc/group` from
   the sandbox (D18, killed the JNI flake mode). Fork commits
-  `940749c9`..`7db65a56` (21 queue fixes + getWindowToken + fragment
+  `940749c9`..`bb9a2c73` (21 queue fixes + getWindowToken + fragment
   onActivityCreated dispatch + fillType + Ringtone + dispatchKeyEvent +
   View state batch + TextView isSingleLine + batches 119-133, 134-148,
   149-163, 164-178, 179-193, 194-208, 209-223, 224-238, 239-253,
-  254-268, 269-283 and 284-298 + hasWindowFocus fixup)
+  254-268, 269-283, 284-298 and 299-313 + hasWindowFocus fixup)
   pushed to `fix/fixcov-crashes` + `local-fixes`. Added
   `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
   with `atl-gaps --emit-queue
@@ -1290,11 +1321,15 @@ Say here which runner you're using for builds/gates, and clear it when done.
   6 forced runs on each side of the `fc56` verdict (1/6 CRASH at the new
   tip vs 5/6 at `33f1fedd`, and the app's JNI-abort flake mode found in
   the *old* tree's logs too) for `fc56`-`fc58`; `fc59` was 0/0 vs
-  `fc58` with the same canary JNI mode in both. Checked `rig -r bazzite
+  `fc58` with the same canary JNI mode in both; `fc61` vs `fc60`
+  FAILED on the canary's other (NPE) flake mode again — 10 forced
+  runs at the new tip (7/10, same signature, and the canary never
+  reaches the batch's changed code) vs 3/6 at the old tip: flake.
+  Checked `rig -r bazzite
   job status` before starting; no other agent's
   jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
   phone items 67/103 stayed parked. Bazzite left installed with the
-  `7db65a56` tree (= `local-fixes` tip). Released.
+  `bb9a2c73` tree (= `local-fixes` tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
