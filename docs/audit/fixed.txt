@@ -736,3 +736,38 @@ android.view.Menu.hasVisibleItems() is empty
 # stale (358): interface declaration; MenuImpl.setGroupVisible routes to each item's
 # setVisible (which manages the GMenu row)
 android.view.Menu.setGroupVisible(int group, boolean visible) is empty
+# stale (359): interface declaration; MenuItemImpl.setTitleCondensed stores the value
+android.view.MenuItem.setTitleCondensed(CharSequence titleCondensed) is empty
+# stale (360): interface declaration; MenuItemImpl.getGroupId returns the stored group id
+android.view.MenuItem.getGroupId() is empty
+# recorded (361): AOSP's MenuBuilder.addIntentOptions adds one item per
+# PackageManager.queryIntentActivityOptions result and returns the count; ATL's hook returns
+# null (no cross-app resolution) and AOSP turns null into N=0, so 0 is AOSP's answer
+# (comment, fork 117b8d03)
+android.view.Menu.addIntentOptions(int groupId, int itemId, int order, ComponentName caller, Intent[] specifics, Intent intent, int flags, MenuItem[] outSp) is empty
+# stale (362): the only print in MenuState.setItem is AOSP's own Log.w error path
+# ("Ignoring attribute itemActionViewLayout", android16-release MenuInflater:526) - never on
+# the normal path, so "prints on every call" is wrong
+android.view.MenuInflater$MenuState.setItem(MenuItem item) prints on every call
+# stale (363-364): AOSP verbatim - android16-release MenuInflater declares both registerMenu
+# overloads as empty layoutlib hooks ("it should not be deleted because it appears to do
+# nothing") and calls them at the same two sites
+android.view.MenuInflater.registerMenu(@SuppressWarnings( ) MenuItem item, @SuppressWarnings( ) AttributeSet set) is empty
+android.view.MenuInflater.registerMenu(@SuppressWarnings( ) SubMenu subMenu, @SuppressWarnings( ) AttributeSet set) is empty
+# fixed (365): the body printed the literal "FIXME" for toolType/buttonState/metaState/flags/
+# edgeFlags/historySize/downTime; every getter and *ToString helper already existed, so the
+# commented-out AOSP calls are now live (android16-release MotionEvent.toString shape)
+android.view.MotionEvent.toString() is marked TODO/FIXME
+# stale (366): AOSP's private object-pool constructor is empty verbatim (state is filled by
+# the obtain/native paths)
+android.view.MotionEvent.MotionEvent() is empty
+# stale (367-373): AttributeSet is an interface (AOSP shape) - every declaration is a
+# false positive; XmlPullAttributes/DecompiledXmlResourceParser implement the real bodies
+# (delegating to the XmlPullParser)
+android.util.AttributeSet.getAttributeValue(int index) is empty
+android.util.AttributeSet.getAttributeValue(String namespace, String name) is empty
+android.util.AttributeSet.getPositionDescription() is empty
+android.util.AttributeSet.getAttributeCount() is empty
+android.util.AttributeSet.getAttributeBooleanValue(String namespace, String attribute, boolean defaultValue) is empty
+android.util.AttributeSet.getAttributeBooleanValue(int index, boolean defaultValue) is empty
+android.util.AttributeSet.getAttributeNameResource(int index) is empty

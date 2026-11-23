@@ -1087,6 +1087,29 @@ with `javac -h`; commit the regenerated header with any new native method.
        setters now store AOSP-style (alphabetic lower-cased,
        unchanged = no-op; setShortcut stores both). Gate `fc63` vs
        `fc62`: 0/0.
+     - Queue batch 359–373 (fork `66f2e96c`..`117b8d03`): 13 of 15 stale
+       again — Menu/MenuItem/**AttributeSet interface declarations**
+       (359, 360, 367–373; `XmlPullAttributes` and
+       `DecompiledXmlResourceParser` carry the real bodies), and
+       AOSP-verbatim code the scanner mis-flags (`registerMenu` ×2 —
+       android16-release `MenuInflater` declares both empty layoutlib
+       hooks with that same comment and calls them at the same two
+       sites; the private `MotionEvent()` pool ctor; `MenuState.setItem`'s
+       only print is AOSP's own `Log.w` on the double-action-view error
+       path, never on the normal path). One real fix:
+       `MotionEvent.toString()` printed the literal **"FIXME"** for
+       toolType/buttonState/metaState/flags/edgeFlags/historySize/
+       downTime — every getter and `*ToString` helper already existed in
+       the file, only commented out; now AOSP's real calls (verified
+       against android16-release `MotionEvent`, older field list kept:
+       no actionButton/classification APIs here). Recorded faithful:
+       `addIntentOptions` answers 0 (AOSP adds one item per
+       `queryIntentActivityOptions` result, and ATL's hook returns null
+       → AOSP's own code gives N=0). Gate `fc64` vs `fc63`: **1
+       improved** (canary `me.zhanghai.android.files` CRASH→ALIVE — its
+       NPE flake mode, not caused by this batch, which only changed
+       `toString`), 0 regressed. `117b8d03` (comment-only, diff
+       verified) is installed on top of the tree `fc64` ran.
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
