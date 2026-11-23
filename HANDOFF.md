@@ -1580,10 +1580,11 @@ Say here which runner you're using for builds/gates, and clear it when done.
   cycles, `play()` each resume, position advances 8158→15581 ms.
   Harness: semantic `key media-*` names (`8fd0656`), rig PipeWire socket
   bind (`64be560`). Gates (bazzite, corpora/fixcov.txt): `fc70→fc71`
-  0 improved/0 regressed (keys only), **`fc72` running at tip
-  `a52665e6`** (covers the AudioTrack change). Bazzite and phone both
-  installed with `local:a52665e6`. NOT yet merged to `local-fixes` —
-  merge after fc72 is 0-regressions.
+  0 improved/0 regressed (keys only), `fc71→fc72` and `fc70→fc72`
+  **0 improved/0 regressed** (tip `a52665e6`, covers the AudioTrack
+  change). Bazzite and phone both installed with `local:a52665e6`.
+  **Merged to `local-fixes` (tip `a52665e6`) and pushed to the fork's
+  origin**; nothing went to upstream (push URL disabled).
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
