@@ -89,13 +89,15 @@ javac -nowarn -source 8 -target 8 \
   -classpath "$WORK/classes" -d "$WORK/tests-out" $TESTS
 TESTCLASSES=$(cd "$WORK/tests-out" && find . -name '*.class' | sed 's|^\./||; s|\.class$||; s|/|.|g')
 
-echo "== [5/5] compile JNI shims, run tests on the JVM"
+echo "== [5/5] generate JNI recording stubs, compile shims, run tests on the JVM"
 rm -f "$WORK/libatlshim.so"
+python3 "$HERE/genshim.py" "$WORK/tree" "$WORK/shim-auto.c"
 JH=$(dirname "$(dirname "$(readlink -f "$(command -v javac)")")")
-gcc -shared -fPIC -I"$JH/include" -I"$JH/include/linux" "$HERE/shim.c" -o "$WORK/libatlshim.so"
+gcc -shared -fPIC -I"$JH/include" -I"$JH/include/linux" "$HERE/shim.c" "$WORK/shim-auto.c" -o "$WORK/libatlshim.so"
 FAIL=0
 for T in $TESTCLASSES; do
   if java --add-opens java.base/java.io=ALL-UNNAMED --add-opens java.base/java.net=ALL-UNNAMED \
+       --enable-native-access=ALL-UNNAMED \
        -Dshim="$WORK/libatlshim.so" \
        -cp "$WORK/tests-out:$WORK/classes:$WORK/lib/core-nonjava.jar" "$T"; then
     echo "PASS $T"

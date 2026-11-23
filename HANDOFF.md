@@ -1709,6 +1709,12 @@ Say here which runner you're using for builds/gates, and clear it when done.
   (now Running, host keys regenerated — `ssh-keygen -R atl-mini-vm` done on
   the workstation). The spike VM (4 GiB) and `atl` (12 GiB) were never up at
   the same time on the 16 GB mini. Released.
+- **opencode (this session, 2026-11-23, eighth): workstation only (no runner)**
+  — finished the jvmrig brief (D21 option C): `genshim.py` auto-shim
+  generator (1029 recording stubs) + 5 new test classes, all PASS against
+  fork `main` `4a97b41b` via a temporary worktree `~/Develop/atl-jvmrig`
+  (removed after). Found rig gap #1 (`KeyEvent.changeTimeRepeat` misses
+  FLAG_LONG_PRESS) — fork-fix candidate, not touched here. Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
