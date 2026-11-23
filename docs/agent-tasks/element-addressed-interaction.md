@@ -3,8 +3,9 @@
 Status: **P0 done 2026-11-23** (media keys, fork `dc58bf2a` on
 `fix/fixcov-crashes`); **P1 done 2026-11-23, witnessed and merged**
 (fork dumper + harness `find`/`tap $el` in Rust, owner instruction;
-fork merge `56206f55` on `local-fixes`); P2–P4 planned (owner proposal
-2026-11-23, see roadmap "Harness: element-addressed interaction scripts").
+fork merge `56206f55` on `local-fixes`); **P2 done 2026-11-23, witnessed on
+oneplus12**; P3–P4 planned (owner proposal 2026-11-23, see roadmap
+"Harness: element-addressed interaction scripts").
 
 ## P1 (done 2026-11-23)
 
@@ -98,6 +99,41 @@ fork merge `56206f55` on `local-fixes`); P2–P4 planned (owner proposal
     obfuscated in release APKs.
   - P2: convert the tracked `interactions/*.txt` scripts to
     element-addressed steps where the app uses classic views.
+
+## P2 (done 2026-11-23)
+
+- Harness (`src/interact.rs`, `src/classify.rs`, `src/runner.rs`): a
+  `find`/`wait-find` miss now carries an `ElementMiss` error, and the run
+  records a distinct **`element` failure kind** with signature
+  `element not found: NAME` instead of the generic `interaction failed:
+  line N …`. Other failed steps keep the `interaction` kind. `docs/usage.md`
+  documents both.
+- Script conversions (classic-views apps only):
+  - `org.fossify.math.txt`: keypad keys are `wait-find` + `tap $el`; the
+    result is asserted in the view tree (`wait-find "15"`) — OCR no longer
+    needed.
+  - `org.fossify.notes.txt`: the opening tap stays coordinate-based (the
+    empty editor shows only a *hint*, which the dumper does not expose);
+    the assertion became `wait-find "hello atl"` (stronger than OCR).
+  - `org.fossify.musicplayer.txt`: tabs, the "Create new playlist" menu
+    item and the library rows are named finds; the icon-only overflow
+    button and the never-rendered dialog field keep coordinates; the
+    expected-fail semantics (`expect-text "TestList"`, AlertDialog
+    setView bug) are unchanged.
+  - `org.akanework.gramophone.txt`: annotated **not P2-convertible**
+    (Compose list = one opaque node; needs the P3 a11y pass).
+- Witness (runner **oneplus12**, installed build `local:0b1c3695`, the
+  P1 dumper build; runs `p2a` + scratch `p2neg2`): `org.fossify.math`
+  `interact_ok=1` 0 signatures; `org.fossify.notes` `interact_ok=1` (only
+  its known `swallowed` + NPE `exception` pair); `org.fossify.musicplayer`
+  `interact_ok=0` with exactly one signature, `interaction` kind at line 31
+  `ExpectText("TestList")` — every element step before it passed. Negative
+  witness: a scratch script with `wait-find "ZzzNoSuchWidget"` recorded
+  `element | element not found: "ZzzNoSuchWidget"`.
+- No full-corpus gate: this is a harness-only change (no ATL build change)
+  and only scripted apps are affected; each was witnessed above.
+- `swipe` from the original P2 sketch is still open (folded into P4-era
+  work); `wait-find` itself shipped in P1.
 
 ## Why
 Fixed-coordinate witness scripts lie silently: when the app layout or
@@ -225,8 +261,9 @@ origin.
 - **P1 spike** — `ViewRootImpl` registry + gated JSON view dump +
   harness `find`/`tap $el`, demonstrated on a Fossify app: a witness
   that taps "Play" by name and survives a library re-sort. Half-day scale.
-- **P2** — `swipe`, `wait-find`, failure-signature kind, `docs/usage.md`
-  + script examples; convert the flakiest existing witness scripts.
+- **P2 (done 2026-11-23)** — failure-signature kind (`element`) + script
+  conversions + `docs/usage.md`; `wait-find` had already shipped in P1,
+  `swipe` still open.
 - **P3 (fork, spike)** — minimal `AccessibilityNodeInfo` model +
   env-gated `AccessibilityManager.isEnabled()=true`; Gramophone go/no-go:
   does Compose populate nodes? Yes → M-a11y unified tree; no → M-ocr

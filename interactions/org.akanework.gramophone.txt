@@ -12,6 +12,12 @@
 # Needs the harness test library ([atl] media_dir,
 # scripts/runner/make-test-media.sh); on runners without it this just fails
 # the taps harmlessly. 1080x1920 screen.
+#
+# NOT P2-convertible: Gramophone's list is androidx Compose (one opaque
+# AndroidComposeView node in the element dump), so named finds have nothing
+# to match until the P3 accessibility pass (docs/agent-tasks/
+# element-addressed-interaction.md). The coordinate taps here are
+# known-fragile (see that brief's "Why").
 wait 3
 expect-text "Songs"
 tap 64 336      # play icon on the first song row (Alpha Song 1, opus)

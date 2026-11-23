@@ -78,7 +78,35 @@ pub struct StepResult {
     pub text: String,
     pub ok: bool,
     pub detail: String,
+    /// Set when the step failed as "element not found" (P2): gives the run a
+    /// distinct `element` failure signature instead of a generic interaction one.
+    pub element_sig: Option<String>,
 }
+
+/// Error marker for find/wait-find misses (src/runner.rs records these with
+/// Kind::Element; the element list stays in `detail`).
+#[derive(Debug)]
+pub struct ElementMiss {
+    pub sig: String,
+    msg: String,
+}
+
+impl ElementMiss {
+    pub fn new(name: &str, msg: String) -> Self {
+        ElementMiss {
+            sig: format!("element not found: {name:?}"),
+            msg,
+        }
+    }
+}
+
+impl std::fmt::Display for ElementMiss {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.msg)
+    }
+}
+
+impl std::error::Error for ElementMiss {}
 
 #[derive(Debug, Clone)]
 pub struct Interaction {
@@ -583,14 +611,20 @@ pub fn run(
                     }
                     if Instant::now() >= deadline {
                         match read_dump(dir) {
-                            Some(nodes) => bail!(
-                                "no element {:?} (class={:?} nth={}) within {:.1}s; app exposes {}",
-                                spec.name,
-                                spec.class,
-                                spec.nth,
-                                spec.timeout_s,
-                                candidate_list(&nodes, 40)
-                            ),
+                            Some(nodes) => {
+                                return Err(ElementMiss::new(
+                                    &spec.name,
+                                    format!(
+                                        "no element {:?} (class={:?} nth={}) within {:.1}s; app exposes {}",
+                                        spec.name,
+                                        spec.class,
+                                        spec.nth,
+                                        spec.timeout_s,
+                                        candidate_list(&nodes, 40)
+                                    ),
+                                )
+                                .into())
+                            }
                             None => bail!(
                                 "no element dump in {} (does the installed ATL build support ATL_ELEMENT_DUMP?)",
                                 dir.display()
@@ -700,15 +734,20 @@ pub fn run(
                 Ok(format!("found {want:?}"))
             }
         })();
-        let (ok, detail) = match r {
-            Ok(d) => (true, d),
-            Err(e) => (false, format!("{e:#}")),
+        let (ok, detail, element_sig) = match r {
+            Ok(d) => (true, d, None),
+            Err(e) => (
+                false,
+                format!("{e:#}"),
+                e.downcast_ref::<ElementMiss>().map(|m| m.sig.clone()),
+            ),
         };
         results.push(StepResult {
             line: *line,
             text,
             ok,
             detail,
+            element_sig,
         });
         if matches!(child.try_wait(), Ok(Some(_))) {
             exited = true;

@@ -1,10 +1,19 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Fossify Calculator: 7 + 8 = shows 15. Coordinates: 1080x1920 Xvfb screen.
-tap 140 1055      # 7
-tap 940 1547      # +
-tap 405 1055      # 8
-tap 940 1793      # =
+# Fossify Calculator: 7 + 8 = shows 15.
+# P2 conversion (element-addressed): the keypad keys are plain TextViews, so
+# `find` by label replaces the 1080x1920-coordinate taps that broke whenever
+# the layout shifted. The display result is asserted in the view tree
+# (wait-find) instead of OCR.
+wait 2
+wait-find "7" timeout=40
+tap $el
+wait-find "+" timeout=10
+tap $el
+wait-find "8" timeout=10
+tap $el
+wait-find "=" timeout=10
+tap $el
 wait 1
 shot result
 expect-changed
-expect-text "15"
+wait-find "15" timeout=10

@@ -1,8 +1,11 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Fossify Notes: typing into the note shows the text (EditText input path).
-tap 300 140       # the note's text field ("Insert text here")
+# P2: the note editor's empty hint ("Insert text here") is a hint, not text,
+# so the dumper never sees it — the opening tap stays coordinate-based; the
+# assertion became a view-tree wait-find (stronger than OCR).
+tap 300 140       # the note's text field ("Insert text here" hint)
 type "hello atl"
 wait 1
 shot typed
 expect-changed
-expect-text "hello atl"
+wait-find "hello atl" timeout=10

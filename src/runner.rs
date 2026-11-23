@@ -339,11 +339,18 @@ pub fn run_one(
     let mut failures = classify::parse(&text, stubs);
     if let Some(i) = &interaction {
         if let Some(s) = i.first_failure() {
-            failures.push(Failure {
-                kind: Kind::Interaction,
-                signature: format!("interaction failed: line {} {}", s.line, s.text),
-                detail: s.detail.clone(),
-            });
+            match &s.element_sig {
+                Some(sig) => failures.push(Failure {
+                    kind: Kind::Element,
+                    signature: sig.clone(),
+                    detail: s.detail.clone(),
+                }),
+                None => failures.push(Failure {
+                    kind: Kind::Interaction,
+                    signature: format!("interaction failed: line {} {}", s.line, s.text),
+                    detail: s.detail.clone(),
+                }),
+            }
         }
         if i.exited {
             let last = i

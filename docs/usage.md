@@ -113,7 +113,9 @@ hardware play/pause toggle, so after a `media-pause` it means "play"),
 `shot NAME`,
 `expect-changed [PCT]`, `expect-text "text"`. The run stores `interact_ok` and
 per-step results (`interact_detail`); a failed step adds an `interaction`
-signature; if the app exits during the script it is a CRASH like any other.
+signature (or an `element` signature, "element not found: NAME", when a
+`find`/`wait-find` misses); if the app exits during the script it is a CRASH
+like any other.
 `compare` treats "script passed, now fails" (same outcome) as a regression,
 so the gate covers what apps *do*, not only how they start. Find coordinates
 from a screenshot (`rig smoke`). Runners need `xdotool` and `tesseract`

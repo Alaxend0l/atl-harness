@@ -52,6 +52,8 @@ pub enum Kind {
     Swallowed,
     /// A step of the app's interaction script failed (src/interact.rs).
     Interaction,
+    /// A `find`/`wait-find` element could not be found (P2, src/interact.rs).
+    Element,
 }
 
 impl Kind {
@@ -63,6 +65,7 @@ impl Kind {
             Kind::Signal => "signal",
             Kind::Swallowed => "swallowed",
             Kind::Interaction => "interaction",
+            Kind::Element => "element",
         }
     }
 }

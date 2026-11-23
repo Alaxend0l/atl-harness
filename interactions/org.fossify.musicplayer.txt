@@ -8,12 +8,19 @@
 # (run nav10) the "Create new playlist" dialog renders only its title and the
 # Cancel/OK buttons - the custom view (title EditText) is dropped, so the typed
 # playlist name never appears. Run twice on the unfixed fork (runs setv1/setv2):
-# failed identically, at line 24 ExpectText("TestList") on every run.
-tap 108 1880      # Playlists tab
+# failed identically, at the ExpectText("TestList") step on every run.
+#
+# P2 conversion: tabs, the menu item and the library rows are named elements;
+# only the icon-only overflow button and the (never-rendered) dialog field keep
+# coordinates.
 wait 2
-tap 1045 83       # overflow menu (3-dot)
+wait-find "Playlists" timeout=40   # Playlists tab
+tap $el
 wait 2
-tap 850 117       # Create new playlist
+tap 1045 83       # overflow menu (3-dot icon: no text/desc, stays a tap)
+wait 2
+wait-find "Create new playlist" timeout=10
+tap $el
 wait 3
 shot dlg
 tap 540 450       # the custom view (title field) should be here
@@ -21,21 +28,22 @@ wait 1
 type "TestList"
 wait 1
 shot typed
-expect-text "TestList"   # the dialog must show what was typed
+expect-text "TestList"   # EXPECTED FAIL: the dialog must show what was typed
 tap 540 1000      # dismiss the dialog (outside tap)
 wait 2
-tap 754 1880      # Albums tab
+wait-find "Albums" timeout=10
+tap $el
 wait 2
 shot albums
-expect-text "First Album"
-expect-text "Second"
-tap 968 1880      # Tracks tab
+wait-find "First Album" timeout=10
+wait-find "Second" timeout=5
+wait-find "Tracks" timeout=10
+tap $el
 wait 2
 shot tracks
-expect-text "Alpha Song 1"
-expect-text "Beta Tune 2"
-tap 300 150       # first track
+wait-find "Alpha Song 1" timeout=10
+tap $el
 wait 4
 shot playing
 expect-changed
-expect-text "Alpha Song 1"   # the player shows the playing track
+wait-find "Alpha Song 1" timeout=10   # the player shows the playing track

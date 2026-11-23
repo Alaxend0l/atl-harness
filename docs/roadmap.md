@@ -236,8 +236,12 @@ Status 2026-11-23: **P0** (semantic media keys) done; **P1** done — the
 fork's env-gated `ATLElementDump` (`local-fixes` `56206f55`) plus harness
 `find`/`wait-find`/`tap $el`/`long-press $el`, witnessed end-to-end on
 `org.fossify.musicplayer` (oneplus12 run `p1w11`, `interact_ok=1`) and
-gated clean (`fc75`: 0/0). P2 (convert tracked scripts), P3 (accessibility
-pass so Compose apps expose elements) and P4 (`swipe`) remain.
+gated clean (`fc75`: 0/0). P2 done 2026-11-23: the tracked
+`interactions/*.txt` scripts are element-addressed where the app uses
+classic views (Gramophone is annotated Compose-blocked), and a missed
+`find`/`wait-find` now records a distinct `element` failure signature
+(witnessed on oneplus12, runs `p2a`/`p2neg2`). P3 (accessibility pass so
+Compose apps expose elements) and P4 (`swipe`, OCR word boxes) remain.
 
 ## Agent tasks
 Standing work for coding agents, independent of the steps above:

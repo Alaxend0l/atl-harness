@@ -1307,13 +1307,18 @@ all** (and the cloud image lacked `kernel-modules`, so no `virtio_snd.ko`);
 under VZ with virtio-sound the whole chain works (vm-launcher doc §8). Phone
 gate with the new main not run yet.
 1a. **exe/DMG VM-launcher distribution (owner question, researched 2026-11-23)**: [`docs/research/vm-launcher-distribution.md`](docs/research/vm-launcher-distribution.md) — feasible, far cheaper than the five native walls; one guest image (the bootstrap rootfs + a drop-directory daemon), wrapped as a `.wsl` double-click distro on Windows (WSLg = per-app windows, Start-Menu shortcuts, Pulse audio glue) and a VZ-VM `.app` on macOS (virtio-gpu/sound/fs). macOS evidence steps done 2026-11-23 (mini): **VZ boot PASS** (cloned Lima disk boots headless under vfkit and under our own ~60-line Swift VZ launcher, Fossify Calculator interacts OK) and **audio PASS** (virtio-sound device → PipeWire sink, `aplay` rc=0, Musicplayer's AudioTrack opens clean — see §8 of the doc). vfkit has no sound device: the product launcher needs `VZVirtioSoundDeviceConfiguration` (macOS 15+); spike launcher in `scripts/research/vzsnd.swift`. Remaining step: WSL2 spike (owner todo, no Windows box set up yet), plus listening-by-ear on a Mac with speakers. **Design doc written 2026-11-23 (D22): [`docs/launcher-design.md`](docs/launcher-design.md)** — shape-only per owner (Andrun pre-release; must keep exe/dmg/flatpak/appimage shippable), stage-gated on the macOS display spike + WSL2 spike, nothing to build yet.
-1b. **Interaction scripts** exist (`interactions/`, docs/usage.md): Calculator (7+8=15), Notes (typing) and Fossify Music (library, playback, + a failing `setView` dialog check) are gated. Status and candidates: `docs/agent-tasks/test-first.md` "Status" (maxLines/ellipsize needs an OCR-DSL step first, e.g. `expect-no-text`). Add scripts for more apps, especially ones exercising fixes 5–8 (checkbox clicks, Enter/IME actions, preferences).
+1b. **Interaction scripts** (`interactions/`, docs/usage.md): Calculator (7+8=15), Notes (typing) and Fossify Music (library, playback, + a failing `setView` dialog check) are gated — and since P2 (2026-11-23) they address UI **by element** (`wait-find`/`tap $el`) where the app uses classic views, with a distinct `element` failure signature on a miss; Gramophone stays coordinate-based until P3 (Compose). Status and candidates: `docs/agent-tasks/test-first.md` "Status" (maxLines/ellipsize needs an OCR-DSL step first, e.g. `expect-no-text`). Add scripts for more apps, especially ones exercising fixes 5–8 (checkbox clicks, Enter/IME actions, preferences).
 1c. **Installer chain (owner-flagged 2026-11-23, backlog)** — installing apps
 *from* apps (F-Droid client, Obtainium): first evidence step + API surface in
 [`docs/agent-tasks/installer-chain.md`](docs/agent-tasks/installer-chain.md);
 witness list `corpora/stores.txt`. Security staging unchanged (roadmap:
 sandbox → mediated installs → permission model → isolation); no root `su`
 ever, no widening sandboxes to fake it.
+1d. **jvmrig finding #1 (fork-fix queue candidate)**: `KeyEvent.changeTimeRepeat`
+misses AOSP's `repeat != 0 ⇒ FLAG_LONG_PRESS` rule (the fork's ctor copy skips
+the `mFlags` update) — flagged warn-only (`RIG-KNOWN-GAP`) in
+`tools/jvmrig/tests/KeyEventMetaTest.java`; fix it in the fork and the test
+will print `RIG-GAP-CLOSED`.
 2. App widgets (`AppWidgetManager`, `AppWidgetHost`): unblocks Flow and Fossify Launcher.
 3. Visual check of password masking on the phone (an app with a password field).
 4. Harness: input scripting, stop-early settle (census is 98% fixed 25 s waits). (Per-app sandbox: done, see above.)
@@ -1714,7 +1719,18 @@ Say here which runner you're using for builds/gates, and clear it when done.
   generator (1029 recording stubs) + 5 new test classes, all PASS against
   fork `main` `4a97b41b` via a temporary worktree `~/Develop/atl-jvmrig`
   (removed after). Found rig gap #1 (`KeyEvent.changeTimeRepeat` misses
-  FLAG_LONG_PRESS) — fork-fix candidate, not touched here. Released.
+  FLAG_LONG_PRESS) — fork-fix candidate, not touched here.
+- **opencode (this session, 2026-11-23, ninth): `oneplus12`** — P2 of the
+  element-addressed-interaction brief: harness `element` failure kind
+  (`element not found: NAME`) + converted `interactions/org.fossify.{math,
+  notes,musicplayer}.txt` to element-addressed steps (Gramophone annotated
+  Compose-blocked). Witnessed on the phone (installed build `local:0b1c3695`
+  already had the P1 dumper — no build, no installs): runs `p2a`
+  (math/notes `interact_ok=1`; musicplayer fails only at the known
+  `ExpectText("TestList")` step, `interaction` kind, line 31) and scratch
+  `p2neg2` (bogus `wait-find` recorded `element` kind). Scratch config +
+  scripts under `work/` on the runner. No full-corpus gate (harness-only
+  change, scripted apps all witnessed). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
