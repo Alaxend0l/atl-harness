@@ -42,3 +42,43 @@ Parked note — analysis only, explicitly **not** scheduled work.
 1. Linux desktop UX (cross-app intents first — biggest missing glue).
 2. WSLg as the "Windows support" checkbox.
 3. macOS only after an explicit ART-host decision.
+
+## macOS without touching our code: the VM/container layer (owner question, 2026-11-23)
+
+The five walls (see graphics-backend.md §3) all vanish inside a Linux
+guest — and Andrun needs nothing special from a guest, because it has no
+Android-kernel dependency: `art_standalone` is a userspace process, which
+is why it already runs in a distrobox, a bwrap rootfs on the phone, under
+Xvfb, and **in a macOS VM today: the `mini` runner is a Fedora aarch64
+Lima VM on the M4 Mac mini running Andrun apps**. Per-app bwrap sandboxes
+work there too (real Linux kernel = namespaces).
+
+macOS-side software that makes Andrun usable, none requiring changes on
+our end:
+- **Lima** (what mini uses): headless-ish VMs, file sharing, ssh; X11
+  forwarding to an X server on the Mac gives *per-app windows*
+  (each `atl-app` window on the Mac desktop).
+- **XQuartz / Wayng**: the host-side X servers for that per-app-window UX.
+- **UTM**: GUI front-end to QEMU; full Linux desktop in one Mac window
+  with virtio display, CoreAudio-backed sound, clipboard, shared folders.
+- **Apple's own stack**: Virtualization.framework GUI Linux (macOS 13+,
+  SPICE agent clipboard/drag), `apple/container` (free CLI; community
+  recipes do X11 forwarding out of it), Krunkit (guest GPU via Mesa
+  Venus — the interesting one for GL performance), MacVHPT. Docker
+  Desktop/OrbStack/podman are the same VZ substrate; Andrun fits
+  containers (no kernel modules), GUI via XQuartz, audio needs a
+  PipeWire/Pulse socket into the container.
+
+Known gaps for a Mac UX demo (all outside Andrun's code):
+1. mini's Lima sound device fails `snd_pcm_hw_params` (HANDOFF) — a VM
+   config item (VirtioSound/pulse backend), worth an A/B: audible audio
+   in a VM would close the last UX hole.
+2. GL inside VMs is virtio (Venus/VirGL) or llvmpipe — mini runs today;
+   Krunkit-class Venus is the upgrade path.
+3. Polish: no native macOS titlebars/shortcuts in VM-desktop mode; X11
+   forwarding is the closest; host IME edge cases; x86-only guests are
+   slow (irrelevant — our builds are aarch64 on Apple Silicon).
+
+Packaging is mechanical: `scripts/runner/bootstrap.sh` already builds the
+rootfs this VM needs; `runners.toml` + `scripts/rig` already treat remote
+Linux boxes as runners — a Mac user's VM is just another entry.
