@@ -771,3 +771,39 @@ android.util.AttributeSet.getAttributeCount() is empty
 android.util.AttributeSet.getAttributeBooleanValue(String namespace, String attribute, boolean defaultValue) is empty
 android.util.AttributeSet.getAttributeBooleanValue(int index, boolean defaultValue) is empty
 android.util.AttributeSet.getAttributeNameResource(int index) is empty
+# fixed (374, 375, 379, 381): obtain(...) discarded metaState/edgeFlags/flags/downTime (the
+# natives that would store them are not in this fork) so getters answered constants; state now
+# stored in Java, getters read it, defaults documented against TouchInputMapper (fork 5321379d)
+android.view.MotionEvent.getFlags() returns a constant instead of state
+android.view.MotionEvent.getMetaState() returns a constant instead of state
+android.view.MotionEvent.getEdgeFlags() returns a constant instead of state
+android.view.MotionEvent.getDownTime() is marked TODO/FIXME
+# fixed (376): deviceId is now the single id InputDevice.getDeviceIds() lists (0) instead of an
+# arbitrary 1; obtain(...) stores the caller's id
+android.view.MotionEvent.getDeviceId() is marked TODO/FIXME
+# fixed (377): real loop over the event's pointer ids, -1 when absent (it answered 0 for every id)
+android.view.MotionEvent.findPointerIndex(int pointerId) returns a constant instead of state
+# recorded (378): 0 is AOSP's answer - AXIS_ORIENTATION exists only when the device reports tilt
+# (TouchInputMapper keeps orientation 0 otherwise) and ATL's virtual touchscreen reports none
+android.view.MotionEvent.getOrientation(int pointerIndex) returns a constant instead of state
+# recorded (380): 0 is AOSP's answer - history comes from input-reader batching (nativeAddBatch,
+# never called here, GTK delivers one motion per event); with no batch AOSP reports 0
+android.view.MotionEvent.getHistorySize() returns a constant instead of state
+# stale (382, 385-388): AttributeSet is an interface (AOSP shape) - declarations are false
+# positives; XmlPullAttributes carries the real bodies (getAttributeName delegates to the parser,
+# getClassAttribute/getStyleAttribute read class/style attributes, getAttributeIntValue x2 go
+# through XmlUtils.convertValueToInt)
+android.util.AttributeSet.getAttributeName(int index) is empty
+android.util.AttributeSet.getClassAttribute() is empty
+android.util.AttributeSet.getAttributeIntValue(String namespace, String attribute, int defaultValue) is empty
+android.util.AttributeSet.getAttributeIntValue(int index, int defaultValue) is empty
+android.util.AttributeSet.getStyleAttribute() is empty
+# fixed (383-384): pressure was constant 0; AOSP's TouchInputMapper gives a touchscreen without a
+# pressure axis "pressure = isHovering ? 0 : 1", so touch events now report 1.0 (hover 0), and
+# obtain(...) callers get their own per-pointer values. getSize(int) also fixed on the way: an
+# arbitrary 1 -> AOSP's SizeCalibration::NONE answer 0. Unflagged extra: scale()/isTouchEvent()/
+# setTainted()/setDownTime() called Java_android_view_MotionEvent_* symbols this fork never
+# provides (UnsatisfiedLinkError), implemented in Java; InputDevice.SOURCE_CLASS_MASK added
+# (fork 5838aac6)
+android.view.MotionEvent.getPressure() returns a constant instead of state
+android.view.MotionEvent.getPressure(int pointerIndex) returns a constant instead of state

@@ -1110,6 +1110,49 @@ with `javac -h`; commit the regenerated header with any new native method.
        NPE flake mode, not caused by this batch, which only changed
        `toString`), 0 regressed. `117b8d03` (comment-only, diff
        verified) is installed on top of the tree `fc64` ran.
+     - Queue batch 374–388 (fork `5321379d`..`0a9f833e`): the
+       **MotionEvent state cluster** — the whole `obtain(...)` family
+       took `downTime`/`metaState`/`buttonState`/`deviceId`/`edgeFlags`/
+       `flags`/`pressure`/`size` and threw every argument away (the
+       `core/jni/android_view_MotionEvent.cpp` natives that would have
+       stored them are not part of this fork — only the generated
+       header exists), so every getter answered a constant even for
+       events the caller described in full, and `getDownTime()` returned
+       `eventTime` (gesture duration always 0). Now stored in Java
+       fields (this class already keeps source/action/eventTime/ids/
+       coords in Java; the JNI only calls the constructors): the
+       constructors remember the gesture's ACTION_DOWN time the way
+       AOSP's input layer does, the getters read the state, and the
+       defaults for produced events are AOSP's own values for this
+       device shape — every ATL event comes from one virtual
+       `SOURCE_TOUCHSCREEN` with no pressure/size axes, and
+       frameworks/native `TouchInputMapper` (android16-release) gives
+       such a device `pressure = isHovering ? 0 : 1` (default
+       PressureCalibration) and size 0 (`SizeCalibration::NONE`), so
+       pressure is 1.0 while touching (was 0) and `getSize(int)` lost
+       its arbitrary 1. `getDeviceId()` now answers 0, the single id
+       `InputDevice.getDeviceIds()` lists (was an arbitrary 1 +
+       FIXME); `findPointerIndex` searches ids and answers -1 (it said
+       0 for every id); the single-pointer `obtain` used pointer id 1
+       (AOSP: 0) and raw coords 0 (AOSP: raw == x/y). Also fixed a
+       live-crash class the queue never flagged: `scale()`,
+       `isTouchEvent()`, `setTainted()`, `setDownTime()` still called
+       the never-provided natives → **UnsatisfiedLinkError** on any
+       call (`isTouchEvent` is public since API 29); implemented in
+       Java (hover/scroll rule from the AOSP javadoc) + added
+       `InputDevice.SOURCE_CLASS_MASK`. Recorded faithful:
+       `getHistorySize()`/`getOrientation()` 0 (no input-reader
+       batching / no tilt axis — AOSP's own answers). 5 items stale
+       again (`AttributeSet` interface declarations —
+       `XmlPullAttributes` carries the real bodies). Follow-ups in
+       code: feed GDK modifier state through the JNI input path so
+       produced events report CTRL/SHIFT in `getMetaState()`;
+       `getAxisValue()` still answers 0 for all axes. Gate `fc65` vs
+       `fc64`: 0/0 — **no runtime witness** (atl-gaps: no coverage for
+       these gaps; no `obtain`/pressure/UnsatisfiedLinkError
+       signatures in corpus logs), so this batch is verified
+       no-regression + compile, and the pressure-default change is
+       taken from AOSP's input layer, not measured on an app.
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -1345,8 +1388,8 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x50 and full-corpus gates
-  `fc30`..`fc63` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x55 and full-corpus gates
+  `fc30`..`fc65` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
   was fixed, and `fc48`/`fc52` which FAILED on the canary's flake (see
   the batch 179–193 and 224–238 entries: cleared by `fc49`, 0/0 vs
@@ -1354,18 +1397,22 @@ Say here which runner you're using for builds/gates, and clear it when done.
   improved: phonograph EXITED->ALIVE, nudge CRASH->BLANK; `fc40` 1
   improved: me.zhanghai.android.files CRASH->ALIVE; `fc60` 1 improved:
   same canary CRASH->ALIVE after the harness masked `/etc/group` from
-  the sandbox (D18, killed the JNI flake mode). Fork commits
-  `940749c9`..`84a4aa48` (21 queue fixes + getWindowToken + fragment
+  the sandbox (D18, killed the JNI flake mode); `fc64` 1 improved: the
+  canary's other (NPE) flake mode cleared again, CRASH->ALIVE. Fork
+  commits `940749c9`..`0a9f833e` (21 queue fixes + getWindowToken + fragment
   onActivityCreated dispatch + fillType + Ringtone + dispatchKeyEvent +
   View state batch + TextView isSingleLine + batches 119-133, 134-148,
   149-163, 164-178, 179-193, 194-208, 209-223, 224-238, 239-253,
-  254-268, 269-283, 284-298, 299-313, 314-328, 329-343 and 344-358 + hasWindowFocus fixup)
+  254-268, 269-283, 284-298, 299-313, 314-328, 329-343, 344-358 +
+  hasWindowFocus fixup, 359-373 and 374-388)
   pushed to `fix/fixcov-crashes` + `local-fixes`. Added
   `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
   with `atl-gaps --emit-queue
   15` after `fc39` (119 items), `fc41` (134), `fc43` (149), `fc44` (164),
   `fc46` (179), `fc47` (194), `fc49` (209), `fc50` (224), `fc51` (239),
-  `fc53` (254), `fc54` (269), `fc55` (284), `fc58` (299) and `fc59` (314).
+  `fc53` (254), `fc54` (269), `fc55` (284), `fc58` (299), `fc59` (314),
+  `fc61` (329), after 314-328 (344), `fc62` (359), `fc63` (374) and
+  `fc64` (389).
   Used `rig smoke` + single-hunk builds to
   bisect the item-63 witness and the item-131 regression, and repeated
   forced single-app runs (5 at `433b2354`, 8 at the new tip) to show the
@@ -1383,7 +1430,7 @@ Say here which runner you're using for builds/gates, and clear it when done.
   job status` before starting; no other agent's
   jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
   phone items 67/103 stayed parked. Bazzite left installed with the
-  `84a4aa48` tree (= `local-fixes` tip). Released.
+  `0a9f833e` tree (= `local-fixes` tip; `fc65` ran on it). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
