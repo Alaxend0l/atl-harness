@@ -681,6 +681,45 @@ with `javac -h`; commit the regenerated header with any new native method.
        143; implemented-already: 135; a11y stub: 141). Gate `fc44` vs
        `fc43`: **0 improved, 0 regressed** (no witnesses; no-regression
        only).
+     - Queue batch 149–163 (fork `fdda777c`..`0bfe2dd5`):
+       getApplicationWindowToken now answers the same attach token as
+       getWindowToken (was null); AutofillId rewritten to wrap a value
+       with equals/hashCode and View lazily assigns a unique id per
+       view (the class was **empty** and the getter made a fresh object
+       per call, so no round-trip or equality could ever work); the
+       hover chain wired up — `OnHoverListener`'s interface body was
+       `// TODO` with **no method at all**, so `setOnHoverListener`
+       stored a listener that could not be called: AOSP's
+       `boolean onHover(View, MotionEvent)` added (app classes are
+       compiled against it), listener stored, `dispatchHoverEvent`
+       follows AOSP's listener-then-onHoverEvent chain (ATL still does
+       not feed GTK hover into the view tree — input gap);
+       `getFocusables` returns self when visible/enabled/focusable
+       (AOSP base-View semantics; ViewGroup's descendant-collecting
+       override does not exist in ATL — GTK owns focus search — noted
+       as its own gap); `Intent.setExtrasClassLoader` forwards to the
+       Bundle (which already keeps and uses mClassLoader);
+       backgroundTintMode state; fading-edge length state + the
+       previously absent getHorizontalFadingEdgeLength; getMeasuredState
+       is now AOSP's composition over the measured sizes instead of a
+       literal 0 (still 0 in practice, because ATL's measure path never
+       sets MEASURED_STATE_TOO_SMALL — said so in the commit). Gates
+       `fc45` vs `fc44` **and** `fc46` vs `fc45`: **0 improved, 0
+       regressed** each (no witnesses; no-regression only; the two
+       behaviour-visible changes in the batch — getFocusables now
+       non-empty, hover chain — regressed nothing). Seven items stale
+       with reasoning (149 AOSP base View returns false and ATL has no
+       ViewGroup interception machinery; 152 implemented, the HACK is
+       the fork's deliberate Open Sudoku catch; 153 implemented, TODO is
+       only the toplevel edge case; 155 AOSP base computeScroll IS
+       empty; 159 no ActionMode infrastructure, null faithful; 161 no
+       activity-manager telemetry sink). Two queue items this batch were
+       **atl-gaps false positives**, worth a tooling fix: 154
+       (`scrollTo` "is marked TODO") matched the prose *"AOSP does
+       nothing"* inside an explanatory comment, and last batch's 143
+       (`resolveAttribute` "prints on every call") was already
+       debug-gated — the `TODO_MARK` regex (`scripts/atl-gaps:69`) needs
+       to ignore prose in comments and print sites.
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -916,24 +955,24 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x13 and full-corpus gates
-  `fc30`..`fc44` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x15 and full-corpus gates
+  `fc30`..`fc46` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
   was fixed; `fc37` 2 improved: phonograph EXITED->ALIVE, nudge
   CRASH->BLANK; `fc40` 1 improved: me.zhanghai.android.files
-  CRASH->ALIVE). Fork commits `940749c9`..`ab389a2c` (21 queue fixes +
+  CRASH->ALIVE). Fork commits `940749c9`..`0bfe2dd5` (21 queue fixes +
   getWindowToken + fragment onActivityCreated dispatch + fillType +
   Ringtone + dispatchKeyEvent + View state batch + TextView
-  isSingleLine + batches 119-133 and 134-148 + hasWindowFocus fixup)
-  pushed to `fix/fixcov-crashes` + `local-fixes`. Added
+  isSingleLine + batches 119-133, 134-148 and 149-163 + hasWindowFocus
+  fixup) pushed to `fix/fixcov-crashes` + `local-fixes`. Added
   `com.io7m.exfilac.main` to `corpora/fixcov.txt`; refreshed the queue
   with `atl-gaps --emit-queue 15` after `fc39` (119 items), `fc41`
-  (134) and `fc43` (149). Used `rig smoke` + single-hunk builds to
-  bisect the item-63 witness and the item-131 regression. Checked
-  `rig -r bazzite job status` before starting; no other agent's jobs.
-  Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh), phone
-  items 67/103 stayed parked. Bazzite left installed with the
-  `ab389a2c` tree (= `local-fixes` tip). Released.
+  (134), `fc43` (149) and `fc44` (164). Used `rig smoke` + single-hunk
+  builds to bisect the item-63 witness and the item-131 regression.
+  Checked `rig -r bazzite job status` before starting; no other agent's
+  jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
+  phone items 67/103 stayed parked. Bazzite left installed with the
+  `0bfe2dd5` tree (= `local-fixes` tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

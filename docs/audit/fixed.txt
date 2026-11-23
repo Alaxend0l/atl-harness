@@ -178,3 +178,35 @@ android.view.View.setBackgroundTintList(ColorStateList tint) is empty
 android.view.View.setTextDirection(int textDirection) is empty
 android.view.View.setWindowInsetsAnimationCallback(WindowInsetsAnimation.Callback callback) is empty
 android.view.View.getOverScrollMode() returns a constant
+# stale (149): AOSP base View.onInterceptTouchEvent returns false (ViewGroup overrides it); ATL's
+# ViewGroup touch loop (ViewGroup.java:174) only ever sees that base false because no
+# ViewGroup-level interception machinery exists - per-container interception (RecyclerView/ViewPager
+# style) is an input gap, the base answer is faithful
+android.view.View.onInterceptTouchEvent(MotionEvent event) returns a constant
+# stale (152): implemented (FEATURE_OPTIONS_PANEL -> onCreateOptionsMenu); the HACK marker is the
+# fork's deliberate catch of a non-critical Open Sudoku crash, not a missing body. Left alone: it is
+# pre-existing fork behaviour and removing the catch risks re-breaking that corpus app
+android.app.Activity.onCreatePanelMenu(int featureId, Menu menu) is marked
+# stale (153): recreate() is implemented (internalCreateActivity + finish/restart through a
+# Handler); the TODO marks only the toplevel-activity edge case
+android.app.Activity.recreate() is marked
+# stale (154): false positive - atl-gaps' marker regex matched the prose "AOSP does nothing" inside
+# an explanatory comment; scrollTo is fully implemented (scrollX/Y + onScrollChanged + invalidate)
+android.view.View.scrollTo(int x, int y) is marked
+# stale (155): AOSP base View.computeScroll IS empty (ViewGroup overrides it to advance fling
+# animations, which ATL does not have); faithful to the base class
+android.view.View.computeScroll() is empty
+# stale (159): ATL has no ActionMode infrastructure (no window action mode UI); null is what
+# Android returns when the action mode cannot be created
+android.view.View.startActionMode(ActionMode.Callback callback) returns a constant
+# stale (161): AOSP reports drawn-time telemetry to the activity manager for app-start metrics;
+# ATL has no activity-manager telemetry sink, so the no-op is faithful
+android.app.Activity.reportFullyDrawn() is empty
+android.view.View.getApplicationWindowToken() returns a constant instead of state
+android.view.View.getAutofillId() returns a constant instead of state
+android.view.View.getMeasuredState() returns a constant instead of state
+android.view.View.getVerticalFadingEdgeLength() returns a constant instead of state
+android.view.View.dispatchHoverEvent(MotionEvent event) returns a constant instead of state
+android.view.View.getFocusables(int direction) returns a constant instead of state
+android.content.Intent.setExtrasClassLoader(ClassLoader loader) is empty
+android.view.View.setBackgroundTintMode(PorterDuff.Mode tintMode) is empty
