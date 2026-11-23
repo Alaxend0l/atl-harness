@@ -272,3 +272,42 @@ android.view.View.getAccessibilityLiveRegion() returns a constant
 android.view.View.setOnKeyListener(OnKeyListener l) is empty
 android.view.View.setScrollIndicators(int indicators, int mask) is empty
 android.view.View.setHasTransientState(boolean hasTransientState) is empty
+# fixed (194/196/200/203/207): the setters dropped the value and the AOSP getters
+# (isSaveFromParentEnabled, isAccessibilityHeading, isScrollContainer, getTransitionName,
+# getLabelFor) were not declared at all - now stored + round-trip (fork 9a1af897)
+android.view.View.setSaveFromParentEnabled(boolean enabled) is empty
+android.view.View.setAccessibilityHeading(boolean heading) is empty
+android.view.View.setScrollContainer(boolean isScrollContainer) is empty
+android.view.View.getTransitionName() returns a constant
+android.view.View.setLabelFor(int id) is empty
+# fixed (204): getOverlay() built a new empty ViewOverlay per call, so add()/clear() were
+# unobservable; now one lazily-created object per view as AOSP (and ViewGroup already did)
+android.view.View.getOverlay() returns a constant
+# fixed (195): no mCurrentAnimation slot - clearAnimation empty, setAnimation dropped it,
+# getAnimation always null. Now kept; note ATL has no per-frame driver (startAnimation runs
+# the animation synchronously, an existing gap), so the slot records rather than drives
+android.view.View.clearAnimation() is empty
+# fixed (206): View.bringToFront() was empty and ViewGroup.bringChildToFront a `// TODO`
+# no-op. Drawing order in ATL is the native GTK child order, so both the Java list and the
+# native widget are reordered now (native_addView with index = children.size() appends)
+android.view.View.bringToFront() is empty
+# recorded (197): AOSP's base View.onHoverEvent only handles accessibility hover and
+# returns false otherwise; ATL has no a11y node pipeline and no GTK hover feed (fork 093439ab)
+android.view.View.onHoverEvent(MotionEvent event) returns a constant
+# recorded (198/199): **gap: ComponentCallbacks contract** - the fork's ComponentCallbacks is
+# `public interface ComponentCallbacks {}` (no onConfigurationChanged/onLowMemory/onTrimMemory),
+# nothing holds a registration list and ATL has no reconfiguration source to call
+android.content.Context.registerComponentCallbacks(ComponentCallbacks callbacks) is empty
+android.content.Context.unregisterComponentCallbacks(ComponentCallbacks callbacks) is empty
+# stale (201): AOSP's newTheme() also returns a fresh Theme each call; the fork's Theme()
+# copies mAssets and allocates a native theme (mAssets.createTheme()), so it is not a constant
+android.content.res.Resources.newTheme() returns a constant
+# recorded (202): ATL draws no scrollbars (GTK's scroll widget is the affordance) and the fork's
+# own AbsListView.trackMotionScroll does `if (!awakenScrollBars()) invalidate();` - false keeps it
+android.view.View.awakenScrollBars() returns a constant
+# stale (205): the TODO is resolved - isInTouchMode() is false in ATL (focus is GTK's), which is
+# the branch AOSP takes when not in touch mode, and the fork already calls requestFocus(FOCUS_DOWN)
+android.view.View.requestFocusFromTouch() is marked TODO/FIXME
+# recorded (208): Activity no longer answers - it forwards to Window.requestFeature, where the
+# reason lives (ATL's window chrome is GTK's, no feature flags change the decor); answer unchanged
+android.app.Activity.requestWindowFeature(int featureId) returns a constant

@@ -795,6 +795,38 @@ with `javac -h`; commit the regenerated header with any new native method.
        app-side code reacting to a null root in its storage listing, i.e.
        the same neighbourhood as the missing SAF document-provider
        subsystem (HANDOFF item 13 family).
+     - Queue batch 194–208 (fork `9a1af897`..`5c42fdad`, gate `fc50` =
+       **0 improved, 0 regressed vs `fc49`**): a batch of View state that
+       was simply dropped — `setScrollContainer`, `setSaveFromParentEnabled`,
+       `setAccessibilityHeading`, `setLabelFor`, `setTransitionName` (and
+       the AOSP getters `isScrollContainer`/`isSaveFromParentEnabled`/
+       `isAccessibilityHeading`/`getLabelFor`/`getTransitionName` were not
+       declared at all), plus `getOverlay()` building a **new empty
+       `ViewOverlay` per call** (so `add()`/`clear()` were unobservable;
+       now one lazy object per view, as `ViewGroup.getOverlay()` already
+       did). `clearAnimation`/`setAnimation`/`getAnimation` had no
+       `mCurrentAnimation` slot — now kept, with the honest note that ATL
+       has no per-frame animation driver (`startAnimation()` runs the
+       animation synchronously, an existing gap). **`bringToFront()` was
+       empty and `ViewGroup.bringChildToFront` a `// TODO` no-op**: ATL's
+       drawing order *is* the native GTK child order (the wrapper
+       snapshots its child, GTK paints siblings in order — the same
+       reason `addViewInternal()` z-sorts before `native_addView`), so the
+       fix reorders the Java list *and* the native widget
+       (`native_addView` index = `children.size()` appends, one more than
+       the fresh-add case because the child is already attached).
+       Five items recorded instead of changed, each with the AOSP check in
+       the code: `onHoverEvent` (a11y-hover only, no pipeline), the
+       **ComponentCallbacks gap** (the fork's interface is literally empty,
+       nothing holds a registration list, ATL has no reconfiguration
+       source), `Resources.newTheme` (stale — AOSP returns a fresh Theme
+       too and the fork's `Theme()` allocates a real native theme),
+       `awakenScrollBars` (no scrollbars in ATL; false keeps the fork's
+       own `AbsListView.trackMotionScroll` repaint) and
+       `requestFocusFromTouch`'s TODO (resolved: `isInTouchMode()` is
+       false because focus is GTK's — the branch AOSP takes then).
+       `Activity.requestWindowFeature` now delegates to
+       `Window.requestFeature` where the reason belongs (answer unchanged).
      - Item 63 (me.zhanghai.android.files NPE) **fixed with witness in
        `fc40` (CRASH→ALIVE)**. Earlier SAF-provider hypothesis was
        wrong: the real root cause is `View.isLaidOut()` returning
@@ -1030,28 +1062,28 @@ Say here which runner you're using for builds/gates, and clear it when done.
   resolve (phone asleep/off mDNS). Bazzite left installed with
   the `71b502f5` tree. Released.
 - **opencode (this session, 2026-11-22/23, sixteenth): `bazzite`** — fix-loop
-  continuation (HANDOFF item 28): `build-atl` x25 and full-corpus gates
-  `fc30`..`fc49` (74 apps each, each vs its predecessor; all 0
+  continuation (HANDOFF item 28): `build-atl` x27 and full-corpus gates
+  `fc30`..`fc50` (74 apps each, each vs its predecessor; all 0
   regressed except `fc42` which FAILED on the item-131 regression and
   was fixed, and `fc48` which FAILED on the canary's flake (see the
   batch 179–193 entry: cleared by `fc49`, 0/0 vs `fc47`); `fc37` 2
   improved: phonograph EXITED->ALIVE, nudge CRASH->BLANK; `fc40` 1
   improved: me.zhanghai.android.files CRASH->ALIVE). Fork commits
-  `940749c9`..`337d8a92` (21 queue fixes + getWindowToken + fragment
+  `940749c9`..`5c42fdad` (21 queue fixes + getWindowToken + fragment
   onActivityCreated dispatch + fillType + Ringtone + dispatchKeyEvent +
   View state batch + TextView isSingleLine + batches 119-133, 134-148,
-  149-163, 164-178 and 179-193 + hasWindowFocus fixup) pushed to
-  `fix/fixcov-crashes` + `local-fixes`. Added `com.io7m.exfilac.main` to
-  `corpora/fixcov.txt`; refreshed the queue with `atl-gaps --emit-queue
+  149-163, 164-178, 179-193 and 194-208 + hasWindowFocus fixup) pushed
+  to `fix/fixcov-crashes` + `local-fixes`. Added `com.io7m.exfilac.main`
+  to `corpora/fixcov.txt`; refreshed the queue with `atl-gaps --emit-queue
   15` after `fc39` (119 items), `fc41` (134), `fc43` (149), `fc44` (164),
-  `fc46` (179) and `fc47` (194). Used `rig smoke` + single-hunk builds to
+  `fc46` (179), `fc47` (194) and `fc49` (209). Used `rig smoke` + single-hunk builds to
   bisect the item-63 witness and the item-131 regression, and repeated
   forced single-app runs (5 at `433b2354`, 8 at the new tip) to show the
   `fc48` canary CRASH is pre-existing flakiness rather than a regression.
   Checked `rig -r bazzite job status` before starting; no other agent's
   jobs. Phone still unreachable (`rig -r oneplus12 doctor` FAIL ssh),
   phone items 67/103 stayed parked. Bazzite left installed with the
-  `337d8a92` tree (= `local-fixes` tip). Released.
+  `5c42fdad` tree (= `local-fixes` tip). Released.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65
