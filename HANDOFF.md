@@ -22,7 +22,7 @@ avoids the OpenSSH per-source penalties that locked the mini's VM out twice.
 | Repo | Where | State |
 |---|---|---|
 | atl-harness (this) | github `Alaxend0l/atl-harness`, private | `main` pushed |
-| ATL fork | github `Alaxend0l/android-translation-layer`, private; workstation clone `~/Develop/android-translation-layer` | `main` = `7cb4cd2b`; upstream fetch-only. Runners pull with read-only deploy keys (alias `github-atl-fork`). Beware: several agents share this clone — one loop switches branches in it live (it also checks out `main` in `~/Develop/atl-shaders` and keeps a detached scratch worktree under `/tmp/claude-*/scratchpad/atl-main`); it silently discarded uncommitted edits once this session. Commit WIP early; never rely on uncommitted files surviving. |
+| ATL fork | github `Alaxend0l/andrun` (renamed 2026-11-23, D19; old path redirects), private; workstation clone `~/Develop/android-translation-layer` | `main` = `7cb4cd2b`; upstream fetch-only. Runners pull with read-only deploy keys (alias `github-atl-fork`). Beware: several agents share this clone — one loop switches branches in it live (it also checks out `main` in `~/Develop/atl-shaders` and keeps a detached scratch worktree under `/tmp/claude-*/scratchpad/atl-main`); it silently discarded uncommitted edits once this session. Commit WIP early; never rely on uncommitted files surviving. |
 | fedora-atomic-phone | github `Alaxend0l/fedora-atomic-phone`; clone `~/Develop/fedora-atomic-phone` | branches **`plasma-mobile-spectacle`** and **`oneplus12-flatpak-home`** pushed, not merged |
 
 ## ATL fork: what's merged on `main`
@@ -1629,6 +1629,12 @@ Say here which runner you're using for builds/gates, and clear it when done.
   **oneplus12** (both installed `local:8faa3ec3`), diagnosis + witness
   in the workstation's podman container `atl-desktop`. No ATL probes left
   in the tree; fork `MediaSession` witness line is from `a52665e6`.
+  Same session: **D19 executed (identity level)** — fork repo renamed to
+  **github.com/Alaxend0l/andrun**, README/FORK retitled "Andrun" with
+  disclaimer + upstream credit (fork `16701e67` on `local-fixes`);
+  pre-rename string scan findings recorded in D19/FORK.md. Mechanical
+  renames (binary, meson, desktop entries, config strings) deliberately
+  left as their own task — see D19.
 
 ## Triage: local model vs Claude
 `docs/agent-tasks/triage.md` (7 agents, every audit item + a survey): 65

@@ -147,7 +147,7 @@ that would let passwd be masked too. This narrows what an app can read (host
 account names were leaking), so it is not a sandbox-policy widening in D16's
 sense; the rationale lives next to the mount in the script.
 
-## D19 (2026-11-23): rebrand the fork as "Andrun" (rename task, not yet executed)
+## D19 (2026-11-23): rebrand the fork as "Andrun" (executed 2026-11-23, identity level)
 Owner decision: the fork will be retitled **Andrun** to mark it clearly as a
 separate project from upstream Android Translation Layer. Motivation:
 upstream (postmarketOS ATL) has a no-AI-contribution policy (D1), and our
@@ -174,3 +174,18 @@ Follow-up when executed: meson `project('android_translation_layer')`, the
 `android.*` Java package namespace is API emulation and stays untouched.
 Until then the fork keeps its current name everywhere (installed builds,
 harness strings).
+
+Executed 2026-11-23 (identity level, owner instruction): pre-rename
+exact-string check done — GitHub had only unrelated hobby repos/personal
+handles matching "andrun", and the app stores hold one dormant, unrelated
+"andRUN" running app (2012, `com.sugart.andrun`); noted in FORK.md. The
+fork repo was renamed to **github.com/Alaxend0l/andrun** (old URL
+redirects), and README.md/FORK.md were retitled with the extended
+disclaimer and upstream credit (fork commit `16701e67` on
+`local-fixes`). Deliberately still pending: the mechanical renames above
+(meson project name, `android-translation-layer` binary, `atl-*` tools,
+desktop entries, `runners.toml` and runner `atl_git` strings — the latter
+still name the old repo path and keep working through GitHub's
+redirect). Renaming binaries changes what every runner installs and what
+every config command runs: do it as its own task with a full re-bootstrap
++ gate, not as a drive-by.
